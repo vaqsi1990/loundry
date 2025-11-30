@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSession, signOut } from "next-auth/react";
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { data: session, status } = useSession();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-md shadow-sm">
@@ -34,9 +36,23 @@ export default function Header() {
             <Link href="#contact" className="text-black md:text-[18px] text-[16px] transition">
               კონტაქტი
             </Link>
-            <Link href="/login" className="w-full md:w-auto bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
-              შესვლა
-            </Link>
+            {status === "authenticated" && session ? (
+              <>
+                <Link href="/profile" className="text-black md:text-[18px] text-[16px] transition">
+                  პროფილი
+                </Link>
+                <button
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                  className="w-full md:w-auto bg-gray-200 text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition hover:bg-gray-300"
+                >
+                  გასვლა
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="w-full md:w-auto bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
+                შესვლა
+              </Link>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -103,9 +119,30 @@ export default function Header() {
             >
               კონტაქტი
             </Link>
-            <Link href="/login" className="w-full bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
-              შესვლა
-            </Link>
+            {status === "authenticated" && session ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="block text-black text-[16px] transition"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  პროფილი
+                </Link>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    signOut({ callbackUrl: "/" });
+                  }}
+                  className="w-full bg-gray-200 text-black text-[16px] px-6 py-2 rounded-lg cursor-pointer transition hover:bg-gray-300"
+                >
+                  გასვლა
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="w-full bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
+                შესვლა
+              </Link>
+            )}
           </div>
         )}
       </nav>

@@ -125,6 +125,7 @@ export async function POST(request: NextRequest) {
           name: `${validatedData.name} ${validatedData.lastName}`.trim(),
           email: validatedData.email,
           password: hashedPassword,
+          mobileNumber: validatedData.mobileNumber,
         },
         select: {
           id: true,
