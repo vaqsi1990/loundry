@@ -123,7 +123,7 @@ export default function AdminPage() {
               </p>
               <Link className="w-full bg-white text-black px-4 cursor-pointer py-2 rounded-lg hover:bg-gray-100 font-medium text-[16px] md:text-[18px] transition-colors text-center" href={section.path}>
           
-                {section.label}ს ნახვა
+                {section.label}
              
               </Link>
             </div>
