@@ -185,3 +185,45 @@ model Expense {
   @@index([date])
   @@index([category])
 }
+
+model Salary {
+  id              String        @id @default(cuid())
+  employeeId      String?       // Reference to Employee if exists
+  employeeName    String        // Employee name (can be from Employee or manual)
+  amount          Float
+  month           Int           // 1-12
+  year            Int
+  status          String        // PENDING, PAID, CANCELLED
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([year, month])
+  @@index([status])
+}
+
+model Revenue {
+  id              String        @id @default(cuid())
+  source          String        // Service, Invoice, Other
+  description     String
+  amount          Float
+  date            DateTime      @db.Date
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([date])
+  @@index([source])
+}
+
+model HotelDatabase {
+  id              String        @id @default(cuid())
+  hotelName       String
+  contactPhone    String
+  email           String?
+  address         String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([hotelName])
+}
