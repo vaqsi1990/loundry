@@ -20,7 +20,7 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="#home" className="text-black md:text-[18px] text-[16px] transition">
+            <Link href="/" className="text-black md:text-[18px] text-[16px] transition">
               მთავარი
             </Link>
             <Link href="#services" className="text-black md:text-[18px] text-[16px] transition">
@@ -94,7 +94,7 @@ export default function Header() {
         {isMenuOpen && (
           <div className="md:hidden mt-4 space-y-4 pb-4">
             <Link
-              href="#home"
+              href="/"
               className="block text-black text-[16px] transition"
               onClick={() => setIsMenuOpen(false)}
             >
