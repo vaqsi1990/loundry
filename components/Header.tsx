@@ -41,6 +41,11 @@ export default function Header() {
                 <Link href="/profile" className="text-black md:text-[18px] text-[16px] transition">
                   პროფილი
                 </Link>
+                {(session.user as any)?.role === "ADMIN" && (
+                  <Link href="/admin" className="text-black md:text-[18px] text-[16px] transition">
+                    ადმინის პანელი
+                  </Link>
+                )}
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
                   className="w-full md:w-auto bg-gray-200 text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition hover:bg-gray-300"
@@ -128,6 +133,15 @@ export default function Header() {
                 >
                   პროფილი
                 </Link>
+                {(session.user as any)?.role === "ADMIN" && (
+                  <Link
+                    href="/admin"
+                    className="block text-black text-[16px] transition"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    ადმინის პანელი
+                  </Link>
+                )}
                 <button
                   onClick={() => {
                     setIsMenuOpen(false);

@@ -47,7 +47,7 @@ export default function Promise() {
                   <h3 className="text-[18px] md:text-[20px] font-bold text-black mb-2">
                     {promise.title}
                   </h3>
-                  <p className="text-gray-600 text-sm md:text-base leading-relaxed">
+                  <p className="text-black text-[16px] md:text-[18px] leading-relaxed">
                     {promise.description}
                   </p>
                 </div>

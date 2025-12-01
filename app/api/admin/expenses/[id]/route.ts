@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    await prisma.expense.delete({
+      where: { id: params.id },
+    });
+
+    return NextResponse.json({ message: "ხარჯი წაიშალა" });
+  } catch (error) {
+    console.error("Expense delete error:", error);
+    return NextResponse.json(
+      { error: "ხარჯის წაშლისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
+
