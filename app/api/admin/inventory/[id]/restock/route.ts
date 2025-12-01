@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -29,11 +29,12 @@ export async function POST(
       );
     }
 
+    const { id } = await params;
     const body = await request.json();
     const { quantity } = body;
 
     const item = await prisma.inventory.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!item) {
@@ -44,7 +45,7 @@ export async function POST(
     }
 
     const updatedItem = await prisma.inventory.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         quantity: item.quantity + quantity,
         lastRestocked: new Date(),

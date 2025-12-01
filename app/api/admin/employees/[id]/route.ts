@@ -7,7 +7,7 @@ import { join } from "path";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,6 +31,7 @@ export async function PUT(
       );
     }
 
+    const { id } = await params;
     const formData = await request.formData();
     const name = formData.get("name") as string;
     const email = formData.get("email") as string | null;
@@ -40,7 +41,7 @@ export async function PUT(
     const contractFile = formData.get("contractFile") as File | null;
 
     const existingEmployee = await prisma.employee.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingEmployee) {
@@ -77,7 +78,7 @@ export async function PUT(
     }
 
     const employee = await prisma.employee.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name,
         email: email || null,
@@ -100,7 +101,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -124,8 +125,10 @@ export async function DELETE(
       );
     }
 
+    const { id } = await params;
+
     const employee = await prisma.employee.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!employee) {
@@ -146,7 +149,7 @@ export async function DELETE(
     }
 
     await prisma.employee.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "თანამშრომელი წაიშალა" });
