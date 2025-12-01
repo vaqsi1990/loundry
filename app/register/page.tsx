@@ -6,6 +6,7 @@ import Link from "next/link";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [userType, setUserType] = useState<"PHYSICAL" | "LEGAL" | "ADMIN" | "">("");
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,6 +39,12 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
+    // Validate user type is selected
+    if (!userType) {
+      setError("გთხოვთ აირჩიოთ რეგისტრაციის ტიპი");
+      return;
+    }
+
     // Validate passwords match
     if (password !== confirmPassword) {
       setError("პაროლები არ ემთხვევა");
@@ -54,19 +61,20 @@ export default function RegisterPage() {
         password,
         confirmPassword,
         mobileNumber,
+        role: userType === "ADMIN" ? "ADMIN" : "USER",
       };
 
-      // Only include hotel data if hotelType is selected
-      if (hotelType) {
-        requestBody.hotelType = hotelType;
+      // Only include hotel data if userType is PHYSICAL or LEGAL
+      if (userType === "PHYSICAL" || userType === "LEGAL") {
+        requestBody.hotelType = userType;
         requestBody.hotelName = hotelName;
         requestBody.hotelRegistrationNumber = hotelRegistrationNumber;
         requestBody.numberOfRooms = numberOfRooms ? parseInt(numberOfRooms) : undefined;
         requestBody.hotelEmail = hotelEmail;
 
-        if (hotelType === "PHYSICAL") {
+        if (userType === "PHYSICAL") {
           requestBody.personalId = personalId;
-        } else if (hotelType === "LEGAL") {
+        } else if (userType === "LEGAL") {
           requestBody.legalEntityName = legalEntityName;
           requestBody.identificationCode = identificationCode;
           requestBody.responsiblePersonName = responsiblePersonName;
@@ -98,13 +106,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className=" bg-gray-50 py-12 px-14 mt-10 md:px-14">
+    <div className=" bg-gray-50 py-12 min-h-screen px-14 mt-10 md:px-14">
       <div className="max-w-2xl mx-auto">
         <div>
-          <h2 className="mt-6 text-center md:text-[24px] text-[18px] font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center md:text-[24px] text-[18px] font-extrabold text-black">
             რეგისტრაცია
           </h2>
-          <p className="mt-2 text-center text-[16px] md:text-[18px] text-gray-600">
+          <p className="mt-2 text-center text-[16px] md:text-[18px] text-black">
             ან{" "}
             <Link
               href="/login"
@@ -114,20 +122,123 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-14 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
           )}
 
-          {/* User Account Fields */}
+          {/* User Type Selection - First Step */}
+          <div className="bg-white mt-14 shadow rounded-lg p-6">
+            <h3 className="text-[16px] md:text-[18px] font-medium text-black mb-4 text-center">
+              რეგისტრაციის ტიპი
+            </h3>
+            <div className="grid grid-cols-1  text-center md:grid-cols-3 gap-4">
+              <label className={`flex flex-col items-center justify-center p-6 border-2 rounded-lg cursor-pointer transition-all ${
+                userType === "PHYSICAL" 
+                  ? "border-blue-600 bg-blue-50" 
+                  : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+              }`}>
+                <input
+                  type="radio"
+                  name="userType"
+                  value="PHYSICAL"
+                  checked={userType === "PHYSICAL"}
+                  onChange={(e) => {
+                    setUserType(e.target.value as "PHYSICAL");
+                    setHotelType("PHYSICAL");
+                  }}
+                  className="sr-only"
+                />
+                <div className={`w-6 h-6 rounded-full border-2 mb-3 flex items-center justify-center ${
+                  userType === "PHYSICAL" 
+                    ? "border-blue-600 bg-blue-600" 
+                    : "border-gray-400"
+                }`}>
+                  {userType === "PHYSICAL" && (
+                    <div className="w-3 h-3 rounded-full bg-white"></div>
+                  )}
+                </div>
+                <span className={`text-[16px] md:text-[18px] font-medium ${
+                  userType === "PHYSICAL" ? "text-blue-600" : "text-black"
+                }`}>
+                  ფიზიკური პირი
+                </span>
+              </label>
+              <label className={`flex flex-col items-center justify-center p-6 border-2 rounded-lg cursor-pointer transition-all ${
+                userType === "LEGAL" 
+                  ? "border-blue-600 bg-blue-50" 
+                  : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+              }`}>
+                <input
+                  type="radio"
+                  name="userType"
+                  value="LEGAL"
+                  checked={userType === "LEGAL"}
+                  onChange={(e) => {
+                    setUserType(e.target.value as "LEGAL");
+                    setHotelType("LEGAL");
+                  }}
+                  className="sr-only"
+                />
+                <div className={`w-6 h-6 rounded-full border-2 mb-3 flex items-center justify-center ${
+                  userType === "LEGAL" 
+                    ? "border-blue-600 bg-blue-600" 
+                    : "border-gray-400"
+                }`}>
+                  {userType === "LEGAL" && (
+                    <div className="w-3 h-3 rounded-full bg-white"></div>
+                  )}
+                </div>
+                <span className={`text-[16px] md:text-[18px] font-medium ${
+                  userType === "LEGAL" ? "text-blue-600" : "text-black"
+                }`}>
+                  იურიდიული პირი
+                </span>
+              </label>
+              <label className={`flex flex-col items-center justify-center p-6 border-2 rounded-lg cursor-pointer transition-all ${
+                userType === "ADMIN" 
+                  ? "border-blue-600 bg-blue-50" 
+                  : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+              }`}>
+                <input
+                  type="radio"
+                  name="userType"
+                  value="ADMIN"
+                  checked={userType === "ADMIN"}
+                  onChange={(e) => {
+                    setUserType(e.target.value as "ADMIN");
+                    setHotelType("");
+                  }}
+                  className="sr-only"
+                />
+                <div className={`w-6 h-6 rounded-full border-2 mb-3 flex items-center justify-center ${
+                  userType === "ADMIN" 
+                    ? "border-blue-600 bg-blue-600" 
+                    : "border-gray-400"
+                }`}>
+                  {userType === "ADMIN" && (
+                    <div className="w-3 h-3 rounded-full bg-white"></div>
+                  )}
+                </div>
+                <span className={`text-[16px] md:text-[18px] font-medium ${
+                  userType === "ADMIN" ? "text-blue-600" : "text-black"
+                }`}>
+                  ადმინი
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* User Account Fields - Show only when userType is selected */}
+          {userType && (
           <div className="bg-white shadow rounded-lg p-6 space-y-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-lg font-medium text-black mb-4">
               საერთო ინფორმაცია
             </h3>
             <div>
-              <label htmlFor="name" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+              <label htmlFor="name" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 სახელი
               </label>
               <input
@@ -136,14 +247,14 @@ export default function RegisterPage() {
                 type="text"
                 autoComplete="given-name"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                 placeholder="სახელი"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="lastName" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+              <label htmlFor="lastName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 გვარი
               </label>
               <input
@@ -152,14 +263,14 @@ export default function RegisterPage() {
                 type="text"
                 autoComplete="family-name"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                 placeholder="გვარი"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 ელფოსტა (ანგარიშისთვის)
               </label>
               <input
@@ -168,14 +279,14 @@ export default function RegisterPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                 placeholder="ელფოსტა"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 პაროლი
               </label>
               <div className="relative">
@@ -185,7 +296,7 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 pr-10 border text-black rounded-md text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 pr-10 border text-black rounded-md text-[16px] md:text-[18px]"
                   placeholder="პაროლი (მინიმუმ 6 სიმბოლო)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -193,7 +304,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-600 hover:text-gray-800"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-black hover:text-gray-800"
                 >
                   {showPassword ? (
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,7 +320,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="confirmPassword" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+              <label htmlFor="confirmPassword" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 პაროლის დამოწმება
               </label>
               <div className="relative">
@@ -219,7 +330,7 @@ export default function RegisterPage() {
                   type={showConfirmPassword ? "text" : "password"}
                   autoComplete="new-password"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 pr-10 border text-black rounded-md text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 pr-10 border text-black rounded-md text-[16px] md:text-[18px]"
                   placeholder="გაიმეორეთ პაროლი"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -227,7 +338,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-600 hover:text-gray-800"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-black hover:text-gray-800"
                 >
                   {showConfirmPassword ? (
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,7 +354,7 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="mobileNumber" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+              <label htmlFor="mobileNumber" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 მობილურის ნომერი
               </label>
               <input
@@ -251,42 +362,23 @@ export default function RegisterPage() {
                 name="mobileNumber"
                 type="tel"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                 placeholder="მობილურის ნომერი"
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value)}
               />
             </div>
           </div>
-
-          {/* Hotel Type Selection */}
-          <div className="bg-white shadow rounded-lg p-6">
-            <div>
-              <label htmlFor="hotelType" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-2">
-                სასტუმროს ტიპი
-              </label>
-              <select
-                id="hotelType"
-                name="hotelType"
-                className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px] bg-white"
-                value={hotelType}
-                onChange={(e) => setHotelType(e.target.value as "PHYSICAL" | "LEGAL" | "")}
-              >
-                <option value="">აირჩიეთ ტიპი (არასავალდებულო)</option>
-                <option value="PHYSICAL">ფიზიკური პირი</option>
-                <option value="LEGAL">იურიდიული პირი</option>
-              </select>
-            </div>
-          </div>
+          )}
 
           {/* Common Hotel Fields */}
-          {hotelType && (
+          {(userType === "PHYSICAL" || userType === "LEGAL") && (
             <div className="bg-white shadow rounded-lg p-6 space-y-4">
-              <h3 className="text-[16px] md:text-[18px] font-medium text-gray-900 mb-4">
+              <h3 className="text-[16px] md:text-[18px] font-medium text-black mb-4">
                 სასტუმროს ინფორმაცია
               </h3>
               <div>
-                <label htmlFor="hotelName" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                <label htmlFor="hotelName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   სასტუმროს დასახელება
                 </label>
                 <input
@@ -294,14 +386,14 @@ export default function RegisterPage() {
                   name="hotelName"
                   type="text"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="სასტუმროს დასახელება"
                   value={hotelName}
                   onChange={(e) => setHotelName(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="hotelRegistrationNumber" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                <label htmlFor="hotelRegistrationNumber" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   სასტუმროს საკ. ნომერი
                 </label>
                 <input
@@ -309,14 +401,14 @@ export default function RegisterPage() {
                   name="hotelRegistrationNumber"
                   type="text"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="სასტუმროს საკ. ნომერი"
                   value={hotelRegistrationNumber}
                   onChange={(e) => setHotelRegistrationNumber(e.target.value)}
                 />
               </div>
               <div>
-                  <label htmlFor="numberOfRooms" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                  <label htmlFor="numberOfRooms" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   ნომრების რაოდენობა
                 </label>
                 <input
@@ -325,14 +417,14 @@ export default function RegisterPage() {
                   type="number"
                   min="1"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="ნომრების რაოდენობა"
                   value={numberOfRooms}
                   onChange={(e) => setNumberOfRooms(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="hotelEmail" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                <label htmlFor="hotelEmail" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   სასტუმროს ელ. ფოსტა
                 </label>
                 <input
@@ -340,7 +432,7 @@ export default function RegisterPage() {
                   name="hotelEmail"
                   type="email"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="სასტუმროს ელ. ფოსტა"
                   value={hotelEmail}
                   onChange={(e) => setHotelEmail(e.target.value)}
@@ -350,13 +442,13 @@ export default function RegisterPage() {
           )}
 
           {/* Physical Person Fields */}
-          {hotelType === "PHYSICAL" && (
+          {userType === "PHYSICAL" && (
             <div className="bg-white shadow rounded-lg p-6 space-y-4">
-              <h3 className="text-[16px] md:text-[18px] font-medium text-gray-900 mb-4">
+              <h3 className="text-[16px] md:text-[18px] font-medium text-black mb-4">
                 ფიზიკური პირის ინფორმაცია
               </h3>
               <div>
-                <label htmlFor="personalId" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                <label htmlFor="personalId" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   პირადი ნომერი
                 </label>
                 <input
@@ -364,7 +456,7 @@ export default function RegisterPage() {
                   name="personalId"
                   type="text"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="პირადი ნომერი"
                   value={personalId}
                   onChange={(e) => setPersonalId(e.target.value)}
@@ -374,13 +466,13 @@ export default function RegisterPage() {
           )}
 
           {/* Legal Entity Fields */}
-          {hotelType === "LEGAL" && (
+          {userType === "LEGAL" && (
             <div className="bg-white shadow rounded-lg p-6 space-y-4">
-              <h3 className="text-[16px] md:text-[18px] font-medium text-gray-900 mb-4">
+              <h3 className="text-[16px] md:text-[18px] font-medium text-black mb-4">
                 იურიდიული პირის ინფორმაცია
               </h3>
               <div>
-                <label htmlFor="legalEntityName" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                <label htmlFor="legalEntityName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   იურიდიული/შპს დასახელება
                 </label>
                 <input
@@ -388,14 +480,14 @@ export default function RegisterPage() {
                   name="legalEntityName"
                   type="text"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="იურიდიული/შპს დასახელება"
                   value={legalEntityName}
                   onChange={(e) => setLegalEntityName(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="identificationCode" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                <label htmlFor="identificationCode" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   საიდენტიფიკაციო კოდი
                 </label>
                 <input
@@ -403,14 +495,14 @@ export default function RegisterPage() {
                   name="identificationCode"
                   type="text"
                   required
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="საიდენტიფიკაციო კოდი"
                   value={identificationCode}
                   onChange={(e) => setIdentificationCode(e.target.value)}
                 />
               </div>
               <div>
-                  <label htmlFor="responsiblePersonName" className="block text-[16px] md:text-[18px] font-medium text-gray-700 mb-1">
+                  <label htmlFor="responsiblePersonName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                   პასუხისმგებელი პირი (სახელი გვარი)
                 </label>
                 <input
@@ -419,7 +511,7 @@ export default function RegisterPage() {
                   type="text"
                   required
                   
-                  className="appearance-none relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
                   placeholder="პასუხისმგებელი პირი"
                   value={responsiblePersonName}
                   onChange={(e) => setResponsiblePersonName(e.target.value)}
@@ -428,6 +520,8 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* Submit Button - Show only when userType is selected */}
+          {userType && (
           <div className="flex justify-center">
             <button
               type="submit"
@@ -437,6 +531,7 @@ export default function RegisterPage() {
               {loading ? "მიმდინარეობს..." : "რეგისტრაცია"}
             </button>
           </div>
+          )}
         </form>
       </div>
     </div>

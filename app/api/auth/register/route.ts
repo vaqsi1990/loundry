@@ -13,6 +13,7 @@ const baseSchema = z.object({
     .min(6, "პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან"),
   confirmPassword: z.string().min(1, "გთხოვთ დაადასტუროთ პაროლი"),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
+  role: z.enum(["ADMIN", "USER"]).optional().default("USER"),
   // Optional hotel fields
   hotelType: z.enum(["PHYSICAL", "LEGAL"]).optional(),
   hotelName: z.string().optional(),
@@ -32,7 +33,19 @@ const baseSchema = z.object({
   }
 ).refine(
   (data) => {
-    // If hotelType is provided, all hotel fields must be provided (except mobileNumber which is in user info)
+    // If role is ADMIN, hotelType should not be provided
+    if (data.role === "ADMIN" && data.hotelType) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "ადმინისთვის სასტუმროს ველები არ არის საჭირო",
+    path: ["hotelType"],
+  }
+).refine(
+  (data) => {
+    // If hotelType is provided (PHYSICAL or LEGAL), all hotel fields must be provided
     if (data.hotelType) {
       if (!data.hotelName || !data.hotelRegistrationNumber || !data.numberOfRooms || !data.hotelEmail) {
         return false;
@@ -126,6 +139,7 @@ export async function POST(request: NextRequest) {
           email: validatedData.email,
           password: hashedPassword,
           mobileNumber: validatedData.mobileNumber,
+          role: validatedData.role || "USER",
         },
         select: {
           id: true,
