@@ -526,7 +526,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full mx-auto items-center justify-center md:w-auto bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-center"
+              className="group relative w-full mx-auto items-center font-bold justify-center md:w-auto bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-center"
             >
               {loading ? "მიმდინარეობს..." : "რეგისტრაცია"}
             </button>

@@ -49,7 +49,7 @@ export default function Header() {
                 </button>
               </>
             ) : (
-              <Link href="/login" className="w-full md:w-auto bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
+              <Link href="/login" className="w-full md:w-auto font-bold bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
                 შესვლა
               </Link>
             )}
@@ -139,7 +139,7 @@ export default function Header() {
                 </button>
               </>
             ) : (
-              <Link href="/login" className="w-full bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
+              <Link href="/login" className="w-full font-bold bg-[#efa758] text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition">
                 შესვლა
               </Link>
             )}
