@@ -247,3 +247,19 @@ model HotelDatabase {
 
   @@index([hotelName])
 }
+
+model Blacklist {
+  id              String        @id @default(cuid())
+  hotelName       String
+  hotelRegistrationNumber String?
+  contactPhone    String
+  email           String?
+  address         String?
+  reason          String?       // მიზეზი რატომ დაემატა შავ სიაში
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([hotelName])
+  @@index([contactPhone])
+}

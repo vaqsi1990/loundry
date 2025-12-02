@@ -111,6 +111,18 @@ export default function AdminPage() {
       description: "გამოიყენეთ კალკულატორი გამოთვლებისთვის",
       path: "/admin/calculator"
     },
+    { 
+      id: "ourHotels",
+      label: "ჩვენი სასტუმროები",
+      description: "ნახეთ და მართეთ რეგისტრირებული სასტუმროები",
+      path: "/admin/our-hotels"
+    },
+    { 
+      id: "blacklist",
+      label: "შავი სია",
+      description: "მართეთ შავი სია - ბლოკირებული სასტუმროები",
+      path: "/admin/blacklist"
+    },
   ];
 
   return (
