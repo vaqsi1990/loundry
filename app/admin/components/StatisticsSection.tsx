@@ -6,7 +6,6 @@ interface StatisticsData {
   period: string;
   revenues: number;
   expenses: number;
-  salaries: number;
   netIncome: number;
 }
 
@@ -202,9 +201,6 @@ export default function StatisticsSection() {
                 ხარჯები
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ხელფასები
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 წმინდა შემოსავალი
               </th>
             </tr>
@@ -220,9 +216,6 @@ export default function StatisticsSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
                   -{stat.expenses.toFixed(2)} ₾
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-orange-600 font-semibold">
-                  -{stat.salaries.toFixed(2)} ₾
                 </td>
                 <td className={`px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] font-bold ${
                   stat.netIncome >= 0 ? "text-green-600" : "text-red-600"

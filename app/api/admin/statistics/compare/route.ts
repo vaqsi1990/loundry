@@ -42,18 +42,17 @@ export async function GET(request: NextRequest) {
       period: string;
       revenues: number;
       expenses: number;
-      salaries: number;
       netIncome: number;
     }> = [];
 
     const getPeriodData = async (period: string) => {
       if (view === "monthly") {
         const [year, month] = period.split("-").map(Number);
-        const startOfMonth = new Date(year, month - 1, 1);
-        const endOfMonth = new Date(year, month, 0);
-        endOfMonth.setHours(23, 59, 59, 999);
+        // Create dates in UTC to avoid timezone issues
+        const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
+        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-        const [revenues, expenses, salaries] = await Promise.all([
+        const [revenues, expenses] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -71,16 +70,6 @@ export async function GET(request: NextRequest) {
                 gte: startOfMonth,
                 lte: endOfMonth,
               },
-            },
-            _sum: {
-              amount: true,
-            },
-          }),
-          prisma.salary.aggregate({
-            where: {
-              year: year,
-              month: month,
-              status: "PAID",
             },
             _sum: {
               amount: true,
@@ -97,16 +86,15 @@ export async function GET(request: NextRequest) {
           period: `${monthNames[month - 1]} ${year}`,
           revenues: revenues._sum.amount || 0,
           expenses: expenses._sum.amount || 0,
-          salaries: salaries._sum.amount || 0,
-          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0) - (salaries._sum.amount || 0),
+          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0),
         };
       } else {
         const year = parseInt(period);
-        const startOfYear = new Date(year, 0, 1);
-        const endOfYear = new Date(year, 11, 31);
-        endOfYear.setHours(23, 59, 59, 999);
+        // Create dates in UTC to avoid timezone issues
+        const startOfYear = new Date(Date.UTC(year, 0, 1));
+        const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
 
-        const [revenues, expenses, salaries] = await Promise.all([
+        const [revenues, expenses] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -129,23 +117,13 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.salary.aggregate({
-            where: {
-              year: year,
-              status: "PAID",
-            },
-            _sum: {
-              amount: true,
-            },
-          }),
         ]);
 
         return {
           period: year.toString(),
           revenues: revenues._sum.amount || 0,
           expenses: expenses._sum.amount || 0,
-          salaries: salaries._sum.amount || 0,
-          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0) - (salaries._sum.amount || 0),
+          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0),
         };
       }
     };

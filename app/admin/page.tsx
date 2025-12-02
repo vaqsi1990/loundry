@@ -99,6 +99,18 @@ export default function AdminPage() {
       description: "მართეთ სასტუმროების ბაზა და კონტაქტები",
       path: "/admin/hotels"
     },
+    { 
+      id: "table",
+      label: "ტაბელი",
+      description: "გამოიყენეთ ტაბელი მონაცემების შესანახად",
+      path: "/admin/table"
+    },
+    { 
+      id: "calculator",
+      label: "კალკულატორი",
+      description: "გამოიყენეთ კალკულატორი გამოთვლებისთვის",
+      path: "/admin/calculator"
+    },
   ];
 
   return (
