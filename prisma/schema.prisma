@@ -19,6 +19,7 @@ enum Role {
   MANAGER_ASSISTANT
   USER
   COURIER
+  ACCOUNTANT
 }
 
 enum HotelType {

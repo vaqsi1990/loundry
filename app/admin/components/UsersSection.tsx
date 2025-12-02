@@ -36,7 +36,7 @@ export default function UsersSection() {
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: "MANAGER" | "MANAGER_ASSISTANT" | "USER") => {
+  const handleRoleChange = async (userId: string, newRole: "MANAGER" | "MANAGER_ASSISTANT" | "USER" | "COURIER" | "ACCOUNTANT") => {
     setUpdating(userId);
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
@@ -72,6 +72,10 @@ export default function UsersSection() {
         return "მენეჯერ ასისტანტი";
       case "USER":
         return "მომხმარებელი";
+      case "COURIER":
+        return "კურიერი";
+      case "ACCOUNTANT":
+        return "ბუღალტერი";
       default:
         return role;
     }
@@ -136,13 +140,15 @@ export default function UsersSection() {
                     <div className="flex space-x-2">
                       <select
                         value={user.role}
-                        onChange={(e) => handleRoleChange(user.id, e.target.value as "MANAGER" | "MANAGER_ASSISTANT" | "USER")}
+                        onChange={(e) => handleRoleChange(user.id, e.target.value as "MANAGER" | "MANAGER_ASSISTANT" | "USER" | "COURIER" | "ACCOUNTANT")}
                         disabled={updating === user.id}
                         className="px-3 py-1 border border-gray-300 rounded-md text-[16px] md:text-[18px] text-black bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="USER">მომხმარებელი</option>
                         <option value="MANAGER">მენეჯერი</option>
                         <option value="MANAGER_ASSISTANT">მენეჯერ ასისტანტი</option>
+                        <option value="COURIER">კურიერი</option>
+                        <option value="ACCOUNTANT">ბუღალტერი</option>
                       </select>
                       {updating === user.id && (
                         <span className="text-xs text-gray-500">მიმდინარეობს...</span>

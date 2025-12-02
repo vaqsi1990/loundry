@@ -35,7 +35,7 @@ export async function PATCH(
     const { role } = body;
 
     // Validate role
-    if (!["USER", "MANAGER", "MANAGER_ASSISTANT", "COURIER"].includes(role)) {
+    if (!["USER", "MANAGER", "MANAGER_ASSISTANT", "COURIER", "ACCOUNTANT"].includes(role)) {
       return NextResponse.json(
         { error: "არასწორი როლი" },
         { status: 400 }

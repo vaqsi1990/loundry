@@ -131,6 +131,8 @@ export default function ProfilePage() {
                   {profile.role === "ADMIN" && "ადმინისტრატორი"}
                   {profile.role === "MANAGER" && "მენეჯერი"}
                   {profile.role === "MANAGER_ASSISTANT" && "მენეჯერის ასისტენტი"}
+                  {profile.role === "COURIER" && "კურიერი"}
+                  {profile.role === "ACCOUNTANT" && "ბუღალტერი"}
                 </div>
               </div>
               {profile.mobileNumber && (
