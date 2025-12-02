@@ -46,7 +46,7 @@ export default function EmployeesPage() {
           <div>
             <Link
               href="/admin"
-              className="text-blue-600 hover:underline text-[16px] mb-2 inline-block"
+              className="text-blue-600 hover:underline text-[18px] mb-2 font-bold inline-block"
             >
               ← უკან
             </Link>

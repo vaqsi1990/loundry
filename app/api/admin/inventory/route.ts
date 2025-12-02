@@ -27,6 +27,13 @@ export async function GET(request: NextRequest) {
     }
 
     const items = await prisma.inventory.findMany({
+      include: {
+        movements: {
+          orderBy: {
+            date: "desc",
+          },
+        },
+      },
       orderBy: {
         itemName: "asc",
       },
@@ -66,7 +73,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { itemName, category, quantity, unit, unitPrice, supplier } = body;
+    const { itemName, category, quantity, unit, unitPrice, supplier, receiptDate } = body;
+
+    const receiptDateValue = receiptDate ? new Date(receiptDate) : new Date();
 
     const item = await prisma.inventory.create({
       data: {
@@ -76,6 +85,18 @@ export async function POST(request: NextRequest) {
         unit,
         unitPrice: unitPrice || null,
         supplier: supplier || null,
+        receiptDate: receiptDateValue,
+        movements: {
+          create: {
+            type: "RECEIPT",
+            quantity: quantity,
+            date: receiptDateValue,
+            notes: "საწყობში დამატება",
+          },
+        },
+      },
+      include: {
+        movements: true,
       },
     });
 

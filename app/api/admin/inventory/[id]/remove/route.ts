@@ -31,7 +31,14 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { quantity } = body;
+    const { quantity, notes, date } = body;
+
+    if (!quantity || quantity <= 0) {
+      return NextResponse.json(
+        { error: "რაოდენობა უნდა იყოს დადებითი რიცხვი" },
+        { status: 400 }
+      );
+    }
 
     const item = await prisma.inventory.findUnique({
       where: { id },
@@ -44,36 +51,37 @@ export async function POST(
       );
     }
 
-    const restockDate = new Date();
+    if (item.quantity < quantity) {
+      return NextResponse.json(
+        { error: "არასაკმარისი რაოდენობა საწყობში" },
+        { status: 400 }
+      );
+    }
 
+    // Update inventory quantity
     const updatedItem = await prisma.inventory.update({
       where: { id },
       data: {
-        quantity: item.quantity + quantity,
-        lastRestocked: restockDate,
-        movements: {
-          create: {
-            type: "RECEIPT",
-            quantity: quantity,
-            date: restockDate,
-            notes: "რესტოკი",
-          },
-        },
+        quantity: item.quantity - quantity,
       },
-      include: {
-        movements: {
-          orderBy: {
-            date: "desc",
-          },
-        },
+    });
+
+    // Create removal movement record
+    await prisma.inventoryMovement.create({
+      data: {
+        inventoryId: id,
+        type: "REMOVAL",
+        quantity: quantity,
+        date: date ? new Date(date) : new Date(),
+        notes: notes || null,
       },
     });
 
     return NextResponse.json(updatedItem);
   } catch (error) {
-    console.error("Inventory restock error:", error);
+    console.error("Inventory removal error:", error);
     return NextResponse.json(
-      { error: "რესტოკისას მოხდა შეცდომა" },
+      { error: "გატანისას მოხდა შეცდომა" },
       { status: 500 }
     );
   }

@@ -31,7 +31,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { itemName, category, quantity, unit, unitPrice, supplier } = body;
+    const { itemName, category, quantity, unit, unitPrice, supplier, receiptDate } = body;
 
     const item = await prisma.inventory.update({
       where: { id },
@@ -42,6 +42,7 @@ export async function PUT(
         unit,
         unitPrice: unitPrice || null,
         supplier: supplier || null,
+        receiptDate: receiptDate ? new Date(receiptDate) : undefined,
       },
     });
 

@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+interface InventoryMovement {
+  id: string;
+  type: string;
+  quantity: number;
+  date: string;
+  notes: string | null;
+}
+
 interface InventoryItem {
   id: string;
   itemName: string;
@@ -11,7 +19,9 @@ interface InventoryItem {
   unitPrice: number | null;
   supplier: string | null;
   lastRestocked: string | null;
+  receiptDate: string | null;
   createdAt: string;
+  movements: InventoryMovement[];
 }
 
 export default function InventorySection() {
@@ -20,6 +30,7 @@ export default function InventorySection() {
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     itemName: "",
@@ -28,6 +39,13 @@ export default function InventorySection() {
     unit: "piece",
     unitPrice: "",
     supplier: "",
+    receiptDate: "",
+  });
+
+  const [removeData, setRemoveData] = useState({
+    quantity: "",
+    notes: "",
+    date: new Date().toISOString().split('T')[0],
   });
 
   useEffect(() => {
@@ -66,6 +84,7 @@ export default function InventorySection() {
           ...formData,
           quantity: parseInt(formData.quantity),
           unitPrice: formData.unitPrice ? parseFloat(formData.unitPrice) : null,
+          receiptDate: formData.receiptDate || new Date().toISOString(),
         }),
       });
 
@@ -121,6 +140,40 @@ export default function InventorySection() {
     }
   };
 
+  const handleRemove = async (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/inventory/${id}/remove`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quantity: parseInt(removeData.quantity),
+          notes: removeData.notes,
+          date: removeData.date,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "გატანა ვერ მოხერხდა");
+      }
+
+      await fetchItems();
+      setRemovingId(null);
+      setRemoveData({
+        quantity: "",
+        notes: "",
+        date: new Date().toISOString().split('T')[0],
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       itemName: "",
@@ -129,6 +182,7 @@ export default function InventorySection() {
       unit: "piece",
       unitPrice: "",
       supplier: "",
+      receiptDate: "",
     });
     setShowAddForm(false);
     setEditingId(null);
@@ -142,10 +196,23 @@ export default function InventorySection() {
       unit: item.unit,
       unitPrice: item.unitPrice?.toString() || "",
       supplier: item.supplier || "",
+      receiptDate: item.receiptDate ? new Date(item.receiptDate).toISOString().split('T')[0] : "",
     });
     setEditingId(item.id);
     setShowAddForm(true);
   };
+
+  // Get all removed items
+  const removedItems = items.flatMap(item => 
+    item.movements
+      .filter(m => m.type === "REMOVAL")
+      .map(m => ({
+        ...m,
+        itemName: item.itemName,
+        unit: item.unit,
+        category: item.category,
+      }))
+  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
@@ -171,6 +238,27 @@ export default function InventorySection() {
           {error}
         </div>
       )}
+
+      {/* Balance Block - ნაშთის ბლოკი */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+        <h3 className="text-lg font-bold text-black mb-4">ნაშთი</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items.map((item) => (
+            <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm">
+              <div className="font-semibold text-black text-[16px] md:text-[18px] mb-2">
+                {item.itemName}
+              </div>
+              <div className="text-[14px] md:text-[16px] text-gray-700">
+                <div>დარჩენილი: <span className="font-bold text-blue-600">{item.quantity} {item.unit}</span></div>
+                {item.category && <div>კატეგორია: {item.category}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+        {items.length === 0 && (
+          <div className="text-center py-4 text-gray-600">ნაშთი ცარიელია</div>
+        )}
+      </div>
 
       {/* Add/Edit Form */}
       {showAddForm && (
@@ -258,6 +346,18 @@ export default function InventorySection() {
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                მიღების თარიღი *
+              </label>
+              <input
+                type="date"
+                required
+                value={formData.receiptDate || new Date().toISOString().split('T')[0]}
+                onChange={(e) => setFormData({ ...formData, receiptDate: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+              />
+            </div>
             <div className="flex space-x-2">
               <button
                 type="submit"
@@ -277,8 +377,76 @@ export default function InventorySection() {
         </div>
       )}
 
+      {/* Remove Form */}
+      {removingId && (
+        <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg mb-6">
+          <h3 className="text-lg font-semibold text-black mb-4">პროდუქტის გატანა</h3>
+          <form onSubmit={(e) => handleRemove(e, removingId)} className="space-y-4">
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                რაოდენობა *
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                value={removeData.quantity}
+                onChange={(e) => setRemoveData({ ...removeData, quantity: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+              />
+            </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                გატანის თარიღი *
+              </label>
+              <input
+                type="date"
+                required
+                value={removeData.date}
+                onChange={(e) => setRemoveData({ ...removeData, date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+              />
+            </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                შენიშვნა
+              </label>
+              <textarea
+                value={removeData.notes}
+                onChange={(e) => setRemoveData({ ...removeData, notes: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                rows={3}
+              />
+            </div>
+            <div className="flex space-x-2">
+              <button
+                type="submit"
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+              >
+                გატანა
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRemovingId(null);
+                  setRemoveData({
+                    quantity: "",
+                    notes: "",
+                    date: new Date().toISOString().split('T')[0],
+                  });
+                }}
+                className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
+              >
+                გაუქმება
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Inventory List */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto mb-6">
+        <h3 className="text-lg font-bold text-black mb-4">საწყობის პროდუქტები</h3>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -290,6 +458,9 @@ export default function InventorySection() {
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 რაოდენობა
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                მიღების თარიღი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 ერთეულის ფასი
@@ -315,13 +486,18 @@ export default function InventorySection() {
                   {item.quantity} {item.unit}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                  {item.receiptDate 
+                    ? new Date(item.receiptDate).toLocaleDateString("ka-GE")
+                    : "-"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {item.unitPrice ? `${item.unitPrice.toFixed(2)} ₾` : "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {item.supplier || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col space-y-1">
                     <button
                       onClick={() => {
                         const qty = prompt("რაოდენობა რესტოკისთვის:");
@@ -329,19 +505,32 @@ export default function InventorySection() {
                           handleRestock(item.id, parseInt(qty));
                         }
                       }}
-                      className="text-green-600 hover:underline"
+                      className="text-green-600 text-[16px] md:text-[18px] cursor-pointer hover:underline text-left"
                     >
-                      რესტოკი
+                      თავიდან შევსება
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRemovingId(item.id);
+                        setRemoveData({
+                          quantity: "",
+                          notes: "",
+                          date: new Date().toISOString().split('T')[0],
+                        });
+                      }}
+                      className="text-orange-600 text-[16px] md:text-[18px] cursor-pointer hover:underline text-left"
+                    >
+                      გატანა
                     </button>
                     <button
                       onClick={() => handleEdit(item)}
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 text-[16px] md:text-[18px] cursor-pointer hover:underline text-left"
                     >
                       რედაქტირება
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="text-red-600 hover:underline"
+                      className="text-red-600 text-[16px] md:text-[18px] cursor-pointer hover:underline text-left"
                     >
                       წაშლა
                     </button>
@@ -358,7 +547,57 @@ export default function InventorySection() {
           საწყობი ცარიელია
         </div>
       )}
+
+      {/* Removed Items Section */}
+      {removedItems.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-bold text-black mb-4">გატანილი პროდუქტები</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    პროდუქტი
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    კატეგორია
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    გატანილი რაოდენობა
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    გატანის თარიღი
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    შენიშვნა
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {removedItems.map((removed) => (
+                  <tr key={removed.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                      {removed.itemName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {removed.category || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {removed.quantity} {removed.unit}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {new Date(removed.date).toLocaleDateString("ka-GE")}
+                    </td>
+                    <td className="px-6 py-4 text-[16px] md:text-[18px] text-black">
+                      {removed.notes || "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
