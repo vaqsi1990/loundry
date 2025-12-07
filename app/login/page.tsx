@@ -212,9 +212,7 @@ function LoginForm() {
             {userType === "ADMIN" && (
               <>
                 <div>
-                  <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                    ელფოსტა
-                  </label>
+             
                   <input
                     id="email"
                     name="email"
@@ -233,9 +231,6 @@ function LoginForm() {
             {/* Physical Person Login - Personal ID and Password */}
             {userType === "PHYSICAL" && (
               <div>
-                <label htmlFor="personalId" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  პირადი ნომერი
-                </label>
                 <input
                   id="personalId"
                   name="personalId"
@@ -252,9 +247,6 @@ function LoginForm() {
             {/* Legal Entity Login - Identification Code and Password */}
             {userType === "LEGAL" && (
               <div>
-                <label htmlFor="identificationCode" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  საიდენტიფიკაციო კოდი
-                </label>
                 <input
                   id="identificationCode"
                   name="identificationCode"
@@ -270,9 +262,6 @@ function LoginForm() {
 
             {/* Password - Common for all types */}
             <div>
-              <label htmlFor="password" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                პაროლი
-              </label>
               <div className="relative">
                 <input
                   id="password"

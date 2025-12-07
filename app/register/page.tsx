@@ -237,60 +237,37 @@ export default function RegisterPage() {
             <h3 className="text-lg font-medium text-black mb-4">
               საერთო ინფორმაცია
             </h3>
-            <div>
-              <label htmlFor="name" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                სახელი
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                autoComplete="given-name"
-                required
-                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                placeholder="სახელი"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="lastName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                გვარი
-              </label>
-              <input
-                id="lastName"
-                name="lastName"
-                type="text"
-                autoComplete="family-name"
-                required
-                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                placeholder="გვარი"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </div>
-            {userType !== "PHYSICAL" && (
-              <div>
-                <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  ელფოსტა (ანგარიშისთვის)
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                  placeholder="ელფოსტა"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+            {userType !== "LEGAL" && (
+              <>
+                <div>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    autoComplete="given-name"
+                    required
+                    className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                    placeholder="სახელი"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <input
+                    id="lastName"
+                    name="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    required
+                    className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                    placeholder="გვარი"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                  />
+                </div>
+              </>
             )}
             <div>
-              <label htmlFor="password" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                პაროლი
-              </label>
               <div className="relative">
                 <input
                   id="password"
@@ -322,9 +299,6 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="confirmPassword" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                პაროლის დამოწმება
-              </label>
               <div className="relative">
                 <input
                   id="confirmPassword"
@@ -356,9 +330,6 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label htmlFor="mobileNumber" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                მობილურის ნომერი
-              </label>
               <input
                 id="mobileNumber"
                 name="mobileNumber"
@@ -372,9 +343,6 @@ export default function RegisterPage() {
             </div>
             {userType === "PHYSICAL" && (
               <div>
-                <label htmlFor="personalId" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  პირადი ნომერი
-                </label>
                 <input
                   id="personalId"
                   name="personalId"
@@ -397,9 +365,6 @@ export default function RegisterPage() {
                 სასტუმროს ინფორმაცია
               </h3>
               <div>
-                <label htmlFor="hotelName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  სასტუმროს დასახელება
-                </label>
                 <input
                   id="hotelName"
                   name="hotelName"
@@ -412,9 +377,6 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label htmlFor="hotelRegistrationNumber" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  სასტუმროს საკ. ნომერი
-                </label>
                 <input
                   id="hotelRegistrationNumber"
                   name="hotelRegistrationNumber"
@@ -427,9 +389,6 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                  <label htmlFor="numberOfRooms" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  ნომრების რაოდენობა
-                </label>
                 <input
                   id="numberOfRooms"
                   name="numberOfRooms"
@@ -443,9 +402,6 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label htmlFor="hotelEmail" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  სასტუმროს ელ. ფოსტა
-                </label>
                 <input
                   id="hotelEmail"
                   name="hotelEmail"
@@ -460,30 +416,6 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Physical Person Fields */}
-          {userType === "PHYSICAL" && (
-            <div className="bg-white shadow rounded-lg p-6 space-y-4">
-              <h3 className="text-[16px] md:text-[18px] font-medium text-black mb-4">
-                ფიზიკური პირის ინფორმაცია
-              </h3>
-              <div>
-                <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  ელფოსტა (ანგარიშისთვის)
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                  placeholder="ელფოსტა"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Legal Entity Fields */}
           {userType === "LEGAL" && (
@@ -492,9 +424,6 @@ export default function RegisterPage() {
                 იურიდიული პირის ინფორმაცია
               </h3>
               <div>
-                <label htmlFor="legalEntityName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  იურიდიული/შპს დასახელება
-                </label>
                 <input
                   id="legalEntityName"
                   name="legalEntityName"
@@ -507,9 +436,6 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label htmlFor="identificationCode" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  საიდენტიფიკაციო კოდი
-                </label>
                 <input
                   id="identificationCode"
                   name="identificationCode"
@@ -522,9 +448,6 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                  <label htmlFor="responsiblePersonName" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  პასუხისმგებელი პირი (სახელი გვარი)
-                </label>
                 <input
                   id="responsiblePersonName"
                   name="responsiblePersonName"

@@ -306,66 +306,34 @@ export default function OurHotelsSection() {
                   ანგარიშის ინფორმაცია
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      htmlFor="name"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      სახელი
-                    </label>
-                    <input
-                      id="name"
-                      type="text"
-                      required
-                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="სახელი"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="lastName"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      გვარი
-                    </label>
-                    <input
-                      id="lastName"
-                      type="text"
-                      required
-                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="გვარი"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                    />
-                  </div>
-                  {hotelType !== "PHYSICAL" && (
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                      >
-                        ელფოსტა (ანგარიშისთვის)
-                      </label>
-                      <input
-                        id="email"
-                        type="email"
-                        required
-                        className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                        placeholder="ელფოსტა"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
-                    </div>
+                  {hotelType !== "LEGAL" && (
+                    <>
+                      <div>
+                      
+                        <input
+                          id="name"
+                          type="text"
+                          required
+                          className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                          placeholder="სახელი"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <input
+                          id="lastName"
+                          type="text"
+                          required
+                          className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                          placeholder="გვარი"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                        />
+                      </div>
+                    </>
                   )}
                   <div>
-                    <label
-                      htmlFor="password"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      პაროლი
-                    </label>
                     <input
                       id="password"
                       type="password"
@@ -378,12 +346,7 @@ export default function OurHotelsSection() {
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="mobileNumber"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      მობილურის ნომერი
-                    </label>
+                   
                     <input
                       id="mobileNumber"
                       type="tel"
@@ -406,12 +369,6 @@ export default function OurHotelsSection() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label
-                      htmlFor="hotelName"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      სასტუმროს დასახელება
-                    </label>
                     <input
                       id="hotelName"
                       type="text"
@@ -423,12 +380,7 @@ export default function OurHotelsSection() {
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="hotelRegistrationNumber"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      სასტუმროს საკ. ნომერი
-                    </label>
+                   
                     <input
                       id="hotelRegistrationNumber"
                       type="text"
@@ -440,12 +392,7 @@ export default function OurHotelsSection() {
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="numberOfRooms"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      ნომრების რაოდენობა
-                    </label>
+                   
                     <input
                       id="numberOfRooms"
                       type="number"
@@ -458,12 +405,6 @@ export default function OurHotelsSection() {
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="hotelEmail"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      სასტუმროს ელ. ფოსტა
-                    </label>
                     <input
                       id="hotelEmail"
                       type="email"
@@ -485,29 +426,7 @@ export default function OurHotelsSection() {
                   ფიზიკური პირის ინფორმაცია
                 </h4>
                 <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                  >
-                    ელფოსტა (ანგარიშისთვის)
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    required
-                    className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                    placeholder="ელფოსტა"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="personalId"
-                    className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                  >
-                    პირადი ნომერი
-                  </label>
+              
                   <input
                     id="personalId"
                     type="text"
@@ -529,12 +448,7 @@ export default function OurHotelsSection() {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label
-                      htmlFor="legalEntityName"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      იურიდიული/შპს დასახელება
-                    </label>
+                 
                     <input
                       id="legalEntityName"
                       type="text"
@@ -546,12 +460,6 @@ export default function OurHotelsSection() {
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="identificationCode"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      საიდენტიფიკაციო კოდი
-                    </label>
                     <input
                       id="identificationCode"
                       type="text"
@@ -563,12 +471,6 @@ export default function OurHotelsSection() {
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="responsiblePersonName"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      პასუხისმგებელი პირი (სახელი გვარი)
-                    </label>
                     <input
                       id="responsiblePersonName"
                       type="text"
