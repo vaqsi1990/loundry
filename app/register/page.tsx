@@ -269,22 +269,24 @@ export default function RegisterPage() {
                 onChange={(e) => setLastName(e.target.value)}
               />
             </div>
-            <div>
-              <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                ელფოსტა (ანგარიშისთვის)
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                placeholder="ელფოსტა"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
+            {userType !== "PHYSICAL" && (
+              <div>
+                <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  ელფოსტა (ანგარიშისთვის)
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  placeholder="ელფოსტა"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            )}
             <div>
               <label htmlFor="password" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 პაროლი
@@ -368,6 +370,23 @@ export default function RegisterPage() {
                 onChange={(e) => setMobileNumber(e.target.value)}
               />
             </div>
+            {userType === "PHYSICAL" && (
+              <div>
+                <label htmlFor="personalId" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  პირადი ნომერი
+                </label>
+                <input
+                  id="personalId"
+                  name="personalId"
+                  type="text"
+                  required
+                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                  placeholder="პირადი ნომერი"
+                  value={personalId}
+                  onChange={(e) => setPersonalId(e.target.value)}
+                />
+              </div>
+            )}
           </div>
           )}
 
@@ -448,18 +467,19 @@ export default function RegisterPage() {
                 ფიზიკური პირის ინფორმაცია
               </h3>
               <div>
-                <label htmlFor="personalId" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  პირადი ნომერი
+                <label htmlFor="email" className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  ელფოსტა (ანგარიშისთვის)
                 </label>
                 <input
-                  id="personalId"
-                  name="personalId"
-                  type="text"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
                   required
                   className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                  placeholder="პირადი ნომერი"
-                  value={personalId}
-                  onChange={(e) => setPersonalId(e.target.value)}
+                  placeholder="ელფოსტა"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>

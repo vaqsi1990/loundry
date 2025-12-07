@@ -340,23 +340,25 @@ export default function OurHotelsSection() {
                       onChange={(e) => setLastName(e.target.value)}
                     />
                   </div>
-                  <div>
-                    <label
-                      htmlFor="email"
-                      className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
-                    >
-                      ელფოსტა (ანგარიშისთვის)
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      required
-                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="ელფოსტა"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
+                  {hotelType !== "PHYSICAL" && (
+                    <div>
+                      <label
+                        htmlFor="email"
+                        className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
+                      >
+                        ელფოსტა (ანგარიშისთვის)
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        required
+                        className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                        placeholder="ელფოსტა"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                  )}
                   <div>
                     <label
                       htmlFor="password"
@@ -482,6 +484,23 @@ export default function OurHotelsSection() {
                 <h4 className="text-[16px] md:text-[18px] font-medium text-black">
                   ფიზიკური პირის ინფორმაცია
                 </h4>
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-[16px] md:text-[18px] font-medium text-black mb-1"
+                  >
+                    ელფოსტა (ანგარიშისთვის)
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                    placeholder="ელფოსტა"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
                 <div>
                   <label
                     htmlFor="personalId"
