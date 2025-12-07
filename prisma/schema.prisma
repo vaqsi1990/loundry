@@ -123,6 +123,7 @@ model Employee {
   id              String        @id @default(cuid())
   name            String
   email           String?       @unique
+  personalId      String?       // პირადობის ნომერი
   phone           String
   position        EmployeeRole
   contractFile    String?       // File path for contract

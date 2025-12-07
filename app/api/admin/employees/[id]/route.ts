@@ -34,7 +34,7 @@ export async function PUT(
     const { id } = await params;
     const formData = await request.formData();
     const name = formData.get("name") as string;
-    const email = formData.get("email") as string | null;
+    const personalId = formData.get("personalId") as string | null;
     const phone = formData.get("phone") as string;
     const position = formData.get("position") as string;
     const canLogin = formData.get("canLogin") === "true";
@@ -81,7 +81,7 @@ export async function PUT(
       where: { id },
       data: {
         name,
-        email: email || null,
+        personalId: personalId || null,
         phone,
         position: position as any,
         canLogin,

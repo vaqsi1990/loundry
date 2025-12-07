@@ -6,6 +6,7 @@ interface Employee {
   id: string;
   name: string;
   email: string | null;
+  personalId: string | null;
   phone: string;
   position: string;
   contractFile: string | null;
@@ -22,7 +23,7 @@ export default function EmployeesSection() {
   
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
+    personalId: "",
     phone: "",
     position: "OTHER" as "MANAGER" | "MANAGER_ASSISTANT" | "COURIER" | "OTHER",
     canLogin: false,
@@ -57,8 +58,8 @@ export default function EmployeesSection() {
     formDataToSend.append("phone", formData.phone);
     formDataToSend.append("position", formData.position);
     formDataToSend.append("canLogin", formData.canLogin.toString());
-    if (formData.email) {
-      formDataToSend.append("email", formData.email);
+    if (formData.personalId) {
+      formDataToSend.append("personalId", formData.personalId);
     }
     if (formData.contractFile) {
       formDataToSend.append("contractFile", formData.contractFile);
@@ -108,7 +109,7 @@ export default function EmployeesSection() {
   const resetForm = () => {
     setFormData({
       name: "",
-      email: "",
+      personalId: "",
       phone: "",
       position: "OTHER",
       canLogin: false,
@@ -121,7 +122,7 @@ export default function EmployeesSection() {
   const handleEdit = (employee: Employee) => {
     setFormData({
       name: employee.name,
-      email: employee.email || "",
+      personalId: employee.personalId || "",
       phone: employee.phone,
       position: employee.position as any,
       canLogin: employee.canLogin,
@@ -189,12 +190,12 @@ export default function EmployeesSection() {
             </div>
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                ელფოსტა
+                პ/ნ (პირადობის ნომერი)
               </label>
               <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                type="text"
+                value={formData.personalId}
+                onChange={(e) => setFormData({ ...formData, personalId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
               />
             </div>
@@ -284,7 +285,7 @@ export default function EmployeesSection() {
                 სახელი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ელფოსტა
+                პ/ნ
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 ტელეფონი
@@ -310,7 +311,7 @@ export default function EmployeesSection() {
                   {employee.name}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {employee.email || "-"}
+                  {employee.personalId || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {employee.phone}
