@@ -156,6 +156,8 @@ model DailySheet {
   description     String?
   notes           String?
   pricePerKg      Float?        // Price per kg from hotel
+  sheetType       String        @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
+  totalWeight     Float?        // Total weight for STANDARD type
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

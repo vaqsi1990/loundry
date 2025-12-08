@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, items } = body;
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, items } = body;
 
     if (!date) {
       return NextResponse.json(
@@ -184,6 +184,8 @@ export async function POST(request: NextRequest) {
       description: (description && String(description).trim()) ? String(description).trim() : null,
       notes: (notes && String(notes).trim()) ? String(notes).trim() : null,
       pricePerKg: pricePerKg,
+      sheetType: sheetType || "INDIVIDUAL",
+      totalWeight: totalWeight ? parseFloat(totalWeight) : null,
       items: {
         create: (items && Array.isArray(items) ? items : [])
         .filter((item: any) => {

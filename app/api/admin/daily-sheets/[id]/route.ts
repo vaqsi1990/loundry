@@ -31,7 +31,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, items } = body;
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, items } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -89,6 +89,8 @@ export async function PUT(
         description: description || null,
         notes: notes || null,
         pricePerKg: pricePerKg,
+        sheetType: sheetType || "INDIVIDUAL",
+        totalWeight: totalWeight ? parseFloat(totalWeight) : null,
         items: {
           create: items?.map((item: any) => ({
             category: item.category,

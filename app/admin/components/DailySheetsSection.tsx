@@ -30,6 +30,8 @@ interface DailySheet {
   description: string | null;
   notes: string | null;
   pricePerKg: number | null;
+  sheetType: string;
+  totalWeight: number | null;
   items: DailySheetItem[];
   createdAt: string;
 }
@@ -94,6 +96,8 @@ export default function DailySheetsSection() {
     hotelName: "",
     description: "",
     notes: "",
+    sheetType: "INDIVIDUAL" as "INDIVIDUAL" | "STANDARD",
+    totalWeight: null as number | null,
     items: [] as DailySheetItem[],
   });
 
@@ -249,6 +253,8 @@ export default function DailySheetsSection() {
       hotelName: sheet.hotelName || "",
       description: sheet.description || "",
       notes: sheet.notes || "",
+      sheetType: (sheet.sheetType || "INDIVIDUAL") as "INDIVIDUAL" | "STANDARD",
+      totalWeight: sheet.totalWeight,
       items:
         sheet.items.length > 0
           ? sheet.items.map((i) => ({
@@ -286,6 +292,8 @@ export default function DailySheetsSection() {
       hotelName: "",
       description: "",
       notes: "",
+      sheetType: "INDIVIDUAL" as "INDIVIDUAL" | "STANDARD",
+      totalWeight: null,
       items: initializeItems(),
     });
     setShowAddForm(false);
@@ -298,6 +306,8 @@ export default function DailySheetsSection() {
       hotelName: "",
       description: "",
       notes: "",
+      sheetType: "INDIVIDUAL" as "INDIVIDUAL" | "STANDARD",
+      totalWeight: null,
       items: initializeItems(),
     });
     setEditingId(null);
@@ -327,16 +337,27 @@ export default function DailySheetsSection() {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
 
-  const renderSectionRows = (items: DailySheetItem[]) =>
+  const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL") =>
     items.map((item, idx) => (
       <tr key={`${item.itemNameKa}-${idx}`} className="bg-white">
         <td className="border border-gray-300 px-2 py-1">{item.itemNameKa}</td>
-        <td className="border border-gray-300 px-2 py-1 text-center">{(item.weight || 0).toFixed(3)}</td>
-        <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-        <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
-        <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-        <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-        <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
+        {sheetType === "INDIVIDUAL" && (
+          <>
+            <td className="border border-gray-300 px-2 py-1 text-center">{(item.weight || 0).toFixed(3)}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
+          </>
+        )}
+        {sheetType === "STANDARD" && (
+          <>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
+            <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
+          </>
+        )}
         <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
       </tr>
     ));
@@ -356,8 +377,12 @@ export default function DailySheetsSection() {
   const renderSheetTable = (sheet: DailySheet) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
     const totals = calculateTotals(sheet.items);
-    const totalPrice = sheet.pricePerKg && totals.totalWeight 
-      ? (sheet.pricePerKg * totals.totalWeight).toFixed(2) 
+    // For STANDARD type, use sheet.totalWeight; for INDIVIDUAL, use totals.totalWeight
+    const weightForPrice = sheet.sheetType === "STANDARD" && sheet.totalWeight 
+      ? sheet.totalWeight 
+      : totals.totalWeight;
+    const totalPrice = sheet.pricePerKg && weightForPrice 
+      ? (sheet.pricePerKg * weightForPrice).toFixed(2) 
       : null;
 
     return (
@@ -366,12 +391,23 @@ export default function DailySheetsSection() {
           <thead>
             <tr className="bg-orange-100">
               <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-left font-semibold">ერთეული</th>
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">წონა (კგ)</th>
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
+              {sheet.sheetType === "INDIVIDUAL" && (
+                <>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">წონა (კგ)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
+                </>
+              )}
+              {sheet.sheetType === "STANDARD" && (
+                <>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
+                </>
+              )}
               <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">შენიშვნა</th>
             </tr>
           </thead>
@@ -382,11 +418,11 @@ export default function DailySheetsSection() {
               return (
                 <React.Fragment key={category}>
                   <tr>
-                    <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                    <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 8 : 5} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
                       {CATEGORY_LABELS[category]}
                     </td>
                   </tr>
-                  {renderSectionRows(sectionItems)}
+                  {renderSectionRows(sectionItems, sheet.sheetType)}
                 </React.Fragment>
               );
             })}
@@ -394,17 +430,39 @@ export default function DailySheetsSection() {
           <tfoot>
             <tr className="bg-gray-50 font-semibold">
               <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
-              <td className="border border-gray-300 px-2 py-1 text-center">-</td>
-              <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
-              <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
-              <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
-              <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
-              <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+              {sheet.sheetType === "INDIVIDUAL" && (
+                <>
+                  <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                </>
+              )}
+              {sheet.sheetType === "STANDARD" && (
+                <>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                </>
+              )}
               <td className="border border-gray-300 px-2 py-1 text-center">-</td>
             </tr>
+            {sheet.sheetType === "STANDARD" && sheet.totalWeight && (
+              <tr className="bg-blue-50 font-semibold">
+                <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
+                  მთლიანი წონა:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {sheet.totalWeight.toFixed(2)} კგ
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            )}
             {sheet.pricePerKg && (
               <tr className="bg-blue-50 font-semibold">
-                <td colSpan={6} className="border border-gray-300 px-2 py-1 text-right">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   1 კგ-ის ფასი:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
@@ -415,7 +473,7 @@ export default function DailySheetsSection() {
             )}
             {totalPrice && (
               <tr className="bg-green-50 font-bold">
-                <td colSpan={6} className="border border-gray-300 px-2 py-1 text-right">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი ფასი:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
@@ -518,6 +576,20 @@ export default function DailySheetsSection() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    ფურცლის ტიპი *
+                  </label>
+                  <select
+                    required
+                    value={formData.sheetType}
+                    onChange={(e) => setFormData({ ...formData, sheetType: e.target.value as "INDIVIDUAL" | "STANDARD" })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  >
+                    <option value="INDIVIDUAL">ინდივიდუალური</option>
+                    <option value="STANDARD">სტანდარტული</option>
+                  </select>
+                </div>
               </div>
 
               {/* Items Table */}
@@ -527,12 +599,23 @@ export default function DailySheetsSection() {
                     <thead>
                       <tr className="bg-orange-100">
                         <th className="border border-gray-300 px-2 py-1 text-left font-semibold">ერთეული</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
+                        {formData.sheetType === "INDIVIDUAL" && (
+                          <>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
+                          </>
+                        )}
+                        {formData.sheetType === "STANDARD" && (
+                          <>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                          </>
+                        )}
                         <th className="border border-gray-300 px-2 py-1 text-center font-semibold">შენიშვნა</th>
                       </tr>
                     </thead>
@@ -542,7 +625,7 @@ export default function DailySheetsSection() {
                         return (
                           <React.Fragment key={category}>
                             <tr>
-                              <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                              <td colSpan={formData.sheetType === "INDIVIDUAL" ? 8 : 5} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
                                 {CATEGORY_LABELS[category]}
                               </td>
                             </tr>
@@ -553,50 +636,82 @@ export default function DailySheetsSection() {
                                   <td className="border border-gray-300 px-2 py-1">
                                     {item.itemNameKa}
                                   </td>
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    <input
-                                      type="number"
-                                      step="0.001"
-                                      value={item.weight}
-                                      onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
-                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                    />
-                                  </td>
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    <input
-                                      type="number"
-                                      value={item.received}
-                                      onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                    />
-                                  </td>
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    <input
-                                      type="number"
-                                      value={item.washCount}
-                                      onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
-                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                    />
-                                  </td>
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    <input
-                                      type="number"
-                                      value={item.dispatched}
-                                      onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                    />
-                                  </td>
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    <input
-                                      type="number"
-                                      value={item.shortage}
-                                      onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                    />
-                                  </td>
-                                  <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
-                                    {item.totalWeight.toFixed(2)}
-                                  </td>
+                                  {formData.sheetType === "INDIVIDUAL" && (
+                                    <>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          step="0.001"
+                                          value={item.weight}
+                                          onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.received}
+                                          onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.washCount}
+                                          onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.dispatched}
+                                          onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.shortage}
+                                          onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
+                                        {item.totalWeight.toFixed(2)}
+                                      </td>
+                                    </>
+                                  )}
+                                  {formData.sheetType === "STANDARD" && (
+                                    <>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.received}
+                                          onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.dispatched}
+                                          onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        <input
+                                          type="number"
+                                          value={item.shortage}
+                                          onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                        />
+                                      </td>
+                                    </>
+                                  )}
                                   <td className="border border-gray-300 px-2 py-1">
                                     <input
                                       type="text"
@@ -618,12 +733,23 @@ export default function DailySheetsSection() {
                         return (
                           <tr className="bg-gray-50 font-semibold">
                             <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
-                            <td className="border border-gray-300 px-2 py-1 text-center">-</td>
-                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
-                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
-                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
-                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
-                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                            {formData.sheetType === "INDIVIDUAL" && (
+                              <>
+                                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                              </>
+                            )}
+                            {formData.sheetType === "STANDARD" && (
+                              <>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
+                                <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                              </>
+                            )}
                             <td className="border border-gray-300 px-2 py-1 text-center">-</td>
                           </tr>
                         );
@@ -632,6 +758,23 @@ export default function DailySheetsSection() {
                   </table>
                 </div>
               </div>
+
+              {formData.sheetType === "STANDARD" && (
+                <div className="mt-4">
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    მთლიანი წონა (კგ) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    required
+                    value={formData.totalWeight || ""}
+                    onChange={(e) => setFormData({ ...formData, totalWeight: parseFloat(e.target.value) || null })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    placeholder="შეიყვანეთ მთლიანი წონა"
+                  />
+                </div>
+              )}
 
               <div className="flex space-x-2 mt-4">
                 <button
