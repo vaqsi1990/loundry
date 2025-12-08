@@ -50,6 +50,8 @@ const LINEN_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "LINEN", itemNameKa: "ზეწარი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ზეწარი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის პირი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ბალიშის პირი საშუალო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ბალიშის პირი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის პირი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
@@ -64,8 +66,7 @@ const TOWEL_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
 const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "PROTECTORS", itemNameKa: "საბანი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "PROTECTORS", itemNameKa: "საბანი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "საბნის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "საბნის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+ 
   { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "PROTECTORS", itemNameKa: "ბალიში დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
