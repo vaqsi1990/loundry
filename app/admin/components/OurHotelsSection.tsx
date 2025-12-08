@@ -100,11 +100,13 @@ export default function OurHotelsSection() {
     try {
       const trimmedEmail = email.trim();
       const trimmedHotelEmail = hotelEmail.trim();
+      const trimmedName = name.trim();
+      const trimmedLastName = lastName.trim();
 
       const requestBody: any = {
         hotelType,
-        name: name.trim(),
-        lastName: lastName.trim(),
+        name: trimmedName || undefined,
+        lastName: trimmedLastName || undefined,
         email: trimmedEmail || undefined,
         password,
         confirmPassword,
@@ -348,6 +350,18 @@ export default function OurHotelsSection() {
                     </>
                   )}
                
+                 
+                <div>
+                  <input
+                    id="email"
+                    type="email"
+                    required={false}
+                    className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                    placeholder="მომხმარებლის ელფოსტა (არასავალდებულო)"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
                   <div>
                     <input
                       id="password"

@@ -19,8 +19,8 @@ const hotelSchema = z.object({
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
   pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
   // User account fields
-  name: z.string().min(1, "სახელი სავალდებულოა"),
-  lastName: z.string().min(1, "გვარი სავალდებულოა"),
+  name: z.string().min(1, "სახელი სავალდებულოა").optional(),
+  lastName: z.string().min(1, "გვარი სავალდებულოა").optional(),
   email: emailSchema.optional(),
   password: z.string().min(6, "პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან"),
   confirmPassword: z.string().min(6, "გთხოვთ გაიმეოროთ პაროლი"),
@@ -50,18 +50,28 @@ const hotelSchema = z.object({
   path: ["confirmPassword"],
 }).superRefine((data, ctx) => {
   if (data.hotelType === "LEGAL") {
-    if (!data.email) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "იურიდიული პირისთვის მომხმარებლის ელფოსტა სავალდებულოა",
-        path: ["email"],
-      });
-    }
     if (!data.hotelEmail) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "იურიდიული პირისთვის სასტუმროს ელფოსტა სავალდებულოა",
         path: ["hotelEmail"],
+      });
+    }
+  }
+
+  if (data.hotelType === "PHYSICAL") {
+    if (!data.name) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "ფიზიკური პირისთვის სახელი სავალდებულოა",
+        path: ["name"],
+      });
+    }
+    if (!data.lastName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "ფიზიკური პირისთვის გვარი სავალდებულოა",
+        path: ["lastName"],
       });
     }
   }
@@ -141,8 +151,8 @@ export async function POST(request: NextRequest) {
       body = await request.json();
       body.email = body?.email?.trim() || undefined;
       body.hotelEmail = body?.hotelEmail?.trim() || undefined;
-      body.name = body?.name?.trim();
-      body.lastName = body?.lastName?.trim();
+      body.name = body?.name?.trim() || undefined;
+      body.lastName = body?.lastName?.trim() || undefined;
       body.hotelName = body?.hotelName?.trim();
       body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim();
       console.log("our-hotels POST payload", {
@@ -181,9 +191,15 @@ export async function POST(request: NextRequest) {
     // Create user and hotel in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create user
+      const displayName =
+        `${validatedData.name ?? ""} ${validatedData.lastName ?? ""}`.trim() ||
+        validatedData.responsiblePersonName ||
+        validatedData.legalEntityName ||
+        "User";
+
       const newUser = await tx.user.create({
         data: {
-          name: `${validatedData.name} ${validatedData.lastName}`.trim(),
+          name: displayName,
           email: userEmailForAccount,
           password: hashedPassword,
           mobileNumber: validatedData.mobileNumber,
