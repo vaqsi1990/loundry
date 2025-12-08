@@ -361,234 +361,246 @@ export default function DailySheetsSection() {
         />
       </div>
 
-      {/* Add/Edit Form */}
+      {/* Add/Edit Form (Modal) */}
       {showAddForm && (
-        <div className="bg-gray-50 p-6 rounded-lg mb-6 border border-gray-300">
-          <h3 className="text-lg font-semibold text-black mb-4">
-            {editingId ? "ფურცლის რედაქტირება" : "ახალი დღის ფურცელი"}
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  თარიღი *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                />
-              </div>
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  სასტუმრო *
-                </label>
-                <select
-                  required
-                  value={formData.hotelName}
-                  onChange={(e) => setFormData({ ...formData, hotelName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                >
-                  <option value="">აირჩიეთ სასტუმრო</option>
-                  {hotels.map((hotel) => (
-                    <option key={hotel.id} value={hotel.hotelName}>
-                      {hotel.hotelName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  ოთახის ნომერი
-                </label>
-                <input
-                  type="text"
-                  value={formData.roomNumber}
-                  onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  placeholder="მაგ: 31"
-                />
-              </div>
-            </div>
-
-            {/* Items Table */}
-            <div className="mt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-300  text-[16px]">
-                  <thead>
-                    <tr className="bg-orange-100">
-                      <th className="border border-gray-300 px-2 py-1 text-left font-semibold">ერთეული</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
-                      <th className="border border-gray-300 px-2 py-1 text-center font-semibold">შენიშვნა</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                        პირსახოცები
-                      </td>
-                    </tr>
-                    {formData.items
-                      .filter(item => item.category === "TOWELS")
-                      .map((item, index) => {
-                        const actualIndex = formData.items.findIndex(i => i === item);
-                        return (
-                          <tr key={actualIndex} className="bg-white">
-                            <td className="border border-gray-300 px-2 py-1">
-                              {item.itemNameKa}
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                step="0.001"
-                                value={item.weight}
-                                onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.received}
-                                onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.washCount}
-                                onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.dispatched}
-                                onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.shortage}
-                                onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
-                              {item.totalWeight.toFixed(2)}
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="text"
-                                value={item.comment || ""}
-                                onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
-                                className="w-full px-1 py-1 border-0 text-black bg-transparent"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    <tr>
-                      <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                        თეთრეული
-                      </td>
-                    </tr>
-                    {formData.items
-                      .filter(item => item.category === "LINEN")
-                      .map((item, index) => {
-                        const actualIndex = formData.items.findIndex(i => i === item);
-                        return (
-                          <tr key={actualIndex} className="bg-white">
-                            <td className="border border-gray-300 px-2 py-1">
-                              {item.itemNameKa}
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                step="0.001"
-                                value={item.weight}
-                                onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.received}
-                                onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.washCount}
-                                onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.dispatched}
-                                onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="number"
-                                value={item.shortage}
-                                onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
-                              {item.totalWeight.toFixed(2)}
-                            </td>
-                            <td className="border border-gray-300 px-2 py-1">
-                              <input
-                                type="text"
-                                value={item.comment || ""}
-                                onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
-                                className="w-full px-1 py-1 border-0 text-black bg-transparent"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex space-x-2 mt-4">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto py-10 px-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-5xl">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-lg font-semibold text-black">
+                {editingId ? "ფურცლის რედაქტირება" : "ახალი დღის ფურცელი"}
+              </h3>
               <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                {editingId ? "განახლება" : "დამატება"}
-              </button>
-              <button
-                type="button"
                 onClick={resetForm}
-                className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
+                className="text-gray-500 hover:text-black text-xl leading-none"
+                aria-label="დახურვა"
               >
-                გაუქმება
+                ×
               </button>
             </div>
-          </form>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    თარიღი *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    სასტუმრო *
+                  </label>
+                  <select
+                    required
+                    value={formData.hotelName}
+                    onChange={(e) => setFormData({ ...formData, hotelName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  >
+                    <option value="">აირჩიეთ სასტუმრო</option>
+                    {hotels.map((hotel) => (
+                      <option key={hotel.id} value={hotel.hotelName}>
+                        {hotel.hotelName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    ოთახის ნომერი
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.roomNumber}
+                    onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    placeholder="მაგ: 31"
+                  />
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="mt-6">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300  text-[16px]">
+                    <thead>
+                      <tr className="bg-orange-100">
+                        <th className="border border-gray-300 px-2 py-1 text-left font-semibold">ერთეული</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">შენიშვნა</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                          პირსახოცები
+                        </td>
+                      </tr>
+                      {formData.items
+                        .filter(item => item.category === "TOWELS")
+                        .map((item, index) => {
+                          const actualIndex = formData.items.findIndex(i => i === item);
+                          return (
+                            <tr key={actualIndex} className="bg-white">
+                              <td className="border border-gray-300 px-2 py-1">
+                                {item.itemNameKa}
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  value={item.weight}
+                                  onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.received}
+                                  onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.washCount}
+                                  onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.dispatched}
+                                  onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.shortage}
+                                  onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
+                                {item.totalWeight.toFixed(2)}
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="text"
+                                  value={item.comment || ""}
+                                  onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
+                                  className="w-full px-1 py-1 border-0 text-black bg-transparent"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      <tr>
+                        <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                          თეთრეული
+                        </td>
+                      </tr>
+                      {formData.items
+                        .filter(item => item.category === "LINEN")
+                        .map((item, index) => {
+                          const actualIndex = formData.items.findIndex(i => i === item);
+                          return (
+                            <tr key={actualIndex} className="bg-white">
+                              <td className="border border-gray-300 px-2 py-1">
+                                {item.itemNameKa}
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  value={item.weight}
+                                  onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.received}
+                                  onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.washCount}
+                                  onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.dispatched}
+                                  onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="number"
+                                  value={item.shortage}
+                                  onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                />
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
+                                {item.totalWeight.toFixed(2)}
+                              </td>
+                              <td className="border border-gray-300 px-2 py-1">
+                                <input
+                                  type="text"
+                                  value={item.comment || ""}
+                                  onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
+                                  className="w-full px-1 py-1 border-0 text-black bg-transparent"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex space-x-2 mt-4">
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  {editingId ? "განახლება" : "დამატება"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
+                >
+                  გაუქმება
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
