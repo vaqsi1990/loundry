@@ -33,6 +33,7 @@ interface DailySheet {
   pricePerKg: number | null;
   sheetType: string;
   totalWeight: number | null;
+  totalPrice: number | null;
   items: DailySheetItem[];
   createdAt: string;
 }
@@ -53,7 +54,7 @@ const LINEN_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "LINEN", itemNameKa: "ზეწარი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ზეწარი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის პირი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameKa: "ბალიშის პირი საშუალო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+ 
   { category: "LINEN", itemNameKa: "ბალიშის პირი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის პირი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
@@ -61,9 +62,11 @@ const LINEN_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
 ];
 
 const TOWEL_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
-  { category: "TOWELS", itemNameKa: "აბანო პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "TOWELS", itemNameKa: "ფეხის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "TOWELS", itemNameKa: "დიდი პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "TOWELS", itemNameKa: "პატარა პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "TOWELS", itemNameKa: "სახის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "TOWELS", itemNameKa: "ფეხის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "TOWELS", itemNameKa: "ხალათი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
 ];
 
 const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
@@ -100,6 +103,7 @@ export default function DailySheetsSection() {
     sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
     totalWeight: null as number | null,
     pricePerKg: null as number | null,
+    totalPrice: null as number | null, // For PROTECTORS manual price
     items: [] as DailySheetItem[],
   });
 
@@ -259,6 +263,7 @@ export default function DailySheetsSection() {
       sheetType: (sheet.sheetType || "INDIVIDUAL") as "INDIVIDUAL" | "STANDARD",
       totalWeight: sheet.totalWeight,
       pricePerKg: sheet.pricePerKg,
+      totalPrice: sheet.totalPrice || null,
       items:
         sheet.items.length > 0
           ? sheet.items.map((i) => ({
@@ -299,6 +304,7 @@ export default function DailySheetsSection() {
       sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
       totalWeight: null,
       pricePerKg: null,
+      totalPrice: null,
       items: initializeItems(),
     });
     setShowAddForm(false);
@@ -314,6 +320,7 @@ export default function DailySheetsSection() {
       sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
       totalWeight: null,
       pricePerKg: null,
+      totalPrice: null,
       items: initializeItems(),
     });
     setEditingId(null);
@@ -383,13 +390,34 @@ export default function DailySheetsSection() {
   const renderSheetTable = (sheet: DailySheet) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
     const totals = calculateTotals(sheet.items);
-    // For STANDARD type, use sheet.totalWeight; for INDIVIDUAL, use totals.totalWeight
-    const weightForPrice = sheet.sheetType === "STANDARD" && sheet.totalWeight 
-      ? sheet.totalWeight 
-      : totals.totalWeight;
-    const totalPrice = sheet.pricePerKg && weightForPrice 
-      ? (sheet.pricePerKg * weightForPrice).toFixed(2) 
-      : null;
+    const hasProtectors = sheet.items.some(item => item.category === "PROTECTORS");
+    const hasLinenOrTowels = sheet.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
+    
+    // Calculate total price: LINEN/TOWELS price + PROTECTORS price
+    let calculatedTotalPrice: string | null = null;
+    let linenTowelsPrice = 0;
+    let protectorsPrice = 0;
+    
+    // Calculate LINEN/TOWELS price
+    if (hasLinenOrTowels) {
+      const weightForPrice = sheet.sheetType === "STANDARD" && sheet.totalWeight 
+        ? sheet.totalWeight 
+        : totals.totalWeight;
+      if (sheet.pricePerKg && weightForPrice) {
+        linenTowelsPrice = sheet.pricePerKg * weightForPrice;
+      }
+    }
+    
+    // Calculate PROTECTORS price (for both STANDARD and INDIVIDUAL)
+    if (hasProtectors && sheet.totalPrice) {
+      protectorsPrice = sheet.totalPrice;
+    }
+    
+    // Total sum
+    const totalSum = linenTowelsPrice + protectorsPrice;
+    if (totalSum > 0) {
+      calculatedTotalPrice = totalSum.toFixed(2);
+    }
 
     return (
       <div className="overflow-x-auto">
@@ -477,13 +505,24 @@ export default function DailySheetsSection() {
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             )}
-            {totalPrice && (
+            {hasProtectors && sheet.totalPrice && (
+              <tr className="bg-purple-50 font-semibold">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
+                  დამცავების ფასი:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {sheet.totalPrice.toFixed(2)} ₾
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            )}
+            {calculatedTotalPrice && (
               <tr className="bg-green-50 font-bold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი ფასი:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {totalPrice} ₾
+                  {calculatedTotalPrice} ₾
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
@@ -774,51 +813,133 @@ export default function DailySheetsSection() {
                 </div>
               </div>
 
-              {formData.sheetType === "STANDARD" && (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="block text-[16px] font-medium text-black mb-1">
-                      მთლიანი წონა (კგ) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      required
-                      value={formData.totalWeight || ""}
-                      onChange={(e) => setFormData({ ...formData, totalWeight: parseFloat(e.target.value) || null })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                      placeholder="შეიყვანეთ მთლიანი წონა"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[16px] font-medium text-black mb-1">
-                      1 კგ-ის ფასი (₾) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      value={formData.pricePerKg !== null && formData.pricePerKg !== undefined ? formData.pricePerKg : ""}
-                      onChange={(e) => {
-                        const value = e.target.value === "" ? null : parseFloat(e.target.value);
-                        setFormData({ ...formData, pricePerKg: isNaN(value as number) ? null : value });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                      placeholder="შეიყვანეთ 1 კგ-ის ფასი"
-                    />
-                  </div>
-                  {formData.totalWeight && formData.pricePerKg && (
-                    <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[16px] font-semibold text-black">ჯამი (მთლიანი ფასი):</span>
-                        <span className="text-[18px] font-bold text-green-700">
-                          {(formData.totalWeight * formData.pricePerKg).toFixed(2)} ₾
-                        </span>
+              {formData.sheetType === "STANDARD" && (() => {
+                const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
+                const hasLinenOrTowels = formData.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
+                
+                const linenTowelsPrice = formData.totalWeight && formData.pricePerKg 
+                  ? formData.totalWeight * formData.pricePerKg 
+                  : 0;
+                const protectorsPrice = formData.totalPrice || 0;
+                const totalSum = linenTowelsPrice + protectorsPrice;
+                
+                return (
+                  <div className="mt-4 space-y-4">
+                    {hasLinenOrTowels && (
+                      <>
+                        <div>
+                          <label className="block text-[16px] font-medium text-black mb-1">
+                            მთლიანი წონა (კგ) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            required={hasLinenOrTowels}
+                            value={formData.totalWeight || ""}
+                            onChange={(e) => setFormData({ ...formData, totalWeight: parseFloat(e.target.value) || null })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                            placeholder="შეიყვანეთ მთლიანი წონა"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[16px] font-medium text-black mb-1">
+                            1 კგ-ის ფასი (₾) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            required={hasLinenOrTowels}
+                            value={formData.pricePerKg !== null && formData.pricePerKg !== undefined ? formData.pricePerKg : ""}
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                              setFormData({ ...formData, pricePerKg: isNaN(value as number) ? null : value });
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                            placeholder="შეიყვანეთ 1 კგ-ის ფასი"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {hasProtectors && (
+                      <div>
+                        <label className="block text-[16px] font-medium text-black mb-1">
+                          დამცავების ფასი (₾) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required={hasProtectors}
+                          value={formData.totalPrice !== null && formData.totalPrice !== undefined ? formData.totalPrice : ""}
+                          onChange={(e) => {
+                            const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                            setFormData({ ...formData, totalPrice: isNaN(value as number) ? null : value });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                          placeholder="შეიყვანეთ დამცავების ფასი"
+                        />
                       </div>
+                    )}
+                    {totalSum > 0 && (
+                      <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[16px] font-semibold text-black">ჯამი (მთლიანი ფასი):</span>
+                          <span className="text-[18px] font-bold text-green-700">
+                            {totalSum.toFixed(2)} ₾
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {formData.sheetType === "INDIVIDUAL" && (() => {
+                const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
+                const hasLinenOrTowels = formData.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
+                
+                if (hasProtectors || hasLinenOrTowels) {
+                  const totals = calculateTotals(formData.items);
+                  const linenTowelsPrice = formData.pricePerKg && totals.totalWeight 
+                    ? formData.pricePerKg * totals.totalWeight 
+                    : 0;
+                  const protectorsPrice = formData.totalPrice || 0;
+                  const totalSum = linenTowelsPrice + protectorsPrice;
+                  
+                  return (
+                    <div className="mt-4 space-y-4">
+                      {hasProtectors && (
+                        <div>
+                          <label className="block text-[16px] font-medium text-black mb-1">
+                            დამცავების ფასი (₾)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.totalPrice !== null && formData.totalPrice !== undefined ? formData.totalPrice : ""}
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                              setFormData({ ...formData, totalPrice: isNaN(value as number) ? null : value });
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                            placeholder="შეიყვანეთ დამცავების ფასი"
+                          />
+                        </div>
+                      )}
+                      {totalSum > 0 && (
+                        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[16px] font-semibold text-black">ჯამი (მთლიანი ფასი):</span>
+                            <span className="text-[18px] font-bold text-green-700">
+                              {totalSum.toFixed(2)} ₾
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                  );
+                }
+                return null;
+              })()}
 
               <div className="flex space-x-2 mt-4">
                 <button

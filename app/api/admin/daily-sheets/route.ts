@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, items } = body;
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items } = body;
 
     if (!date) {
       return NextResponse.json(
@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
       pricePerKg: finalPricePerKg,
       sheetType: sheetType || "INDIVIDUAL",
       totalWeight: totalWeight ? parseFloat(totalWeight) : null,
+      totalPrice: totalPrice ? parseFloat(totalPrice) : null,
       items: {
         create: (items && Array.isArray(items) ? items : [])
         .filter((item: any) => {
