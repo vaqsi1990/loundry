@@ -63,6 +63,11 @@ export default function DailySheetsSection() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null; to: string }>({
+    open: false,
+    sheetId: null,
+    to: "",
+  });
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -165,6 +170,28 @@ export default function DailySheetsSection() {
 
       await fetchSheets();
       resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailModal.sheetId || !emailModal.to) {
+      setError("გთხოვთ მიუთითოთ მიმღების ელფოსტა");
+      return;
+    }
+    setError("");
+    try {
+      const res = await fetch("/api/admin/daily-sheets/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sheetId: emailModal.sheetId, to: emailModal.to }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "გაგზავნა ვერ მოხერხდა");
+      }
+      setEmailModal({ open: false, sheetId: null, to: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     }
@@ -596,6 +623,12 @@ export default function DailySheetsSection() {
                 >
                   წაშლა
                 </button>
+                <button
+                  onClick={() => setEmailModal({ open: true, sheetId: sheet.id, to: "" })}
+                  className="text-green-700 hover:underline px-2"
+                >
+                  გაგზავნა მეილზე
+                </button>
               </div>
             </div>
             {renderSheetTable(sheet)}
@@ -606,6 +639,43 @@ export default function DailySheetsSection() {
       {filteredSheets.length === 0 && (
         <div className="text-center py-8 text-black">
           დღის ფურცლები არ მოიძებნა
+        </div>
+      )}
+
+      {emailModal.open && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-black mb-4">გაგზავნა მეილზე</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[16px] font-medium text-black mb-1">
+                  მიმღების ელფოსტა *
+                </label>
+                <input
+                  type="email"
+                  value={emailModal.to}
+                  onChange={(e) => setEmailModal({ ...emailModal, to: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  placeholder="example@domain.com"
+                  required
+                />
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleSendEmail}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  გაგზავნა
+                </button>
+                <button
+                  onClick={() => setEmailModal({ open: false, sheetId: null, to: "" })}
+                  className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
+                >
+                  გაუქმება
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
