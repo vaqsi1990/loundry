@@ -170,7 +170,6 @@ model DailySheetItem {
   dailySheet      DailySheet    @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
   
   category        String        // TOWELS, LINEN
-  itemNameEn      String        // English name
   itemNameKa      String        // Georgian name
   weight          Float         // Weight in KG
   received        Int           @default(0) // Received in pieces

@@ -101,14 +101,25 @@ export default function DailySheetsSection() {
 
   const fetchHotels = async () => {
     try {
-      const response = await fetch("/api/admin/hotels");
+      const response = await fetch("/api/admin/our-hotels");
       if (!response.ok) {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
       }
       const data = await response.json();
-      setHotels(data);
+      // Normalize shape from our-hotels API
+      setHotels(
+        Array.isArray(data)
+          ? data.map((hotel: any) => ({
+              id: hotel.id,
+              hotelName: hotel.hotelName,
+              contactPhone: hotel.mobileNumber,
+              email: hotel.email,
+            }))
+          : []
+      );
     } catch (err) {
       console.error("Hotels fetch error:", err);
+      setError("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
     }
   };
 

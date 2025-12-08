@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
         items: {
           create: items?.map((item: any) => ({
             category: item.category,
-            itemNameEn: item.itemNameEn,
             itemNameKa: item.itemNameKa,
             weight: item.weight,
             received: item.received || 0,
