@@ -177,7 +177,7 @@ model DailySheetItem {
   washCount       Int           @default(0) // Wash count in pieces
   dispatched      Int           @default(0) // Dispatched in pieces
   shortage        Int           @default(0) // Shortage in pieces
-  totalWeight     Float         // Calculated: weight * dispatched
+  totalWeight     Float         // Total weight in KG (same as weight)
   comment         String?
   
   createdAt       DateTime      @default(now())

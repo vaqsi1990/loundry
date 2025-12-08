@@ -155,7 +155,7 @@ export default function DailySheetsSection() {
     ].map(item => ({
       ...item,
       id: undefined,
-      totalWeight: item.weight * item.dispatched,
+      totalWeight: item.weight ,
     }));
     return allItems;
   };
@@ -167,9 +167,9 @@ export default function DailySheetsSection() {
       [field]: value,
     };
     
-    // Calculate totalWeight when dispatched or weight changes
-    if (field === "dispatched" || field === "weight") {
-      newItems[index].totalWeight = (newItems[index].weight || 0) * (newItems[index].dispatched || 0);
+    // Calculate totalWeight when weight changes
+    if (field === "weight") {
+      newItems[index].totalWeight = (newItems[index].weight || 0);
     }
     
     setFormData({ ...formData, items: newItems });
@@ -253,7 +253,7 @@ export default function DailySheetsSection() {
         sheet.items.length > 0
           ? sheet.items.map((i) => ({
               ...i,
-              totalWeight: i.totalWeight ?? (i.weight || 0) * (i.dispatched || 0),
+              totalWeight: i.totalWeight ?? (i.weight || 0),
             }))
           : initializeItems(),
     });
@@ -348,7 +348,7 @@ export default function DailySheetsSection() {
         washCount: acc.washCount + (item.washCount || 0),
         dispatched: acc.dispatched + (item.dispatched || 0),
         shortage: acc.shortage + (item.shortage || 0),
-        totalWeight: acc.totalWeight + (item.totalWeight || 0),
+        totalWeight: acc.totalWeight + ((item.weight || 0)),
       }),
       { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
     );

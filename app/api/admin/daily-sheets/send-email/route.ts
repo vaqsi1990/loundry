@@ -64,7 +64,7 @@ function renderHtml(sheet: any) {
       acc.washCount += item.washCount ?? 0;
       acc.dispatched += item.dispatched ?? 0;
       acc.shortage += item.shortage ?? 0;
-      acc.totalWeight += item.totalWeight ?? 0;
+      acc.totalWeight += (item.weight ?? 0) ;
       return acc;
     },
     { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
