@@ -29,6 +29,7 @@ interface DailySheet {
   hotelName: string | null;
   description: string | null;
   notes: string | null;
+  pricePerKg: number | null;
   items: DailySheetItem[];
   createdAt: string;
 }
@@ -80,6 +81,7 @@ export default function DailySheetsSection() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set()); // Track which sheets are expanded
   const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null; to: string }>({
     open: false,
     sheetId: null,
@@ -130,8 +132,14 @@ export default function DailySheetsSection() {
         throw new Error("დღის ფურცლების ჩატვირთვა ვერ მოხერხდა");
       }
       const data = await response.json();
-      setSheets(data);
+      console.log("Fetched sheets:", data);
+      console.log("Sheets count:", data?.length || 0);
+      if (data && data.length > 0) {
+        console.log("First sheet date:", data[0].date, "type:", typeof data[0].date);
+      }
+      setSheets(data || []);
     } catch (err) {
+      console.error("Fetch sheets error:", err);
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
       setLoading(false);
@@ -221,10 +229,22 @@ export default function DailySheetsSection() {
     }
   };
 
+  const toggleSheet = (sheetId: string) => {
+    setExpandedSheets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sheetId)) {
+        newSet.delete(sheetId);
+      } else {
+        newSet.add(sheetId);
+      }
+      return newSet;
+    });
+  };
+
   const handleEdit = (sheet: DailySheet) => {
     setEditingId(sheet.id);
     setFormData({
-      date: sheet.date.split("T")[0],
+      date: getDateString(sheet.date),
       hotelName: sheet.hotelName || "",
       description: sheet.description || "",
       notes: sheet.notes || "",
@@ -283,9 +303,24 @@ export default function DailySheetsSection() {
     setShowAddForm(true);
   };
 
-  const filteredSheets = sheets.filter(sheet => 
-    selectedDate ? sheet.date.split("T")[0] === selectedDate : true
-  );
+  // Helper function to get date string in YYYY-MM-DD format without timezone issues
+  const getDateString = (date: string | Date): string => {
+    if (typeof date === 'string') {
+      return date.split("T")[0];
+    }
+    const d = new Date(date);
+    // Use UTC methods to avoid timezone conversion
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const filteredSheets = sheets.filter(sheet => {
+    if (!selectedDate) return true;
+    const sheetDateStr = getDateString(sheet.date);
+    return sheetDateStr === selectedDate;
+  });
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
@@ -320,6 +355,9 @@ export default function DailySheetsSection() {
   const renderSheetTable = (sheet: DailySheet) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
     const totals = calculateTotals(sheet.items);
+    const totalPrice = sheet.pricePerKg && totals.totalWeight 
+      ? (sheet.pricePerKg * totals.totalWeight).toFixed(2) 
+      : null;
 
     return (
       <div className="overflow-x-auto">
@@ -363,6 +401,28 @@ export default function DailySheetsSection() {
               <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
               <td className="border border-gray-300 px-2 py-1 text-center">-</td>
             </tr>
+            {sheet.pricePerKg && (
+              <tr className="bg-blue-50 font-semibold">
+                <td colSpan={6} className="border border-gray-300 px-2 py-1 text-right">
+                  1 კგ-ის ფასი:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {sheet.pricePerKg.toFixed(2)} ₾
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            )}
+            {totalPrice && (
+              <tr className="bg-green-50 font-bold">
+                <td colSpan={6} className="border border-gray-300 px-2 py-1 text-right">
+                  მთლიანი ფასი:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {totalPrice} ₾
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
@@ -388,16 +448,24 @@ export default function DailySheetsSection() {
       )}
 
       {/* Date Filter */}
-      <div className="mb-4">
-        <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-          თარიღის ფილტრი
-        </label>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-black"
-        />
+      <div className="mb-4 flex items-center gap-4">
+        <div>
+          <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+            თარიღის ფილტრი
+          </label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-black"
+          />
+        </div>
+        <button
+          onClick={() => setSelectedDate("")}
+          className="mt-6 bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300"
+        >
+          ყველა თარიღი
+        </button>
       </div>
 
       {/* Add/Edit Form (Modal) */}
@@ -586,46 +654,85 @@ export default function DailySheetsSection() {
 
       {/* Sheets List */}
       <div className="space-y-6">
-        {filteredSheets.map((sheet) => (
-          <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-black">
-                  {sheet.hotelName}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {new Date(sheet.date).toLocaleDateString("ka-GE", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
+        {filteredSheets.map((sheet) => {
+          const isExpanded = expandedSheets.has(sheet.id);
+          return (
+            <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              {/* Header - Always visible */}
+              <div 
+                className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => toggleSheet(sheet.id)}
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <button
+                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSheet(sheet.id);
+                    }}
+                  >
+                    {isExpanded ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    )}
+                  </button>
+                  <div>
+                    <h3 className="text-lg font-semibold text-black">
+                      {sheet.hotelName}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {(() => {
+                        const date = new Date(sheet.date);
+                        // Use UTC methods to avoid timezone issues
+                        const year = date.getUTCFullYear();
+                        const month = date.getUTCMonth();
+                        const day = date.getUTCDate();
+                        const localDate = new Date(year, month, day);
+                        return localDate.toLocaleDateString("ka-GE", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        });
+                      })()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleEdit(sheet)}
+                    className="text-blue-600 hover:underline px-2"
+                  >
+                    რედაქტირება
+                  </button>
+                  <button
+                    onClick={() => handleDelete(sheet.id)}
+                    className="text-red-600 hover:underline px-2"
+                  >
+                    წაშლა
+                  </button>
+                  <button
+                    onClick={() => setEmailModal({ open: true, sheetId: sheet.id, to: "" })}
+                    className="text-green-700 hover:underline px-2"
+                  >
+                    გაგზავნა მეილზე
+                  </button>
+                </div>
               </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleEdit(sheet)}
-                  className="text-blue-600 hover:underline px-2"
-                >
-                  რედაქტირება
-                </button>
-                <button
-                  onClick={() => handleDelete(sheet.id)}
-                  className="text-red-600 hover:underline px-2"
-                >
-                  წაშლა
-                </button>
-                <button
-                  onClick={() => setEmailModal({ open: true, sheetId: sheet.id, to: "" })}
-                  className="text-green-700 hover:underline px-2"
-                >
-                  გაგზავნა მეილზე
-                </button>
-              </div>
+              {/* Content - Collapsible */}
+              {isExpanded && (
+                <div className="px-6 pb-6 border-t border-gray-200 pt-4">
+                  {renderSheetTable(sheet)}
+                </div>
+              )}
             </div>
-            {renderSheetTable(sheet)}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {filteredSheets.length === 0 && (

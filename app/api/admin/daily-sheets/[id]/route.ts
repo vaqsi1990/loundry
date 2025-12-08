@@ -45,14 +45,50 @@ export async function PUT(
       where: { dailySheetId: id },
     });
 
+    // Format date properly to avoid timezone issues
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      const dateStr = date.split('T')[0];
+      const dateParts = dateStr.split('-');
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1;
+        const day = parseInt(dateParts[2], 10);
+        dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+      } else {
+        const parsed = new Date(date);
+        const year = parsed.getUTCFullYear();
+        const month = parsed.getUTCMonth();
+        const day = parsed.getUTCDate();
+        dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+      }
+    } else {
+      const parsed = new Date(date);
+      const year = parsed.getUTCFullYear();
+      const month = parsed.getUTCMonth();
+      const day = parsed.getUTCDate();
+      dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+    }
+
+    // Get pricePerKg from hotel
+    let pricePerKg: number | null = null;
+    if (hotelName) {
+      const hotel = await prisma.hotel.findFirst({
+        where: { hotelName: hotelName },
+        select: { pricePerKg: true },
+      });
+      pricePerKg = hotel?.pricePerKg ?? null;
+    }
+
     const sheet = await prisma.dailySheet.update({
       where: { id },
       data: {
-        date: new Date(date),
+        date: dateObj,
         hotelName: hotelName,
         roomNumber: roomNumber || null,
         description: description || null,
         notes: notes || null,
+        pricePerKg: pricePerKg,
         items: {
           create: items?.map((item: any) => ({
             category: item.category,
