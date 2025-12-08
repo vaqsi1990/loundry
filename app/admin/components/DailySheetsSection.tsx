@@ -477,7 +477,7 @@ export default function DailySheetsSection() {
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
                   {hasProtectors && (
-                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">ფასი (₾)</th>
+                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                   )}
                 </>
               )}
@@ -487,7 +487,7 @@ export default function DailySheetsSection() {
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
                   {hasProtectors && (
-                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">ფასი (₾)</th>
+                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                   )}
                 </>
               )}
@@ -725,7 +725,7 @@ export default function DailySheetsSection() {
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
                                 {hasProtectors && (
-                                  <th className="border border-gray-300 px-2 py-1 text-center font-semibold">ფასი (₾)</th>
+                                  <th className="border border-gray-300 px-2 py-1 text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                                 )}
                               </>
                             )}
@@ -735,7 +735,7 @@ export default function DailySheetsSection() {
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
                                 {hasProtectors && (
-                                  <th className="border border-gray-300 px-2 py-1 text-center font-semibold">ფასი (₾)</th>
+                                  <th className="border border-gray-300 px-2 py-1 text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                                 )}
                               </>
                             )}
@@ -950,7 +950,7 @@ export default function DailySheetsSection() {
                         </div>
                         <div>
                           <label className="block text-[16px] font-medium text-black mb-1">
-                            1 კგ-ის ფასი (₾) *
+                            1 ც-ის ფასი (₾) *
                           </label>
                           <input
                             type="number"
