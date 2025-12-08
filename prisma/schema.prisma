@@ -150,13 +150,40 @@ model Invoice {
 model DailySheet {
   id              String        @id @default(cuid())
   date            DateTime      @db.Date
+  hotelName       String?
+  roomNumber      String?
   description     String?
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  @@unique([date])
+  items           DailySheetItem[]
+
   @@index([date])
+  @@index([hotelName])
+}
+
+model DailySheetItem {
+  id              String        @id @default(cuid())
+  dailySheetId    String
+  dailySheet      DailySheet    @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  
+  category        String        // TOWELS, LINEN
+  itemNameEn      String        // English name
+  itemNameKa      String        // Georgian name
+  weight          Float         // Weight in KG
+  received        Int           @default(0) // Received in pieces
+  washCount       Int           @default(0) // Wash count in pieces
+  dispatched      Int           @default(0) // Dispatched in pieces
+  shortage        Int           @default(0) // Shortage in pieces
+  totalWeight     Float         // Calculated: weight * dispatched
+  comment         String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([dailySheetId])
+  @@index([category])
 }
 
 model Inventory {

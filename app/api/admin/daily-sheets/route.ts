@@ -27,6 +27,13 @@ export async function GET(request: NextRequest) {
     }
 
     const sheets = await prisma.dailySheet.findMany({
+      include: {
+        items: {
+          orderBy: {
+            category: "asc",
+          },
+        },
+      },
       orderBy: {
         date: "desc",
       },
@@ -66,16 +73,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { date, description, notes } = body;
+    const { date, hotelName, roomNumber, description, notes, items } = body;
 
-    // Check if sheet for this date already exists
-    const existing = await prisma.dailySheet.findUnique({
-      where: { date: new Date(date) },
-    });
-
-    if (existing) {
+    if (!hotelName) {
       return NextResponse.json(
-        { error: "ამ თარიღის ფურცელი უკვე არსებობს" },
+        { error: "სასტუმროს სახელი აუცილებელია" },
         { status: 400 }
       );
     }
@@ -83,8 +85,27 @@ export async function POST(request: NextRequest) {
     const sheet = await prisma.dailySheet.create({
       data: {
         date: new Date(date),
+        hotelName: hotelName,
+        roomNumber: roomNumber || null,
         description: description || null,
         notes: notes || null,
+        items: {
+          create: items?.map((item: any) => ({
+            category: item.category,
+            itemNameEn: item.itemNameEn,
+            itemNameKa: item.itemNameKa,
+            weight: item.weight,
+            received: item.received || 0,
+            washCount: item.washCount || 0,
+            dispatched: item.dispatched || 0,
+            shortage: item.shortage || 0,
+            totalWeight: item.totalWeight || 0,
+            comment: item.comment || null,
+          })) || [],
+        },
+      },
+      include: {
+        items: true,
       },
     });
 
