@@ -8,6 +8,7 @@ interface Hotel {
   contactPhone: string;
   email?: string;
   address?: string;
+  pricePerKg?: number;
 }
 
 interface DailySheetItem {
@@ -96,8 +97,9 @@ export default function DailySheetsSection() {
     hotelName: "",
     description: "",
     notes: "",
-    sheetType: "INDIVIDUAL" as "INDIVIDUAL" | "STANDARD",
+    sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
     totalWeight: null as number | null,
+    pricePerKg: null as number | null,
     items: [] as DailySheetItem[],
   });
 
@@ -121,6 +123,7 @@ export default function DailySheetsSection() {
               hotelName: hotel.hotelName,
               contactPhone: hotel.mobileNumber,
               email: hotel.email,
+              pricePerKg: hotel.pricePerKg,
             }))
           : []
       );
@@ -255,6 +258,7 @@ export default function DailySheetsSection() {
       notes: sheet.notes || "",
       sheetType: (sheet.sheetType || "INDIVIDUAL") as "INDIVIDUAL" | "STANDARD",
       totalWeight: sheet.totalWeight,
+      pricePerKg: sheet.pricePerKg,
       items:
         sheet.items.length > 0
           ? sheet.items.map((i) => ({
@@ -292,8 +296,9 @@ export default function DailySheetsSection() {
       hotelName: "",
       description: "",
       notes: "",
-      sheetType: "INDIVIDUAL" as "INDIVIDUAL" | "STANDARD",
+      sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
       totalWeight: null,
+      pricePerKg: null,
       items: initializeItems(),
     });
     setShowAddForm(false);
@@ -306,8 +311,9 @@ export default function DailySheetsSection() {
       hotelName: "",
       description: "",
       notes: "",
-      sheetType: "INDIVIDUAL" as "INDIVIDUAL" | "STANDARD",
+      sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
       totalWeight: null,
+      pricePerKg: null,
       items: initializeItems(),
     });
     setEditingId(null);
@@ -565,7 +571,16 @@ export default function DailySheetsSection() {
                   <select
                     required
                     value={formData.hotelName}
-                    onChange={(e) => setFormData({ ...formData, hotelName: e.target.value })}
+                    onChange={(e) => {
+                      const selectedHotel = hotels.find(h => h.hotelName === e.target.value);
+                      setFormData({ 
+                        ...formData, 
+                        hotelName: e.target.value,
+                        pricePerKg: selectedHotel?.pricePerKg !== undefined && selectedHotel?.pricePerKg !== null 
+                          ? selectedHotel.pricePerKg 
+                          : null
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                   >
                     <option value="">აირჩიეთ სასტუმრო</option>
@@ -760,19 +775,48 @@ export default function DailySheetsSection() {
               </div>
 
               {formData.sheetType === "STANDARD" && (
-                <div className="mt-4">
-                  <label className="block text-[16px] font-medium text-black mb-1">
-                    მთლიანი წონა (კგ) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    required
-                    value={formData.totalWeight || ""}
-                    onChange={(e) => setFormData({ ...formData, totalWeight: parseFloat(e.target.value) || null })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                    placeholder="შეიყვანეთ მთლიანი წონა"
-                  />
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block text-[16px] font-medium text-black mb-1">
+                      მთლიანი წონა (კგ) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      required
+                      value={formData.totalWeight || ""}
+                      onChange={(e) => setFormData({ ...formData, totalWeight: parseFloat(e.target.value) || null })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                      placeholder="შეიყვანეთ მთლიანი წონა"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[16px] font-medium text-black mb-1">
+                      1 კგ-ის ფასი (₾) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={formData.pricePerKg !== null && formData.pricePerKg !== undefined ? formData.pricePerKg : ""}
+                      onChange={(e) => {
+                        const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                        setFormData({ ...formData, pricePerKg: isNaN(value as number) ? null : value });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                      placeholder="შეიყვანეთ 1 კგ-ის ფასი"
+                    />
+                  </div>
+                  {formData.totalWeight && formData.pricePerKg && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[16px] font-semibold text-black">ჯამი (მთლიანი ფასი):</span>
+                        <span className="text-[18px] font-bold text-green-700">
+                          {(formData.totalWeight * formData.pricePerKg).toFixed(2)} ₾
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -31,7 +31,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, items } = body;
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, items } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -70,14 +70,16 @@ export async function PUT(
       dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
     }
 
-    // Get pricePerKg from hotel
-    let pricePerKg: number | null = null;
-    if (hotelName) {
+    // Get pricePerKg from body if provided, otherwise from hotel
+    let finalPricePerKg: number | null = null;
+    if (pricePerKg !== undefined && pricePerKg !== null) {
+      finalPricePerKg = typeof pricePerKg === 'number' ? pricePerKg : parseFloat(pricePerKg);
+    } else if (hotelName) {
       const hotel = await prisma.hotel.findFirst({
         where: { hotelName: hotelName },
         select: { pricePerKg: true },
       });
-      pricePerKg = hotel?.pricePerKg ?? null;
+      finalPricePerKg = hotel?.pricePerKg ?? null;
     }
 
     const sheet = await prisma.dailySheet.update({
@@ -88,7 +90,7 @@ export async function PUT(
         roomNumber: roomNumber || null,
         description: description || null,
         notes: notes || null,
-        pricePerKg: pricePerKg,
+        pricePerKg: finalPricePerKg,
         sheetType: sheetType || "INDIVIDUAL",
         totalWeight: totalWeight ? parseFloat(totalWeight) : null,
         items: {

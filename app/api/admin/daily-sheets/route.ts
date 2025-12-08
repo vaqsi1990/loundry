@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, items } = body;
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, items } = body;
 
     if (!date) {
       return NextResponse.json(
@@ -167,14 +167,16 @@ export async function POST(request: NextRequest) {
     // Ensure hotelName is not empty (it's required in validation but optional in schema)
     const cleanHotelName = hotelName && String(hotelName).trim() ? String(hotelName).trim() : null;
     
-    // Get pricePerKg from hotel
-    let pricePerKg: number | null = null;
-    if (cleanHotelName) {
+    // Get pricePerKg from body if provided, otherwise from hotel
+    let finalPricePerKg: number | null = null;
+    if (pricePerKg !== undefined && pricePerKg !== null) {
+      finalPricePerKg = typeof pricePerKg === 'number' ? pricePerKg : parseFloat(pricePerKg);
+    } else if (cleanHotelName) {
       const hotel = await prisma.hotel.findFirst({
         where: { hotelName: cleanHotelName },
         select: { pricePerKg: true },
       });
-      pricePerKg = hotel?.pricePerKg ?? null;
+      finalPricePerKg = hotel?.pricePerKg ?? null;
     }
     
     const prismaData = {
@@ -183,7 +185,7 @@ export async function POST(request: NextRequest) {
       roomNumber: (roomNumber && String(roomNumber).trim()) ? String(roomNumber).trim() : null,
       description: (description && String(description).trim()) ? String(description).trim() : null,
       notes: (notes && String(notes).trim()) ? String(notes).trim() : null,
-      pricePerKg: pricePerKg,
+      pricePerKg: finalPricePerKg,
       sheetType: sheetType || "INDIVIDUAL",
       totalWeight: totalWeight ? parseFloat(totalWeight) : null,
       items: {
