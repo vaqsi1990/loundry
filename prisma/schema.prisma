@@ -181,6 +181,7 @@ model DailySheetItem {
   dispatched      Int           @default(0) // Dispatched in pieces
   shortage        Int           @default(0) // Shortage in pieces
   totalWeight     Float         // Total weight in KG (same as weight)
+  price           Float?        // Price per item for PROTECTORS
   comment         String?
   
   createdAt       DateTime      @default(now())

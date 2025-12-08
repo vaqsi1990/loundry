@@ -21,6 +21,7 @@ interface DailySheetItem {
   dispatched: number;
   shortage: number;
   totalWeight: number;
+  price?: number; // Price for PROTECTORS items
   comment?: string;
 }
 
@@ -69,15 +70,26 @@ const TOWEL_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "TOWELS", itemNameKa: "ხალათი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
 ];
 
+// Protector prices per item
+const PROTECTOR_PRICES: Record<string, number> = {
+  "საბანი დიდი": 15,
+  "საბანი პატარა": 10,
+  "მატრასის დამცავი დიდი": 15,
+  "მატრასის დამცავი პატარა": 10,
+  "ბალიში დიდი": 7,
+  "ბალიში პატარა": 5,
+  "ბალიში საბავშვო": 5,
+};
+
 const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
-  { category: "PROTECTORS", itemNameKa: "საბანი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "საბანი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "საბანი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 15 },
+  { category: "PROTECTORS", itemNameKa: "საბანი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 10 },
  
-  { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "ბალიში დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "ბალიში პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "PROTECTORS", itemNameKa: "ბალიში საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 15 },
+  { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 10 },
+  { category: "PROTECTORS", itemNameKa: "ბალიში დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 7 },
+  { category: "PROTECTORS", itemNameKa: "ბალიში პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
+  { category: "PROTECTORS", itemNameKa: "ბალიში საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
 ];
 
 export default function DailySheetsSection() {
@@ -350,30 +362,46 @@ export default function DailySheetsSection() {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
 
-  const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL") =>
-    items.map((item, idx) => (
-      <tr key={`${item.itemNameKa}-${idx}`} className="bg-white">
-        <td className="border border-gray-300 px-2 py-1">{item.itemNameKa}</td>
-        {sheetType === "INDIVIDUAL" && (
-          <>
-            <td className="border border-gray-300 px-2 py-1 text-center">{(item.weight || 0).toFixed(3)}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
-          </>
-        )}
-        {sheetType === "STANDARD" && (
-          <>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-            <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-          </>
-        )}
-        <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
-      </tr>
-    ));
+  const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL", hasProtectors: boolean = false) =>
+    items.map((item, idx) => {
+      const isProtector = item.category === "PROTECTORS";
+      const itemPrice = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
+      const itemTotalPrice = isProtector ? (itemPrice * (item.received || 0)) : 0;
+      
+      return (
+        <tr key={`${item.itemNameKa}-${idx}`} className="bg-white">
+          <td className="border border-gray-300 px-2 py-1">{item.itemNameKa}</td>
+          {sheetType === "INDIVIDUAL" && (
+            <>
+              <td className="border border-gray-300 px-2 py-1 text-center">{(item.weight || 0).toFixed(3)}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
+              {hasProtectors && (
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {isProtector ? itemTotalPrice.toFixed(2) : "-"}
+                </td>
+              )}
+            </>
+          )}
+          {sheetType === "STANDARD" && (
+            <>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
+              {hasProtectors && (
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {isProtector ? itemTotalPrice.toFixed(2) : "-"}
+                </td>
+              )}
+            </>
+          )}
+          <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
+        </tr>
+      );
+    });
 
   const calculateTotals = (items: DailySheetItem[]) =>
     items.reduce(
@@ -386,6 +414,15 @@ export default function DailySheetsSection() {
       }),
       { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
     );
+
+  const calculateProtectorsPrice = (items: DailySheetItem[]): number => {
+    return items
+      .filter(item => item.category === "PROTECTORS")
+      .reduce((sum, item) => {
+        const price = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
+        return sum + (price * (item.received || 0));
+      }, 0);
+  };
 
   const renderSheetTable = (sheet: DailySheet) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
@@ -409,8 +446,14 @@ export default function DailySheetsSection() {
     }
     
     // Calculate PROTECTORS price (for both STANDARD and INDIVIDUAL)
-    if (hasProtectors && sheet.totalPrice) {
-      protectorsPrice = sheet.totalPrice;
+    // Use manual totalPrice if provided, otherwise calculate from items
+    if (hasProtectors) {
+      if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
+        protectorsPrice = sheet.totalPrice;
+      } else {
+        // Calculate from items: price * received
+        protectorsPrice = calculateProtectorsPrice(sheet.items);
+      }
     }
     
     // Total sum
@@ -433,6 +476,9 @@ export default function DailySheetsSection() {
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
+                  {hasProtectors && (
+                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">ფასი (₾)</th>
+                  )}
                 </>
               )}
               {sheet.sheetType === "STANDARD" && (
@@ -440,6 +486,9 @@ export default function DailySheetsSection() {
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
+                  {hasProtectors && (
+                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">ფასი (₾)</th>
+                  )}
                 </>
               )}
               <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">შენიშვნა</th>
@@ -452,11 +501,11 @@ export default function DailySheetsSection() {
               return (
                 <React.Fragment key={category}>
                   <tr>
-                    <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 8 : 5} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                    <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (hasProtectors ? 9 : 8) : (hasProtectors ? 6 : 5)} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
                       {CATEGORY_LABELS[category]}
                     </td>
                   </tr>
-                  {renderSectionRows(sectionItems, sheet.sheetType)}
+                  {renderSectionRows(sectionItems, sheet.sheetType, hasProtectors)}
                 </React.Fragment>
               );
             })}
@@ -472,6 +521,11 @@ export default function DailySheetsSection() {
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                  {hasProtectors && (
+                    <td className="border border-gray-300 px-2 py-1 text-center">
+                      {protectorsPrice > 0 ? protectorsPrice.toFixed(2) : "-"}
+                    </td>
+                  )}
                 </>
               )}
               {sheet.sheetType === "STANDARD" && (
@@ -479,6 +533,11 @@ export default function DailySheetsSection() {
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                  {hasProtectors && (
+                    <td className="border border-gray-300 px-2 py-1 text-center">
+                      {protectorsPrice > 0 ? protectorsPrice.toFixed(2) : "-"}
+                    </td>
+                  )}
                 </>
               )}
               <td className="border border-gray-300 px-2 py-1 text-center">-</td>
@@ -505,14 +564,15 @@ export default function DailySheetsSection() {
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             )}
-            {hasProtectors && sheet.totalPrice && (
+            {hasProtectors && protectorsPrice > 0 && (
               <tr className="bg-purple-50 font-semibold">
-                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (hasProtectors ? 6 : 6) : (hasProtectors ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
                   დამცავების ფასი:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {sheet.totalPrice.toFixed(2)} ₾
+                  {protectorsPrice.toFixed(2)} ₾
                 </td>
+                {hasProtectors && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             )}
@@ -651,35 +711,47 @@ export default function DailySheetsSection() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse border border-gray-300  text-[16px]">
                     <thead>
-                      <tr className="bg-orange-100">
-                        <th className="border border-gray-300 px-2 py-1 text-left font-semibold">ერთეული</th>
-                        {formData.sheetType === "INDIVIDUAL" && (
-                          <>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
-                          </>
-                        )}
-                        {formData.sheetType === "STANDARD" && (
-                          <>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
-                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
-                          </>
-                        )}
-                        <th className="border border-gray-300 px-2 py-1 text-center font-semibold">შენიშვნა</th>
-                      </tr>
+                      {(() => {
+                        const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
+                        return (
+                          <tr className="bg-orange-100">
+                            <th className="border border-gray-300 px-2 py-1 text-left font-semibold">ერთეული</th>
+                            {formData.sheetType === "INDIVIDUAL" && (
+                              <>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
+                                {hasProtectors && (
+                                  <th className="border border-gray-300 px-2 py-1 text-center font-semibold">ფასი (₾)</th>
+                                )}
+                              </>
+                            )}
+                            {formData.sheetType === "STANDARD" && (
+                              <>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                                {hasProtectors && (
+                                  <th className="border border-gray-300 px-2 py-1 text-center font-semibold">ფასი (₾)</th>
+                                )}
+                              </>
+                            )}
+                            <th className="border border-gray-300 px-2 py-1 text-center font-semibold">შენიშვნა</th>
+                          </tr>
+                        );
+                      })()}
                     </thead>
                     <tbody>
                       {["LINEN", "TOWELS", "PROTECTORS"].map((category) => {
                         const sectionItems = formData.items.filter((i) => i.category === category);
+                        const isProtectors = category === "PROTECTORS";
                         return (
                           <React.Fragment key={category}>
                             <tr>
-                              <td colSpan={formData.sheetType === "INDIVIDUAL" ? 8 : 5} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                              <td colSpan={formData.sheetType === "INDIVIDUAL" ? (isProtectors ? 9 : 8) : (isProtectors ? 6 : 5)} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
                                 {CATEGORY_LABELS[category]}
                               </td>
                             </tr>
@@ -736,6 +808,17 @@ export default function DailySheetsSection() {
                                       <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
                                         {item.totalWeight.toFixed(2)}
                                       </td>
+                                      {isProtectors && (
+                                        <td className="border border-gray-300 px-2 py-1">
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
+                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
+                                            className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                          />
+                                        </td>
+                                      )}
                                     </>
                                   )}
                                   {formData.sheetType === "STANDARD" && (
@@ -764,6 +847,17 @@ export default function DailySheetsSection() {
                                           className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                         />
                                       </td>
+                                      {isProtectors && (
+                                        <td className="border border-gray-300 px-2 py-1">
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
+                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
+                                            className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                          />
+                                        </td>
+                                      )}
                                     </>
                                   )}
                                   <td className="border border-gray-300 px-2 py-1">
@@ -784,6 +878,8 @@ export default function DailySheetsSection() {
                     <tfoot>
                       {(() => {
                         const totals = calculateTotals(formData.items);
+                        const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
+                        const protectorsTotalPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
                         return (
                           <tr className="bg-gray-50 font-semibold">
                             <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
@@ -795,6 +891,11 @@ export default function DailySheetsSection() {
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                                {hasProtectors && (
+                                  <td className="border border-gray-300 px-2 py-1 text-center">
+                                    {protectorsTotalPrice > 0 ? protectorsTotalPrice.toFixed(2) : "-"}
+                                  </td>
+                                )}
                               </>
                             )}
                             {formData.sheetType === "STANDARD" && (
@@ -802,6 +903,11 @@ export default function DailySheetsSection() {
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                                {hasProtectors && (
+                                  <td className="border border-gray-300 px-2 py-1 text-center">
+                                    {protectorsTotalPrice > 0 ? protectorsTotalPrice.toFixed(2) : "-"}
+                                  </td>
+                                )}
                               </>
                             )}
                             <td className="border border-gray-300 px-2 py-1 text-center">-</td>
@@ -820,7 +926,8 @@ export default function DailySheetsSection() {
                 const linenTowelsPrice = formData.totalWeight && formData.pricePerKg 
                   ? formData.totalWeight * formData.pricePerKg 
                   : 0;
-                const protectorsPrice = formData.totalPrice || 0;
+                // Calculate protectors price from items: price * received
+                const protectorsPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
                 const totalSum = linenTowelsPrice + protectorsPrice;
                 
                 return (
@@ -860,23 +967,14 @@ export default function DailySheetsSection() {
                         </div>
                       </>
                     )}
-                    {hasProtectors && (
-                      <div>
-                        <label className="block text-[16px] font-medium text-black mb-1">
-                          დამცავების ფასი (₾) *
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required={hasProtectors}
-                          value={formData.totalPrice !== null && formData.totalPrice !== undefined ? formData.totalPrice : ""}
-                          onChange={(e) => {
-                            const value = e.target.value === "" ? null : parseFloat(e.target.value);
-                            setFormData({ ...formData, totalPrice: isNaN(value as number) ? null : value });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                          placeholder="შეიყვანეთ დამცავების ფასი"
-                        />
+                    {hasProtectors && protectorsPrice > 0 && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[16px] font-semibold text-black">დამცავების ფასი:</span>
+                          <span className="text-[18px] font-bold text-purple-700">
+                            {protectorsPrice.toFixed(2)} ₾
+                          </span>
+                        </div>
                       </div>
                     )}
                     {totalSum > 0 && (
@@ -902,27 +1000,20 @@ export default function DailySheetsSection() {
                   const linenTowelsPrice = formData.pricePerKg && totals.totalWeight 
                     ? formData.pricePerKg * totals.totalWeight 
                     : 0;
-                  const protectorsPrice = formData.totalPrice || 0;
+                  // Calculate protectors price from items: price * received
+                  const protectorsPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
                   const totalSum = linenTowelsPrice + protectorsPrice;
                   
                   return (
                     <div className="mt-4 space-y-4">
-                      {hasProtectors && (
-                        <div>
-                          <label className="block text-[16px] font-medium text-black mb-1">
-                            დამცავების ფასი (₾)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={formData.totalPrice !== null && formData.totalPrice !== undefined ? formData.totalPrice : ""}
-                            onChange={(e) => {
-                              const value = e.target.value === "" ? null : parseFloat(e.target.value);
-                              setFormData({ ...formData, totalPrice: isNaN(value as number) ? null : value });
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                            placeholder="შეიყვანეთ დამცავების ფასი"
-                          />
+                      {hasProtectors && protectorsPrice > 0 && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[16px] font-semibold text-black">დამცავების ფასი:</span>
+                            <span className="text-[18px] font-bold text-purple-700">
+                              {protectorsPrice.toFixed(2)} ₾
+                            </span>
+                          </div>
                         </div>
                       )}
                       {totalSum > 0 && (

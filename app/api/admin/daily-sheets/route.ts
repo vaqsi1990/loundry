@@ -217,6 +217,7 @@ export async function POST(request: NextRequest) {
             dispatched: typeof item.dispatched === 'number' ? item.dispatched : (Number(item.dispatched) || 0),
             shortage: typeof item.shortage === 'number' ? item.shortage : (Number(item.shortage) || 0),
             totalWeight: totalWeight,
+            price: item.price !== undefined && item.price !== null ? (typeof item.price === 'number' ? item.price : Number(item.price) || null) : null,
             comment: (item.comment && String(item.comment).trim()) ? String(item.comment).trim() : null,
           };
         }),

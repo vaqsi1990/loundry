@@ -104,6 +104,7 @@ export async function PUT(
             dispatched: item.dispatched || 0,
             shortage: item.shortage || 0,
             totalWeight: item.totalWeight || 0,
+            price: item.price !== undefined && item.price !== null ? (typeof item.price === 'number' ? item.price : Number(item.price) || null) : null,
             comment: item.comment || null,
           })) || [],
         },
