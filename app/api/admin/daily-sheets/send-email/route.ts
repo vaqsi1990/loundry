@@ -7,8 +7,8 @@ import nodemailer from "nodemailer";
 function createTransport() {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
 
   if (!host || !user || !pass) {
     throw new Error("SMTP კონფიგურაცია არასრულია (SMTP_HOST/SMTP_USER/SMTP_PASS)");
