@@ -16,6 +16,7 @@ interface Hotel {
   legalEntityName: string | null;
   identificationCode: string | null;
   responsiblePersonName: string | null;
+  pricePerKg: number | null;
   createdAt: string;
 }
 
@@ -34,11 +35,15 @@ export default function OurHotelsSection() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [mobileNumber, setMobileNumber] = useState("");
   const [hotelName, setHotelName] = useState("");
   const [hotelRegistrationNumber, setHotelRegistrationNumber] = useState("");
   const [numberOfRooms, setNumberOfRooms] = useState("");
   const [hotelEmail, setHotelEmail] = useState("");
+  const [pricePerKg, setPricePerKg] = useState("");
   const [personalId, setPersonalId] = useState("");
   const [legalEntityName, setLegalEntityName] = useState("");
   const [identificationCode, setIdentificationCode] = useState("");
@@ -69,11 +74,15 @@ export default function OurHotelsSection() {
     setLastName("");
     setEmail("");
     setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setMobileNumber("");
     setHotelName("");
     setHotelRegistrationNumber("");
     setNumberOfRooms("");
     setHotelEmail("");
+    setPricePerKg("");
     setPersonalId("");
     setLegalEntityName("");
     setIdentificationCode("");
@@ -89,17 +98,22 @@ export default function OurHotelsSection() {
     setFormLoading(true);
 
     try {
+      const trimmedEmail = email.trim();
+      const trimmedHotelEmail = hotelEmail.trim();
+
       const requestBody: any = {
         hotelType,
-        name,
-        lastName,
-        email,
+        name: name.trim(),
+        lastName: lastName.trim(),
+        email: trimmedEmail || undefined,
         password,
+        confirmPassword,
         mobileNumber,
-        hotelName,
-        hotelRegistrationNumber,
+        hotelName: hotelName.trim(),
+        hotelRegistrationNumber: hotelRegistrationNumber.trim(),
         numberOfRooms: numberOfRooms ? parseInt(numberOfRooms) : undefined,
-        hotelEmail,
+        hotelEmail: trimmedHotelEmail || undefined,
+        pricePerKg: pricePerKg ? parseFloat(pricePerKg) : undefined,
       };
 
       if (hotelType === "PHYSICAL") {
@@ -333,10 +347,11 @@ export default function OurHotelsSection() {
                       </div>
                     </>
                   )}
+               
                   <div>
                     <input
                       id="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       required
                       minLength={6}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
@@ -344,6 +359,32 @@ export default function OurHotelsSection() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="text-sm text-blue-600 hover:underline mt-1"
+                    >
+                      {showPassword ? "დამალვა" : "ჩვენება"}
+                    </button>
+                  </div>
+                  <div>
+                    <input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                      placeholder="გაიმეორეთ პაროლი"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="text-sm text-blue-600 hover:underline mt-1"
+                    >
+                      {showConfirmPassword ? "დამალვა" : "ჩვენება"}
+                    </button>
                   </div>
                   <div>
                    
@@ -408,11 +449,24 @@ export default function OurHotelsSection() {
                     <input
                       id="hotelEmail"
                       type="email"
-                      required
+                      required={hotelType === "LEGAL"}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="სასტუმროს ელ. ფოსტა"
+                      placeholder="სასტუმროს ელ. ფოსტა "
                       value={hotelEmail}
                       onChange={(e) => setHotelEmail(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      id="pricePerKg"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                      placeholder="კილოგრამის ფასი (₾)"
+                      value={pricePerKg}
+                      onChange={(e) => setPricePerKg(e.target.value)}
                     />
                   </div>
                 </div>
@@ -531,6 +585,9 @@ export default function OurHotelsSection() {
                 ოთახების რაოდენობა
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                ფასი (კგ)
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 კონტაქტი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
@@ -553,6 +610,9 @@ export default function OurHotelsSection() {
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {hotel.numberOfRooms}
                 </td>
+              <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                {hotel.pricePerKg ?? 0}
+              </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   <div>
                     <div>{hotel.email}</div>

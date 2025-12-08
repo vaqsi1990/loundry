@@ -5,18 +5,25 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+const generatePlaceholderEmail = () =>
+  `no-email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@placeholder.loundry`;
+
+const emailSchema = z.string().trim().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა");
+
 const hotelSchema = z.object({
   hotelType: z.enum(["PHYSICAL", "LEGAL"]),
   hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა"),
   hotelRegistrationNumber: z.string().min(1, "რეგისტრაციის ნომერი სავალდებულოა"),
   numberOfRooms: z.number().int().positive("ნომრების რაოდენობა უნდა იყოს დადებითი რიცხვი"),
-  hotelEmail: z.string().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა"),
+  hotelEmail: emailSchema.optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
+  pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
   // User account fields
   name: z.string().min(1, "სახელი სავალდებულოა"),
   lastName: z.string().min(1, "გვარი სავალდებულოა"),
-  email: z.string().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა"),
+  email: emailSchema.optional(),
   password: z.string().min(6, "პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან"),
+  confirmPassword: z.string().min(6, "გთხოვთ გაიმეოროთ პაროლი"),
   // Optional fields
   personalId: z.string().optional(),
   legalEntityName: z.string().optional(),
@@ -38,6 +45,26 @@ const hotelSchema = z.object({
 }, {
   message: "იურიდიული პირისთვის სავალდებულოა: იურიდიული/შპს დასახელება, საიდენტიფიკაციო კოდი და პასუხისმგებელი პირი",
   path: ["legalEntityName"],
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "პაროლები არ ემთხვევა",
+  path: ["confirmPassword"],
+}).superRefine((data, ctx) => {
+  if (data.hotelType === "LEGAL") {
+    if (!data.email) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "იურიდიული პირისთვის მომხმარებლის ელფოსტა სავალდებულოა",
+        path: ["email"],
+      });
+    }
+    if (!data.hotelEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "იურიდიული პირისთვის სასტუმროს ელფოსტა სავალდებულოა",
+        path: ["hotelEmail"],
+      });
+    }
+  }
 });
 
 export async function GET(request: NextRequest) {
@@ -108,14 +135,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    
+    // Parse body with basic logging to debug email validation issues
+    let body: any;
+    try {
+      body = await request.json();
+      body.email = body?.email?.trim() || undefined;
+      body.hotelEmail = body?.hotelEmail?.trim() || undefined;
+      body.name = body?.name?.trim();
+      body.lastName = body?.lastName?.trim();
+      body.hotelName = body?.hotelName?.trim();
+      body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim();
+      console.log("our-hotels POST payload", {
+        email: body?.email,
+        hotelEmail: body?.hotelEmail,
+        hotelType: body?.hotelType,
+      });
+    } catch (parseErr) {
+      console.error("our-hotels payload parse error", parseErr);
+      return NextResponse.json({ error: "ვერ წავიკითხეთ მონაცემები" }, { status: 400 });
+    }
+
     // Validate the data
     const validatedData = hotelSchema.parse(body);
 
+    const userEmailForAccount =
+      validatedData.email ?? generatePlaceholderEmail();
+    const hotelEmailForRecord =
+      validatedData.hotelEmail ?? userEmailForAccount;
+
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: userEmailForAccount },
     });
 
     if (existingUser) {
@@ -134,7 +184,7 @@ export async function POST(request: NextRequest) {
       const newUser = await tx.user.create({
         data: {
           name: `${validatedData.name} ${validatedData.lastName}`.trim(),
-          email: validatedData.email,
+          email: userEmailForAccount,
           password: hashedPassword,
           mobileNumber: validatedData.mobileNumber,
           role: "USER",
@@ -144,12 +194,13 @@ export async function POST(request: NextRequest) {
       // Create hotel
       const hotelData: any = {
         type: validatedData.hotelType,
-        userId: newUser.id,
+        user: { connect: { id: newUser.id } },
         hotelName: validatedData.hotelName,
         hotelRegistrationNumber: validatedData.hotelRegistrationNumber,
         numberOfRooms: validatedData.numberOfRooms,
-        email: validatedData.hotelEmail,
+        email: hotelEmailForRecord,
         mobileNumber: validatedData.mobileNumber,
+        pricePerKg: validatedData.pricePerKg,
       };
 
       if (validatedData.hotelType === "PHYSICAL") {

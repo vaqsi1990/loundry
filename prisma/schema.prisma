@@ -101,6 +101,7 @@ model Hotel {
   numberOfRooms            Int
   email                    String
   mobileNumber             String
+  pricePerKg               Float      @default(0)
 
   // Physical person
   firstName                String?

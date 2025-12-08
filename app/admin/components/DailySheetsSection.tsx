@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 interface Hotel {
   id: string;
@@ -13,7 +13,6 @@ interface Hotel {
 interface DailySheetItem {
   id?: string;
   category: string;
-  itemNameEn: string;
   itemNameKa: string;
   weight: number;
   received: number;
@@ -28,31 +27,49 @@ interface DailySheet {
   id: string;
   date: string;
   hotelName: string | null;
-  roomNumber: string | null;
   description: string | null;
   notes: string | null;
   items: DailySheetItem[];
   createdAt: string;
 }
 
-// Predefined items based on the images
-const TOWEL_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
-  { category: "TOWELS", itemNameEn: "Bath towel", itemNameKa: "აბაზანის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "TOWELS", itemNameEn: "Hand towel", itemNameKa: "ხელის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "TOWELS", itemNameEn: "Face towel", itemNameKa: "სახის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "TOWELS", itemNameEn: "Bathmat", itemNameKa: "ფეხის ხალიჩა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "TOWELS", itemNameEn: "Bathrobe", itemNameKa: "ხალათი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  LINEN: "თეთრეული",
+  TOWELS: "პირსახოცები",
+  PROTECTORS: "დამცავები",
+};
 
 const LINEN_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
-  { category: "LINEN", itemNameEn: "Fitted Sheet King", itemNameKa: "ზეწარი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Fitted Sheet Twin", itemNameKa: "ზეწარი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Fitted Sheet Baby", itemNameKa: "საბავშვო ზეწარი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Duvet Cover King", itemNameKa: "კონვერტი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Duvet Cover Twin", itemNameKa: "კონვერტი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Pillow Case Small", itemNameKa: "ბალიშის პირი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Pillow Case Large", itemNameKa: "ბალიშის პირი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
-  { category: "LINEN", itemNameEn: "Pillow Case Baby", itemNameKa: "საბავშვო ბ.პ.", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "კონვერტი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "კონვერტი საშუალო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "კონვერტი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "კონვერტი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ზეწარი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ზეწარი საშუალო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ზეწარი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ზეწარი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ბალიშის პირი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ბალიშის პირი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ბალიშის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "LINEN", itemNameKa: "ბალიშის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+];
+
+const TOWEL_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
+  { category: "TOWELS", itemNameKa: "აბანო პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "TOWELS", itemNameKa: "ფეხის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "TOWELS", itemNameKa: "სახის პირსახოცი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+];
+
+const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
+  { category: "PROTECTORS", itemNameKa: "საბანი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "საბანი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "საბნის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "საბნის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "ბალიში დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "ბალიში პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
+  { category: "PROTECTORS", itemNameKa: "ბალიში საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
 ];
 
 export default function DailySheetsSection() {
@@ -72,7 +89,6 @@ export default function DailySheetsSection() {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     hotelName: "",
-    roomNumber: "",
     description: "",
     notes: "",
     items: [] as DailySheetItem[],
@@ -113,17 +129,14 @@ export default function DailySheetsSection() {
 
   const initializeItems = () => {
     const allItems: DailySheetItem[] = [
-      ...TOWEL_ITEMS.map(item => ({
-        ...item,
-        id: undefined,
-        totalWeight: item.weight * item.dispatched,
-      })),
-      ...LINEN_ITEMS.map(item => ({
-        ...item,
-        id: undefined,
-        totalWeight: item.weight * item.dispatched,
-      })),
-    ];
+      ...LINEN_ITEMS,
+      ...TOWEL_ITEMS,
+      ...PROTECTOR_ITEMS,
+    ].map(item => ({
+      ...item,
+      id: undefined,
+      totalWeight: item.weight * item.dispatched,
+    }));
     return allItems;
   };
 
@@ -202,12 +215,15 @@ export default function DailySheetsSection() {
     setFormData({
       date: sheet.date.split("T")[0],
       hotelName: sheet.hotelName || "",
-      roomNumber: sheet.roomNumber || "",
       description: sheet.description || "",
       notes: sheet.notes || "",
-      items: sheet.items.length > 0 
-        ? sheet.items 
-        : initializeItems(),
+      items:
+        sheet.items.length > 0
+          ? sheet.items.map((i) => ({
+              ...i,
+              totalWeight: i.totalWeight ?? (i.weight || 0) * (i.dispatched || 0),
+            }))
+          : initializeItems(),
     });
     setShowAddForm(true);
   };
@@ -236,7 +252,6 @@ export default function DailySheetsSection() {
     setFormData({
       date: new Date().toISOString().split("T")[0],
       hotelName: "",
-      roomNumber: "",
       description: "",
       notes: "",
       items: initializeItems(),
@@ -249,7 +264,6 @@ export default function DailySheetsSection() {
     setFormData({
       date: new Date().toISOString().split("T")[0],
       hotelName: "",
-      roomNumber: "",
       description: "",
       notes: "",
       items: initializeItems(),
@@ -266,9 +280,35 @@ export default function DailySheetsSection() {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
 
+  const renderSectionRows = (items: DailySheetItem[]) =>
+    items.map((item, idx) => (
+      <tr key={`${item.itemNameKa}-${idx}`} className="bg-white">
+        <td className="border border-gray-300 px-2 py-1">{item.itemNameKa}</td>
+        <td className="border border-gray-300 px-2 py-1 text-center">{(item.weight || 0).toFixed(3)}</td>
+        <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
+        <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
+        <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
+        <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
+        <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
+        <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
+      </tr>
+    ));
+
+  const calculateTotals = (items: DailySheetItem[]) =>
+    items.reduce(
+      (acc, item) => ({
+        received: acc.received + (item.received || 0),
+        washCount: acc.washCount + (item.washCount || 0),
+        dispatched: acc.dispatched + (item.dispatched || 0),
+        shortage: acc.shortage + (item.shortage || 0),
+        totalWeight: acc.totalWeight + (item.totalWeight || 0),
+      }),
+      { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
+    );
+
   const renderSheetTable = (sheet: DailySheet) => {
-    const towelItems = sheet.items.filter(item => item.category === "TOWELS");
-    const linenItems = sheet.items.filter(item => item.category === "LINEN");
+    const categories = ["LINEN", "TOWELS", "PROTECTORS"];
+    const totals = calculateTotals(sheet.items);
 
     return (
       <div className="overflow-x-auto">
@@ -286,45 +326,33 @@ export default function DailySheetsSection() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                პირსახოცები
-              </td>
-            </tr>
-            {towelItems.map((item, idx) => (
-              <tr key={idx} className="bg-white">
-                <td className="border border-gray-300 px-2 py-1">
-                  {item.itemNameKa}
-                </td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.weight.toFixed(3)}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.totalWeight.toFixed(2)}</td>
-                <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
-              </tr>
-            ))}
-            <tr>
-              <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                თეთრეული
-              </td>
-            </tr>
-            {linenItems.map((item, idx) => (
-              <tr key={idx} className="bg-white">
-                <td className="border border-gray-300 px-2 py-1">
-                  {item.itemNameKa}
-                </td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.weight.toFixed(3)}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.totalWeight.toFixed(2)}</td>
-                <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
-              </tr>
-            ))}
+            {categories.map((category) => {
+              const sectionItems = sheet.items.filter((i) => i.category === category);
+              if (sectionItems.length === 0) return null;
+              return (
+                <React.Fragment key={category}>
+                  <tr>
+                    <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                      {CATEGORY_LABELS[category]}
+                    </td>
+                  </tr>
+                  {renderSectionRows(sectionItems)}
+                </React.Fragment>
+              );
+            })}
           </tbody>
+          <tfoot>
+            <tr className="bg-gray-50 font-semibold">
+              <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+              <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     );
@@ -364,7 +392,7 @@ export default function DailySheetsSection() {
       {/* Add/Edit Form (Modal) */}
       {showAddForm && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto py-10 px-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-5xl">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-7xl">
             <div className="flex items-start justify-between mb-4">
               <h3 className="text-lg font-semibold text-black">
                 {editingId ? "ფურცლის რედაქტირება" : "ახალი დღის ფურცელი"}
@@ -410,18 +438,6 @@ export default function DailySheetsSection() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[16px] font-medium text-black mb-1">
-                    ოთახის ნომერი
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.roomNumber}
-                    onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                    placeholder="მაგ: 31"
-                  />
-                </div>
               </div>
 
               {/* Items Table */}
@@ -441,145 +457,98 @@ export default function DailySheetsSection() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                          პირსახოცები
-                        </td>
-                      </tr>
-                      {formData.items
-                        .filter(item => item.category === "TOWELS")
-                        .map((item, index) => {
-                          const actualIndex = formData.items.findIndex(i => i === item);
-                          return (
-                            <tr key={actualIndex} className="bg-white">
-                              <td className="border border-gray-300 px-2 py-1">
-                                {item.itemNameKa}
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  step="0.001"
-                                  value={item.weight}
-                                  onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.received}
-                                  onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.washCount}
-                                  onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.dispatched}
-                                  onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.shortage}
-                                  onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
-                                {item.totalWeight.toFixed(2)}
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="text"
-                                  value={item.comment || ""}
-                                  onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
-                                  className="w-full px-1 py-1 border-0 text-black bg-transparent"
-                                />
+                      {["LINEN", "TOWELS", "PROTECTORS"].map((category) => {
+                        const sectionItems = formData.items.filter((i) => i.category === category);
+                        return (
+                          <React.Fragment key={category}>
+                            <tr>
+                              <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                                {CATEGORY_LABELS[category]}
                               </td>
                             </tr>
-                          );
-                        })}
-                      <tr>
-                        <td colSpan={8} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                          თეთრეული
-                        </td>
-                      </tr>
-                      {formData.items
-                        .filter(item => item.category === "LINEN")
-                        .map((item, index) => {
-                          const actualIndex = formData.items.findIndex(i => i === item);
-                          return (
-                            <tr key={actualIndex} className="bg-white">
-                              <td className="border border-gray-300 px-2 py-1">
-                                {item.itemNameKa}
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  step="0.001"
-                                  value={item.weight}
-                                  onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.received}
-                                  onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.washCount}
-                                  onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.dispatched}
-                                  onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="number"
-                                  value={item.shortage}
-                                  onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                  className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                />
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
-                                {item.totalWeight.toFixed(2)}
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                <input
-                                  type="text"
-                                  value={item.comment || ""}
-                                  onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
-                                  className="w-full px-1 py-1 border-0 text-black bg-transparent"
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
+                            {sectionItems.map((item, index) => {
+                              const actualIndex = formData.items.findIndex((i) => i === item);
+                              return (
+                                <tr key={`${item.itemNameKa}-${actualIndex}`} className="bg-white">
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    {item.itemNameKa}
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    <input
+                                      type="number"
+                                      step="0.001"
+                                      value={item.weight}
+                                      onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
+                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                    />
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    <input
+                                      type="number"
+                                      value={item.received}
+                                      onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                    />
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    <input
+                                      type="number"
+                                      value={item.washCount}
+                                      onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
+                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                    />
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    <input
+                                      type="number"
+                                      value={item.dispatched}
+                                      onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                    />
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    <input
+                                      type="number"
+                                      value={item.shortage}
+                                      onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                      className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                    />
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
+                                    {item.totalWeight.toFixed(2)}
+                                  </td>
+                                  <td className="border border-gray-300 px-2 py-1">
+                                    <input
+                                      type="text"
+                                      value={item.comment || ""}
+                                      onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
+                                      className="w-full px-1 py-1 border-0 text-black bg-transparent"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
+                    <tfoot>
+                      {(() => {
+                        const totals = calculateTotals(formData.items);
+                        return (
+                          <tr className="bg-gray-50 font-semibold">
+                            <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                            <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
                   </table>
                 </div>
               </div>
@@ -611,7 +580,7 @@ export default function DailySheetsSection() {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-black">
-                  {sheet.hotelName} {sheet.roomNumber && `- Room ${sheet.roomNumber}`}
+                  {sheet.hotelName}
                 </h3>
                 <p className="text-sm text-gray-600">
                   {new Date(sheet.date).toLocaleDateString("ka-GE", {
