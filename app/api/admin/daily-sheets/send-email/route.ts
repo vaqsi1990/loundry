@@ -155,6 +155,12 @@ export async function POST(req: NextRequest) {
       html: renderHtml(sheet),
     });
 
+    // Mark sheet as emailed
+    await prisma.dailySheet.update({
+      where: { id: sheetId },
+      data: { emailedAt: new Date(), emailedTo: to },
+    });
+
     return NextResponse.json({ message: "გაგზავნილია" });
   } catch (error) {
     console.error("Daily sheet email send error:", error);

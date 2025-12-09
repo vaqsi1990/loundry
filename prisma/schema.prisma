@@ -159,6 +159,8 @@ model DailySheet {
   sheetType       String        @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
   totalWeight     Float?        // Total weight for STANDARD type
   totalPrice      Float?        // Total price for PROTECTORS (manual entry)
+  emailedAt       DateTime?
+  emailedTo       String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -166,6 +168,7 @@ model DailySheet {
 
   @@index([date])
   @@index([hotelName])
+  @@index([emailedAt])
 }
 
 model DailySheetItem {

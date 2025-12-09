@@ -268,6 +268,19 @@ export default function RegisterPage() {
               </>
             )}
             <div>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
+                placeholder="ელ. ფოსტა"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
               <div className="relative">
                 <input
                   id="password"

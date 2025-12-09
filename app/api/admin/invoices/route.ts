@@ -26,13 +26,104 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const invoices = await prisma.invoice.findMany({
+    const sheets = await prisma.dailySheet.findMany({
+      where: {
+        emailedAt: {
+          not: null,
+        },
+      },
+      include: {
+        items: true,
+      },
       orderBy: {
-        createdAt: "desc",
+        emailedAt: "desc",
       },
     });
 
-    return NextResponse.json(invoices);
+    // Aggregate daily sheets by date to provide a day-level invoice-style summary
+    const aggregateMap = new Map<
+      string,
+      {
+        date: string;
+        sheetCount: number;
+        totalDispatched: number;
+        totalWeightKg: number;
+        protectorsAmount: number;
+        totalAmount: number;
+      }
+    >();
+
+    sheets.forEach((sheet) => {
+      const dateKey = sheet.date.toISOString().split("T")[0]; // YYYY-MM-DD
+      const hasProtectors = sheet.items.some((item) => item.category === "PROTECTORS");
+      const hasLinenOrTowels = sheet.items.some(
+        (item) => item.category === "LINEN" || item.category === "TOWELS"
+      );
+
+      // Aggregate using actually dispatched quantities
+      const totals = sheet.items.reduce(
+        (acc, item) => ({
+          dispatched: acc.dispatched + (item.dispatched || 0),
+          totalWeight: acc.totalWeight + ((item.weight || 0) * (item.dispatched || 0)),
+        }),
+        { dispatched: 0, totalWeight: 0 }
+      );
+
+      // Weight used for linen/towels price calculation
+      const weightForPrice =
+        sheet.sheetType === "STANDARD" && sheet.totalWeight
+          ? sheet.totalWeight
+          : totals.totalWeight;
+
+      // Calculate linen/towels amount (price per kg * weight)
+      const linenTowelsAmount =
+        hasLinenOrTowels && sheet.pricePerKg && weightForPrice
+          ? sheet.pricePerKg * weightForPrice
+          : 0;
+
+      // Calculate protectors amount
+      let protectorsAmount = 0;
+      if (hasProtectors) {
+        if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
+          protectorsAmount = sheet.totalPrice;
+        } else {
+          protectorsAmount = sheet.items
+            .filter((item) => item.category === "PROTECTORS")
+            .reduce((sum, item) => {
+              const pricePerItem = item.price ?? 0;
+              // Count sent protectors by dispatched quantity; fallback to received if dispatched is missing
+              const quantity = item.dispatched ?? item.received ?? 0;
+              return sum + pricePerItem * quantity;
+            }, 0);
+        }
+      }
+
+      const totalAmount = linenTowelsAmount + protectorsAmount;
+
+      const current = aggregateMap.get(dateKey) ?? {
+        date: dateKey,
+        sheetCount: 0,
+        totalDispatched: 0,
+        totalWeightKg: 0,
+        protectorsAmount: 0,
+        totalAmount: 0,
+      };
+
+      aggregateMap.set(dateKey, {
+        date: dateKey,
+        sheetCount: current.sheetCount + 1,
+        totalDispatched: current.totalDispatched + totals.dispatched,
+        totalWeightKg: current.totalWeightKg + (weightForPrice || 0),
+        protectorsAmount: current.protectorsAmount + protectorsAmount,
+        totalAmount: current.totalAmount + totalAmount,
+      });
+    });
+
+    const aggregated = Array.from(aggregateMap.values()).sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
+
+    return NextResponse.json(aggregated);
   } catch (error) {
     console.error("Invoices fetch error:", error);
     return NextResponse.json(
