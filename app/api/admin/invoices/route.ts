@@ -60,11 +60,11 @@ export async function GET(request: NextRequest) {
         (item) => item.category === "LINEN" || item.category === "TOWELS"
       );
 
-      // Aggregate using actually dispatched quantities
+      // Aggregate counts; weight is raw (align with DailySheetsSection)
       const totals = sheet.items.reduce(
         (acc, item) => ({
           dispatched: acc.dispatched + (item.dispatched || 0),
-          totalWeight: acc.totalWeight + ((item.weight || 0) * (item.dispatched || 0)),
+          totalWeight: acc.totalWeight + (item.totalWeight ?? item.weight ?? 0),
         }),
         { dispatched: 0, totalWeight: 0 }
       );
@@ -91,8 +91,8 @@ export async function GET(request: NextRequest) {
             .filter((item) => item.category === "PROTECTORS")
             .reduce((sum, item) => {
               const pricePerItem = item.price ?? 0;
-              // Count sent protectors by dispatched quantity; fallback to received if dispatched is missing
-              const quantity = item.dispatched ?? item.received ?? 0;
+              // Use received quantity (align with DailySheetsSection)
+              const quantity = item.received ?? 0;
               return sum + pricePerItem * quantity;
             }, 0);
         }
@@ -128,6 +128,80 @@ export async function GET(request: NextRequest) {
     console.error("Invoices fetch error:", error);
     return NextResponse.json(
       { error: "ინვოისების ჩატვირთვისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const dateParam = searchParams.get("date");
+    const clearAll = searchParams.get("all") === "true";
+
+    if (!clearAll && !dateParam) {
+      return NextResponse.json(
+        { error: "მიუთითეთ date=YYYY-MM-DD ან all=true" },
+        { status: 400 }
+      );
+    }
+
+    let whereClause: any = {
+      emailedAt: {
+        not: null,
+      },
+    };
+
+    if (dateParam && !clearAll) {
+      const [y, m, d] = dateParam.split("-").map(Number);
+      if (!y || !m || !d) {
+        return NextResponse.json(
+          { error: "არასწორი თარიღი (გამოიყენეთ YYYY-MM-DD)" },
+          { status: 400 }
+        );
+      }
+      const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      whereClause = {
+        ...whereClause,
+        date: {
+          gte: start,
+          lte: end,
+        },
+      };
+    }
+
+    const result = await prisma.dailySheet.updateMany({
+      where: whereClause,
+      data: { emailedAt: null, emailedTo: null },
+    });
+
+    return NextResponse.json({ updated: result.count });
+  } catch (error) {
+    console.error("Invoices delete error:", error);
+    return NextResponse.json(
+      { error: "ინვოისების წაშლისას მოხდა შეცდომა" },
       { status: 500 }
     );
   }

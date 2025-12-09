@@ -358,6 +358,26 @@ export default function DailySheetsSection() {
     return sheetDateStr === selectedDate;
   });
 
+  const formatDateGe = (date: string | Date) => {
+    const d = new Date(date);
+    const weekdays = ["კვირა", "ორშაბათი", "სამშაბათი", "ოთხშაბათი", "ხუთშაბათი", "პარასკევი", "შაბათი"];
+    const months = [
+      "იანვარი",
+      "თებერვალი",
+      "მარტი",
+      "აპრილი",
+      "მაისი",
+      "ივნისი",
+      "ივლისი",
+      "აგვისტო",
+      "სექტემბერი",
+      "ოქტომბერი",
+      "ნოემბერი",
+      "დეკემბერი",
+    ];
+    return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
@@ -1086,20 +1106,7 @@ export default function DailySheetsSection() {
                       {sheet.hotelName}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {(() => {
-                        const date = new Date(sheet.date);
-                        // Use UTC methods to avoid timezone issues
-                        const year = date.getUTCFullYear();
-                        const month = date.getUTCMonth();
-                        const day = date.getUTCDate();
-                        const localDate = new Date(year, month, day);
-                        return localDate.toLocaleDateString("ka-GE", {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        });
-                      })()}
+                      {formatDateGe(sheet.date)}
                     </p>
                   </div>
                 </div>
