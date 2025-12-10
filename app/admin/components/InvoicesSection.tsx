@@ -187,17 +187,17 @@ export default function InvoicesSection() {
                 </td>
                
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {day.totalWeightKg.toFixed(2)}
+                  {(day.totalWeightKg || 0).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   <div className="flex flex-col leading-tight">
-                    <span>{((day.totalEmailSendCount ?? 0) * (day.protectorsAmount || 0)).toFixed(2)} ₾</span>
+                    <span>{(day.protectorsAmount || 0).toFixed(2)} ₾</span>
                   
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   <div className="flex flex-col leading-tight">
-                    <span>{((day.totalEmailSendCount ?? 0) * (day.totalAmount || 0)).toFixed(2)} ₾</span>
+                    <span>{(day.totalAmount || 0).toFixed(2)} ₾</span>
                     
                   </div>
                 </td>

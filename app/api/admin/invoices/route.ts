@@ -37,22 +37,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const sheets = await prisma.dailySheet.findMany({
-      where: {
-        emailedAt: {
-          not: null,
+    // Get all email sends from sheets that have been emailed
+    const emailSends = await prisma.dailySheetEmailSend.findMany({
+      include: {
+        dailySheet: {
+          include: {
+            items: true,
+          },
         },
       },
-      include: {
-        items: true,
-        emailSends: true,
-      },
       orderBy: {
-        emailedAt: "desc",
+        sentAt: "desc",
       },
     });
 
-    // Aggregate daily sheets by normalized hotel name to provide a grouped invoice-style summary
+    // Aggregate by normalized hotel name to provide a grouped invoice-style summary
     const normalizeHotel = (name: string | null) => {
       if (!name) return "-";
       return name.trim().replace(/\s+/g, " ").toLowerCase();
@@ -69,101 +68,79 @@ export async function GET(request: NextRequest) {
         protectorsAmount: number;
         totalAmount: number;
         totalEmailSendCount: number;
+        sheetIds: Set<string>; // Track unique sheets
+        sheetDispatched: Map<string, number>; // Track dispatched count per sheet (to avoid double counting)
       }
     >();
 
-    sheets.forEach((sheet) => {
-      const hotelKey = normalizeHotel(sheet.hotelName);
-      const hasProtectors = sheet.items.some((item) => item.category === "PROTECTORS");
-      const hasLinenOrTowels = sheet.items.some(
-        (item) => item.category === "LINEN" || item.category === "TOWELS"
-      );
-
-      // Aggregate counts; track total weight for display and a linen/towel-only weight for price
-      const totals = sheet.items.reduce(
-        (acc, item) => {
-          // Treat dispatched as the max known count (fallback to received/washCount when 0 or null)
-          const dispatched =
-            (item.dispatched && item.dispatched > 0
-              ? item.dispatched
-              : item.received && item.received > 0
-              ? item.received
-              : item.washCount || 0) ?? 0;
-          const weight = item.totalWeight ?? item.weight ?? 0;
-          const isProtector = item.category === "PROTECTORS";
-
-          return {
-            dispatched: acc.dispatched + dispatched,
-            totalWeight: acc.totalWeight + weight,
-            linenTowelWeight: acc.linenTowelWeight + (isProtector ? 0 : weight),
-          };
-        },
-        { dispatched: 0, totalWeight: 0, linenTowelWeight: 0 }
-      );
-
-      // Weight used for linen/towels price calculation
-      const weightForPrice =
-        sheet.sheetType === "STANDARD" && sheet.totalWeight
-          ? sheet.totalWeight
-          : totals.linenTowelWeight;
-
-      // Calculate linen/towels amount (price per kg * weight)
-      const linenTowelsAmount =
-        hasLinenOrTowels && sheet.pricePerKg && weightForPrice
-          ? sheet.pricePerKg * weightForPrice
-          : 0;
-
-      // Calculate protectors amount
-      let protectorsAmount = 0;
-      if (hasProtectors) {
-        if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-          protectorsAmount = sheet.totalPrice;
-        } else {
-          protectorsAmount = sheet.items
-            .filter((item) => item.category === "PROTECTORS")
-            .reduce((sum, item) => {
-              const pricePerItem =
-                item.price ??
-                PROTECTOR_PRICES[item.itemNameKa] ??
-                0;
-              // Use received quantity (align with DailySheetsSection)
-              const quantity = item.received ?? 0;
-              return sum + pricePerItem * quantity;
-            }, 0);
-        }
-      }
-
-      const totalAmount = linenTowelsAmount + protectorsAmount;
+    emailSends.forEach((emailSend) => {
+      const hotelKey = normalizeHotel(emailSend.hotelName);
+      const sheet = emailSend.dailySheet;
 
       const current = aggregateMap.get(hotelKey) ?? {
         hotelName: hotelKey === "-" ? null : hotelKey,
-        displayHotelName: sheet.hotelName?.trim() || null,
+        displayHotelName: emailSend.hotelName?.trim() || null,
         sheetCount: 0,
         totalDispatched: 0,
         totalWeightKg: 0,
         protectorsAmount: 0,
         totalAmount: 0,
         totalEmailSendCount: 0,
+        sheetIds: new Set<string>(),
+        sheetDispatched: new Map<string, number>(),
       };
+
+      // Calculate dispatched count from sheet items (only once per sheet)
+      if (!current.sheetDispatched.has(sheet.id)) {
+        const totals = sheet.items.reduce(
+          (acc, item) => {
+            // Treat dispatched as the max known count (fallback to received/washCount when 0 or null)
+            const dispatched =
+              (item.dispatched && item.dispatched > 0
+                ? item.dispatched
+                : item.received && item.received > 0
+                ? item.received
+                : item.washCount || 0) ?? 0;
+
+            return {
+              dispatched: acc.dispatched + dispatched,
+            };
+          },
+          { dispatched: 0 }
+        );
+        current.sheetDispatched.set(sheet.id, totals.dispatched);
+      }
+
+      // Use values from DailySheetEmailSend record
+      const emailWeight = emailSend.totalWeight ?? 0;
+      const emailProtectorsAmount = emailSend.protectorsAmount ?? 0;
+      const emailTotalAmount = emailSend.totalAmount ?? 0;
+
+      // Track unique sheets
+      current.sheetIds.add(sheet.id);
 
       aggregateMap.set(hotelKey, {
         hotelName: hotelKey === "-" ? null : hotelKey,
-        displayHotelName: current.displayHotelName || sheet.hotelName?.trim() || null,
-        sheetCount: current.sheetCount + 1,
-        totalDispatched: current.totalDispatched + totals.dispatched,
-        // For display we sum raw totalWeight (align with DailySheetsSection totals)
-        totalWeightKg: current.totalWeightKg + (totals.totalWeight || 0),
-        protectorsAmount: current.protectorsAmount + protectorsAmount,
-        totalAmount: current.totalAmount + totalAmount,
-        totalEmailSendCount: current.totalEmailSendCount + (sheet.emailSends?.length ?? 0),
+        displayHotelName: current.displayHotelName || emailSend.hotelName?.trim() || null,
+        sheetCount: current.sheetIds.size,
+        totalDispatched: Array.from(current.sheetDispatched.values()).reduce((sum, val) => sum + val, 0),
+        // Use weight, protectors amount, and total amount from DailySheetEmailSend
+        totalWeightKg: current.totalWeightKg + emailWeight,
+        protectorsAmount: current.protectorsAmount + emailProtectorsAmount,
+        totalAmount: current.totalAmount + emailTotalAmount,
+        totalEmailSendCount: current.totalEmailSendCount + 1,
+        sheetIds: current.sheetIds,
+        sheetDispatched: current.sheetDispatched,
       });
     });
 
-    const aggregated = Array.from(aggregateMap.values()).sort((a, b) => {
-      const hA = a.displayHotelName || a.hotelName || "";
-      const hB = b.displayHotelName || b.hotelName || "";
-      return hA.localeCompare(hB);
-    });
+    const aggregated = Array.from(aggregateMap.values())
+      .map(({ sheetIds, sheetDispatched, ...rest }) => rest) // Remove internal fields from response
+      .sort((a, b) => {
+        const hA = a.displayHotelName || a.hotelName || "";
+        const hB = b.displayHotelName || b.hotelName || "";
+        return hA.localeCompare(hB);
+      });
 
     return NextResponse.json(aggregated);
   } catch (error) {
