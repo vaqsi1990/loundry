@@ -63,39 +63,45 @@ function generateInvoicePDF(
       doc.on("error", reject);
 
       // Register a font that supports Georgian characters
-      // Try multiple font paths that might support Georgian
-      const fontPaths = [
-        path.join(process.cwd(), "public", "fonts", "NotoSansGeorgian-Regular.ttf"), // Custom font (preferred)
-        "C:\\Windows\\Fonts\\ARIALUNI.TTF", // Arial Unicode MS (supports Georgian if installed)
-        "C:\\Windows\\Fonts\\calibri.ttf",  // Calibri (may support Georgian)
-        "C:\\Windows\\Fonts\\tahoma.ttf",   // Tahoma (may support Georgian)
-        "C:\\Windows\\Fonts\\arial.ttf",    // Arial (fallback, may not support Georgian)
+      // IMPORTANT: Only use fonts from the project directory to ensure they are embedded in PDF
+      // System fonts are NOT embedded and will not work on other computers
+      // Try multiple possible locations for the font file
+      const possibleFontPaths = [
+        path.join(process.cwd(), "public", "fonts", "NotoSansGeorgian-Regular.ttf"), // Direct location
+        path.join(process.cwd(), "public", "fonts", "static", "NotoSansGeorgian-Regular.ttf"), // Static subdirectory
       ];
-
+      
+      let customFontPath: string | null = null;
+      for (const fontPath of possibleFontPaths) {
+        if (fs.existsSync(fontPath)) {
+          customFontPath = fontPath;
+          break;
+        }
+      }
+      
       let fontRegistered = false;
       let registeredFontName = "GeorgianFont";
       
-      for (const fontPath of fontPaths) {
-        if (fs.existsSync(fontPath)) {
-          try {
-            doc.registerFont(registeredFontName, fontPath);
-            doc.font(registeredFontName);
-            fontRegistered = true;
-            console.log(`Successfully registered Georgian font from: ${fontPath}`);
-            break;
-          } catch (err) {
-            // Continue to next font if registration fails
-            console.warn(`Failed to register font at ${fontPath}:`, err);
-          }
+      // Only use custom font from project - this ensures it's embedded in PDF
+      if (customFontPath) {
+        try {
+          doc.registerFont(registeredFontName, customFontPath);
+          doc.font(registeredFontName);
+          fontRegistered = true;
+          console.log(`Successfully registered and embedded Georgian font from: ${customFontPath}`);
+        } catch (err) {
+          console.error(`Failed to register font at ${customFontPath}:`, err);
         }
       }
 
-      // If no font was registered, use default (will show garbled text but won't crash)
+      // If no font was registered, throw error to prevent creating PDFs with garbled text
       if (!fontRegistered) {
-        console.warn("WARNING: No Georgian font found! Georgian text will display incorrectly.");
-        console.warn("To fix this, download Noto Sans Georgian from:");
-        console.warn("https://fonts.google.com/noto/specimen/Noto+Sans+Georgian");
-        console.warn("And place it in: public/fonts/NotoSansGeorgian-Regular.ttf");
+        const errorMsg = "CRITICAL: Georgian font not found! PDF will display incorrectly on other computers.\n" +
+          "Please download Noto Sans Georgian from:\n" +
+          "https://fonts.google.com/noto/specimen/Noto+Sans+Georgian\n" +
+          "And place it in: public/fonts/NotoSansGeorgian-Regular.ttf";
+        console.error(errorMsg);
+        throw new Error("Georgian font is required but not found. Please add NotoSansGeorgian-Regular.ttf to public/fonts/");
       }
 
       // Add logo at the top
