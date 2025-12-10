@@ -20,6 +20,12 @@ interface Hotel {
   createdAt: string;
   companyName: string | null;
   address: string | null;
+  user?: {
+    id: string;
+    name: string | null;
+    email: string;
+    mobileNumber: string | null;
+  } | null;
 }
 
 export default function OurHotelsSection() {
@@ -31,6 +37,8 @@ export default function OurHotelsSection() {
   const [formSuccess, setFormSuccess] = useState("");
   const [formLoading, setFormLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state
   const [hotelType, setHotelType] = useState<"PHYSICAL" | "LEGAL" | "">("");
@@ -96,6 +104,8 @@ export default function OurHotelsSection() {
     setResponsiblePersonName("");
     setFormError("");
     setFormSuccess("");
+    setIsEditing(false);
+    setEditingId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,11 +122,6 @@ export default function OurHotelsSection() {
 
       const requestBody: any = {
         hotelType,
-        name: trimmedName || undefined,
-        lastName: trimmedLastName || undefined,
-        email: trimmedEmail || undefined,
-        password,
-        confirmPassword,
         mobileNumber,
         hotelName: hotelName.trim(),
         hotelRegistrationNumber: hotelRegistrationNumber.trim(),
@@ -127,6 +132,12 @@ export default function OurHotelsSection() {
         address: address.trim(),
       };
 
+      requestBody.name = trimmedName || undefined;
+      requestBody.lastName = trimmedLastName || undefined;
+      requestBody.email = trimmedEmail || undefined;
+      requestBody.password = isEditing ? password || undefined : password;
+      requestBody.confirmPassword = isEditing ? confirmPassword || undefined : confirmPassword;
+
       if (hotelType === "PHYSICAL") {
         requestBody.personalId = personalId;
       } else if (hotelType === "LEGAL") {
@@ -135,22 +146,34 @@ export default function OurHotelsSection() {
         requestBody.responsiblePersonName = responsiblePersonName;
       }
 
-      const response = await fetch("/api/admin/our-hotels", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await fetch(
+        isEditing
+          ? `/api/admin/our-hotels?id=${editingId}`
+          : "/api/admin/our-hotels",
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        setFormError(data.error || "სასტუმროს დამატებისას მოხდა შეცდომა");
+        setFormError(
+          data.error ||
+            (isEditing
+              ? "სასტუმროს განახლებისას მოხდა შეცდომა"
+              : "სასტუმროს დამატებისას მოხდა შეცდომა")
+        );
         return;
       }
 
-      setFormSuccess("სასტუმრო წარმატებით დაემატა");
+      setFormSuccess(
+        isEditing ? "სასტუმრო წარმატებით განახლდა" : "სასტუმრო წარმატებით დაემატა"
+      );
       resetForm();
       setShowForm(false);
       fetchHotels();
@@ -177,6 +200,35 @@ export default function OurHotelsSection() {
     }
   };
 
+  const startEdit = (hotel: Hotel) => {
+    setIsEditing(true);
+    setEditingId(hotel.id);
+    setShowForm(true);
+    setHotelType(hotel.type as "PHYSICAL" | "LEGAL");
+    setHotelName(hotel.hotelName || "");
+    setHotelRegistrationNumber(hotel.hotelRegistrationNumber || "");
+    setNumberOfRooms(String(hotel.numberOfRooms ?? ""));
+    setHotelEmail(hotel.email || "");
+    setPricePerKg(hotel.pricePerKg?.toString() || "");
+    setCompanyName(hotel.companyName || "");
+    setAddress(hotel.address || "");
+    setMobileNumber(hotel.user?.mobileNumber || hotel.mobileNumber || "");
+    const userNameParts = (hotel.user?.name || "").split(" ");
+    setName(userNameParts[0] || "");
+    setLastName(userNameParts.slice(1).join(" ") || "");
+    setEmail(hotel.user?.email || "");
+    setPassword("");
+    setConfirmPassword("");
+    setPersonalId("");
+    setLegalEntityName("");
+    setIdentificationCode("");
+    setResponsiblePersonName("");
+    setFormError("");
+    setFormSuccess("");
+    setIsEditing(false);
+    setEditingId(null);
+  };
+
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
@@ -187,6 +239,7 @@ export default function OurHotelsSection() {
         <h2 className="text-xl font-bold text-black">ჩვენი სასტუმროები</h2>
         <button
           onClick={() => {
+            resetForm();
             setShowForm(true);
           }}
           className="bg-[#efa758] cursor-pointer text-black px-4 py-2 rounded-lg font-medium text-[16px] md:text-[18px] hover:bg-[#d89647] transition"
@@ -222,7 +275,7 @@ export default function OurHotelsSection() {
               {/* Header */}
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
                 <h3 className="text-[18px] md:text-[20px] font-bold text-black">
-                  ახალი სასტუმროს დამატება
+                  {isEditing ? "სასტუმროს რედაქტირება" : "ახალი სასტუმროს დამატება"}
                 </h3>
                 <button
                   onClick={() => {
@@ -354,7 +407,7 @@ export default function OurHotelsSection() {
                         <input
                           id="name"
                           type="text"
-                          required
+                          required={hotelType === "PHYSICAL" && !isEditing}
                           className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                           placeholder="სახელი"
                           value={name}
@@ -365,7 +418,7 @@ export default function OurHotelsSection() {
                         <input
                           id="lastName"
                           type="text"
-                          required
+                          required={hotelType === "PHYSICAL" && !isEditing}
                           className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                           placeholder="გვარი"
                           value={lastName}
@@ -391,8 +444,8 @@ export default function OurHotelsSection() {
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      required
-                      minLength={6}
+                      required={!isEditing}
+                      minLength={password ? 6 : undefined}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                       placeholder="პაროლი (მინიმუმ 6 სიმბოლო)"
                       value={password}
@@ -410,8 +463,8 @@ export default function OurHotelsSection() {
                     <input
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
-                      required
-                      minLength={6}
+                      required={!isEditing && !!password}
+                      minLength={password ? 6 : undefined}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                       placeholder="გაიმეორეთ პაროლი"
                       value={confirmPassword}
@@ -545,7 +598,7 @@ export default function OurHotelsSection() {
                   <input
                     id="personalId"
                     type="text"
-                    required
+                    required={hotelType === "PHYSICAL"}
                     className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                     placeholder="პირადი ნომერი"
                     value={personalId}
@@ -567,7 +620,7 @@ export default function OurHotelsSection() {
                     <input
                       id="legalEntityName"
                       type="text"
-                      required
+                      required={hotelType === "LEGAL"}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                       placeholder="იურიდიული/შპს დასახელება"
                       value={legalEntityName}
@@ -578,7 +631,7 @@ export default function OurHotelsSection() {
                     <input
                       id="identificationCode"
                       type="text"
-                      required
+                      required={hotelType === "LEGAL"}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                       placeholder="საიდენტიფიკაციო კოდი"
                       value={identificationCode}
@@ -589,7 +642,7 @@ export default function OurHotelsSection() {
                     <input
                       id="responsiblePersonName"
                       type="text"
-                      required
+                      required={hotelType === "LEGAL"}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
                       placeholder="პასუხისმგებელი პირი"
                       value={responsiblePersonName}
@@ -618,7 +671,11 @@ export default function OurHotelsSection() {
                       disabled={formLoading}
                       className="px-6 py-2 bg-[#efa758] text-black rounded-lg font-medium text-[16px] md:text-[18px] hover:bg-[#d89647] transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {formLoading ? "მიმდინარეობს..." : "დამატება"}
+                    {formLoading
+                      ? "მიმდინარეობს..."
+                      : isEditing
+                      ? "შენახვა"
+                      : "დამატება"}
                     </button>
                   </div>
                 )}
@@ -634,28 +691,16 @@ export default function OurHotelsSection() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                სასტუმროს სახელი
+                სასტუმროს დასახელება
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ტიპი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                რეგისტრაციის ნომერი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ოთახების რაოდენობა
+                ოთახი (ნომრების რ.)
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 ფასი (კგ)
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 კონტაქტი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                რეგისტრაციის თარიღი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                შპს დასახელება
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მისამართი
@@ -672,12 +717,6 @@ export default function OurHotelsSection() {
                   {hotel.hotelName}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {hotel.type === "PHYSICAL" ? "ფიზიკური პირი" : "იურიდიული პირი"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {hotel.hotelRegistrationNumber}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {hotel.numberOfRooms}
                 </td>
               <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
@@ -689,23 +728,27 @@ export default function OurHotelsSection() {
                     <div className="text-sm text-gray-600">{hotel.mobileNumber}</div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {new Date(hotel.createdAt).toLocaleDateString("ka-GE")}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {hotel.companyName || "-"}
-                </td>
+              
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {hotel.address || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                  <button
-                    onClick={() => handleDelete(hotel.id)}
-                    disabled={busy}
-                    className="text-red-600 hover:underline disabled:opacity-50"
-                  >
-                    წაშლა
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => startEdit(hotel)}
+                      disabled={busy}
+                      className="text-blue-600 hover:underline disabled:opacity-50"
+                    >
+                      რედაქტირება
+                    </button>
+                    <button
+                      onClick={() => handleDelete(hotel.id)}
+                      disabled={busy}
+                      className="text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      წაშლა
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
