@@ -37,6 +37,7 @@ interface DailySheet {
   totalPrice: number | null;
   items: DailySheetItem[];
   createdAt: string;
+  emailSendCount?: number;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -247,6 +248,7 @@ export default function DailySheetsSection() {
         const data = await res.json();
         throw new Error(data.error || "გაგზავნა ვერ მოხერხდა");
       }
+      await fetchSheets(); // refresh to show updated send count
       setEmailModal({ open: false, sheetId: null, to: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
@@ -1105,9 +1107,12 @@ export default function DailySheetsSection() {
                     <h3 className="text-lg font-semibold text-black">
                       {sheet.hotelName}
                     </h3>
-                    <p className="text-sm text-gray-600">
-                      {formatDateGe(sheet.date)}
-                    </p>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+                      <span>{formatDateGe(sheet.date)}</span>
+                      <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
+                        გაგზავნილი {sheet.emailSendCount ?? 0}x
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>

@@ -119,7 +119,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
       <h2 style="margin:0 0 8px 0;">დღის ფურცელი</h2>
       <p style="margin:0 0 4px 0;"><strong>თარიღი:</strong> ${date}</p>
       <p style="margin:0 0 4px 0;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
-      ${hotelCompanyName ? `<p style="margin:0 0 4px 0;"><strong>შპს:</strong> ${hotelCompanyName}</p>` : ""}
+     
       ${sheet.roomNumber ? `<p style="margin:0 0 8px 0;"><strong>ოთახი:</strong> ${sheet.roomNumber}</p>` : ""}
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
       ${sheet.notes ? `<p style="margin:0 0 8px 0;"><strong>შენიშვნები:</strong> ${sheet.notes}</p>` : ""}
@@ -258,7 +258,11 @@ export async function POST(req: NextRequest) {
     // Mark sheet as emailed
     await prisma.dailySheet.update({
       where: { id: sheetId },
-      data: { emailedAt: new Date(), emailedTo: to },
+      data: {
+        emailedAt: new Date(),
+        emailedTo: to,
+        emailSendCount: { increment: 1 },
+      },
     });
 
     return NextResponse.json({ message: "გაგზავნილია" });

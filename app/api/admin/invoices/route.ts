@@ -3,6 +3,17 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
+// Fallback prices for protectors (match DailySheetsSection UI defaults)
+const PROTECTOR_PRICES: Record<string, number> = {
+  "საბანი დიდი": 15,
+  "საბანი პატარა": 10,
+  "მატრასის დამცავი დიდი": 15,
+  "მატრასის დამცავი პატარა": 10,
+  "ბალიში დიდი": 7,
+  "ბალიში პატარა": 5,
+  "ბალიში საბავშვო": 5,
+};
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -43,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Aggregate daily sheets by normalized hotel name to provide a grouped invoice-style summary
     const normalizeHotel = (name: string | null) => {
       if (!name) return "-";
-      return name.trim().toLowerCase();
+      return name.trim().replace(/\s+/g, " ").toLowerCase();
     };
 
     const aggregateMap = new Map<
@@ -56,6 +67,7 @@ export async function GET(request: NextRequest) {
         totalWeightKg: number;
         protectorsAmount: number;
         totalAmount: number;
+        totalEmailSendCount: number;
       }
     >();
 
@@ -66,21 +78,33 @@ export async function GET(request: NextRequest) {
         (item) => item.category === "LINEN" || item.category === "TOWELS"
       );
 
-      // Aggregate counts; weight is raw (align with DailySheetsSection)
+      // Aggregate counts; track total weight for display and a linen/towel-only weight for price
       const totals = sheet.items.reduce(
-        (acc, item) => ({
-          // Use dispatched, fallback to received to avoid zeroing items that were only marked received
-          dispatched: acc.dispatched + (item.dispatched ?? item.received ?? 0),
-          totalWeight: acc.totalWeight + (item.totalWeight ?? item.weight ?? 0),
-        }),
-        { dispatched: 0, totalWeight: 0 }
+        (acc, item) => {
+          // Treat dispatched as the max known count (fallback to received/washCount when 0 or null)
+          const dispatched =
+            (item.dispatched && item.dispatched > 0
+              ? item.dispatched
+              : item.received && item.received > 0
+              ? item.received
+              : item.washCount || 0) ?? 0;
+          const weight = item.totalWeight ?? item.weight ?? 0;
+          const isProtector = item.category === "PROTECTORS";
+
+          return {
+            dispatched: acc.dispatched + dispatched,
+            totalWeight: acc.totalWeight + weight,
+            linenTowelWeight: acc.linenTowelWeight + (isProtector ? 0 : weight),
+          };
+        },
+        { dispatched: 0, totalWeight: 0, linenTowelWeight: 0 }
       );
 
       // Weight used for linen/towels price calculation
       const weightForPrice =
         sheet.sheetType === "STANDARD" && sheet.totalWeight
           ? sheet.totalWeight
-          : totals.totalWeight;
+          : totals.linenTowelWeight;
 
       // Calculate linen/towels amount (price per kg * weight)
       const linenTowelsAmount =
@@ -97,7 +121,10 @@ export async function GET(request: NextRequest) {
           protectorsAmount = sheet.items
             .filter((item) => item.category === "PROTECTORS")
             .reduce((sum, item) => {
-              const pricePerItem = item.price ?? 0;
+              const pricePerItem =
+                item.price ??
+                PROTECTOR_PRICES[item.itemNameKa] ??
+                0;
               // Use received quantity (align with DailySheetsSection)
               const quantity = item.received ?? 0;
               return sum + pricePerItem * quantity;
@@ -115,6 +142,7 @@ export async function GET(request: NextRequest) {
         totalWeightKg: 0,
         protectorsAmount: 0,
         totalAmount: 0,
+        totalEmailSendCount: 0,
       };
 
       aggregateMap.set(hotelKey, {
@@ -122,9 +150,11 @@ export async function GET(request: NextRequest) {
         displayHotelName: current.displayHotelName || sheet.hotelName?.trim() || null,
         sheetCount: current.sheetCount + 1,
         totalDispatched: current.totalDispatched + totals.dispatched,
-        totalWeightKg: current.totalWeightKg + (weightForPrice || 0),
+        // For display we sum raw totalWeight (align with DailySheetsSection totals)
+        totalWeightKg: current.totalWeightKg + (totals.totalWeight || 0),
         protectorsAmount: current.protectorsAmount + protectorsAmount,
         totalAmount: current.totalAmount + totalAmount,
+        totalEmailSendCount: current.totalEmailSendCount + (sheet.emailSendCount ?? 0),
       });
     });
 

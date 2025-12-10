@@ -163,6 +163,7 @@ model DailySheet {
   totalPrice      Float?        // Total price for PROTECTORS (manual entry)
   emailedAt       DateTime?
   emailedTo       String?
+  emailSendCount  Int           @default(0)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

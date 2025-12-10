@@ -9,6 +9,7 @@ interface InvoiceDaySummary {
   totalWeightKg: number;
   protectorsAmount: number;
   totalAmount: number;
+  totalEmailSendCount?: number;
 }
 
 export default function InvoicesSection() {
@@ -20,6 +21,18 @@ export default function InvoicesSection() {
   useEffect(() => {
     fetchInvoices();
   }, []);
+
+  // Debug: log dispatched counts to verify totals
+  useEffect(() => {
+    if (summaries.length > 0) {
+      const perHotel = summaries.map((s) => ({
+        hotel: formatHotel(s.hotelName),
+        dispatched: s.totalDispatched,
+      }));
+      const total = summaries.reduce((sum, s) => sum + (s.totalDispatched || 0), 0);
+      console.log("გაგზავნილი (ც.) per hotel:", perHotel, "სულ:", total);
+    }
+  }, [summaries]);
 
   const fetchInvoices = async () => {
     try {
@@ -73,6 +86,10 @@ export default function InvoicesSection() {
   const totalAmount = summaries.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
   const totalDispatched = summaries.reduce((sum, d) => sum + (d.totalDispatched || 0), 0);
   const totalSheets = summaries.reduce((sum, d) => sum + (d.sheetCount || 0), 0);
+  const totalEmailSendCount = summaries.reduce(
+    (sum, d) => sum + (d.totalEmailSendCount || 0),
+    0
+  );
 
   const formatHotel = (name: string | null) => name || "-";
 
@@ -114,9 +131,10 @@ export default function InvoicesSection() {
           <div className="text-2xl font-bold text-black">{totalSheets}</div>
         </div>
         <div className="bg-indigo-50 p-4 rounded-lg">
-          <div className="text-gray-600">გაგზავნილი (ც.)</div>
-          <div className="text-2xl font-bold text-black">{totalDispatched}</div>
+          <div className="text-gray-600">გაგზავნა (ჯამი)</div>
+          <div className="text-2xl font-bold text-black">{totalEmailSendCount}</div>
         </div>
+       
         <div className="bg-green-50 p-4 rounded-lg">
           <div className="text-gray-600">წონა (კგ)</div>
           <div className="text-2xl font-bold text-black">{totalWeight.toFixed(2)}</div>
@@ -141,8 +159,9 @@ export default function InvoicesSection() {
                 ფურცლები
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                გაგზავნილი (ც.)
+                გაგზავნილი რაოდენობა
               </th>
+             
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 წონა (კგ)
               </th>
@@ -164,16 +183,23 @@ export default function InvoicesSection() {
                   {day.sheetCount}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {day.totalDispatched}
+                  {day.totalEmailSendCount ?? 0}
                 </td>
+               
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {day.totalWeightKg.toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {day.protectorsAmount.toFixed(2)} ₾
+                  <div className="flex flex-col leading-tight">
+                    <span>{((day.totalEmailSendCount ?? 0) * (day.protectorsAmount || 0)).toFixed(2)} ₾</span>
+                  
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {day.totalAmount.toFixed(2)} ₾
+                  <div className="flex flex-col leading-tight">
+                    <span>{((day.totalEmailSendCount ?? 0) * (day.totalAmount || 0)).toFixed(2)} ₾</span>
+                    
+                  </div>
                 </td>
               </tr>
             ))}
