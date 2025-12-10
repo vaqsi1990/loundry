@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import nodemailer from "nodemailer";
+import path from "path";
+import fs from "fs";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -116,9 +118,14 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
 
   return `
     <div style="font-family:Arial,sans-serif;color:#222;">
-      <h2 style="margin:0 0 8px 0;">დღის ფურცელი</h2>
-      <p style="margin:0 0 4px 0;"><strong>თარიღი:</strong> ${date}</p>
-      <p style="margin:0 0 4px 0;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
+      <div style="display:flex;align-items:center;gap:30px;margin-bottom:16px;">
+        <img src="cid:logo" alt="Logo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;" />
+        <div style="text-align:center;">
+          <h2 style="margin:0 0 8px 0;">დღის ფურცელი</h2>
+          <p style="margin:0 0 4px 0;"><strong>თარიღი:</strong> ${date}</p>
+          <p style="margin:0 0 4px 0;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
+        </div>
+      </div>
      
       ${sheet.roomNumber ? `<p style="margin:0 0 8px 0;"><strong>ოთახი:</strong> ${sheet.roomNumber}</p>` : ""}
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
@@ -281,11 +288,24 @@ export async function POST(req: NextRequest) {
 
     const totalPrice = linenTowelsPrice + protectorsTotal;
 
+    // Get logo path
+    const logoPath = path.join(process.cwd(), "public", "logo.jpg");
+    const logoExists = fs.existsSync(logoPath);
+
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to,
       subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
       html: renderHtml(sheet, companyName),
+      attachments: logoExists
+        ? [
+            {
+              filename: "logo.jpg",
+              path: logoPath,
+              cid: "logo", // Content-ID for referencing in HTML
+            },
+          ]
+        : [],
     });
 
     // Mark sheet as emailed
