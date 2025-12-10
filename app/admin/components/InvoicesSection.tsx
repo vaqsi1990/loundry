@@ -324,9 +324,9 @@ export default function InvoicesSection() {
                             e.stopPropagation();
                             openPdfModal(day.hotelName);
                           }}
-                          className="mt-2 text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
+                          className="mt-2 text-[16px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
                         >
-                          PDF-ის გაგზავნა
+                           გაგზავნა
                         </button>
                       </div>
                     </td>

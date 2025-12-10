@@ -124,7 +124,17 @@ function generateInvoicePDF(
       doc.fontSize(20).text("ინვოისი", { align: "center" });
       doc.moveDown();
 
-    // Seller section
+    // Buyer section (first)
+    doc.fontSize(14).text("მყიდველი", { underline: true });
+    doc.fontSize(12);
+    doc.text(`სასტუმროს სახელი: ${hotelName}`);
+    doc.text(`სასტუმროს საიდენტიფიკაციო კოდი: ${hotelRegistrationNumber}`);
+    if (hotelAddress) {
+      doc.text(`მისამართი: ${hotelAddress}`);
+    }
+    doc.moveDown(2);
+
+    // Seller section (second)
     doc.fontSize(14).text("გამყიდველი", { underline: true });
     doc.fontSize(12);
     doc.text(SELLER_INFO.name);
@@ -136,17 +146,6 @@ function generateInvoicePDF(
     doc.text(`ანგარიში: ${SELLER_INFO.account}`);
     doc.text(`ბანკი: ${SELLER_INFO.bank}`);
     doc.text(`SWIFT: ${SELLER_INFO.swift}`);
-    doc.moveDown(2);
-
-    // Buyer section
-    doc.fontSize(14).text("მყიდველი", { underline: true });
-    doc.fontSize(12);
-    doc.text(`სასტუმროს სახელი: ${hotelName}`);
-    doc.text(`სასტუმროს საიდენტიფიკაციო კოდი: ${hotelRegistrationNumber}`);
-    if (hotelAddress) {
-      doc.text(`მისამართი: ${hotelAddress}`);
-    }
-    doc.text(`ტელეფონი: ${hotelPhone}`);
     doc.moveDown(2);
 
     // Invoice details table
