@@ -18,6 +18,8 @@ const hotelSchema = z.object({
   hotelEmail: emailSchema.optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
   pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
+  companyName: z.string().min(1, "შპს დასახელება სავალდებულოა"),
+  address: z.string().min(1, "მისამართი სავალდებულოა"),
   // User account fields
   name: z.string().min(1, "სახელი სავალდებულოა").optional(),
   lastName: z.string().min(1, "გვარი სავალდებულოა").optional(),
@@ -122,6 +124,53 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "მიუთითეთ სასტუმროს id" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.hotel.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ message: "სასტუმრო წაიშალა" });
+  } catch (error) {
+    console.error("Our hotel delete error:", error);
+    return NextResponse.json(
+      { error: "სასტუმროს წაშლისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -154,6 +203,8 @@ export async function POST(request: NextRequest) {
       body.name = body?.name?.trim() || undefined;
       body.lastName = body?.lastName?.trim() || undefined;
       body.hotelName = body?.hotelName?.trim();
+      body.companyName = body?.companyName?.trim();
+      body.address = body?.address?.trim();
       body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim();
       console.log("our-hotels POST payload", {
         email: body?.email,
@@ -217,6 +268,8 @@ export async function POST(request: NextRequest) {
         email: hotelEmailForRecord,
         mobileNumber: validatedData.mobileNumber,
         pricePerKg: validatedData.pricePerKg,
+        companyName: validatedData.companyName,
+        address: validatedData.address,
       };
 
       if (validatedData.hotelType === "PHYSICAL") {

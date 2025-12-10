@@ -18,6 +18,8 @@ interface Hotel {
   responsiblePersonName: string | null;
   pricePerKg: number | null;
   createdAt: string;
+  companyName: string | null;
+  address: string | null;
 }
 
 export default function OurHotelsSection() {
@@ -28,6 +30,7 @@ export default function OurHotelsSection() {
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   // Form state
   const [hotelType, setHotelType] = useState<"PHYSICAL" | "LEGAL" | "">("");
@@ -44,6 +47,8 @@ export default function OurHotelsSection() {
   const [numberOfRooms, setNumberOfRooms] = useState("");
   const [hotelEmail, setHotelEmail] = useState("");
   const [pricePerKg, setPricePerKg] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [address, setAddress] = useState("");
   const [personalId, setPersonalId] = useState("");
   const [legalEntityName, setLegalEntityName] = useState("");
   const [identificationCode, setIdentificationCode] = useState("");
@@ -83,6 +88,8 @@ export default function OurHotelsSection() {
     setNumberOfRooms("");
     setHotelEmail("");
     setPricePerKg("");
+    setCompanyName("");
+    setAddress("");
     setPersonalId("");
     setLegalEntityName("");
     setIdentificationCode("");
@@ -116,6 +123,8 @@ export default function OurHotelsSection() {
         numberOfRooms: numberOfRooms ? parseInt(numberOfRooms) : undefined,
         hotelEmail: trimmedHotelEmail || undefined,
         pricePerKg: pricePerKg ? parseFloat(pricePerKg) : undefined,
+        companyName: companyName.trim(),
+        address: address.trim(),
       };
 
       if (hotelType === "PHYSICAL") {
@@ -149,6 +158,22 @@ export default function OurHotelsSection() {
       setFormError("დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/our-hotels?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      await fetchHotels();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -472,6 +497,28 @@ export default function OurHotelsSection() {
                   </div>
                   <div>
                     <input
+                      id="companyName"
+                      type="text"
+                      required
+                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                      placeholder="შპს დასახელება"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      id="address"
+                      type="text"
+                      required
+                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
+                      placeholder="მისამართი"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <input
                       id="pricePerKg"
                       type="number"
                       min="0"
@@ -607,6 +654,15 @@ export default function OurHotelsSection() {
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 რეგისტრაციის თარიღი
               </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                შპს დასახელება
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                მისამართი
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                მოქმედება
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -635,6 +691,21 @@ export default function OurHotelsSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {new Date(hotel.createdAt).toLocaleDateString("ka-GE")}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                  {hotel.companyName || "-"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                  {hotel.address || "-"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
+                  <button
+                    onClick={() => handleDelete(hotel.id)}
+                    disabled={busy}
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    წაშლა
+                  </button>
                 </td>
               </tr>
             ))}

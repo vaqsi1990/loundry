@@ -21,6 +21,8 @@ const baseSchema = z.object({
   numberOfRooms: z.number().int().positive().optional(),
   hotelEmail: z.string().optional(),
   pricePerKg: z.number().positive().optional(),
+  companyName: z.string().optional(),
+  address: z.string().optional(),
   // Optional fields for both types
   personalId: z.string().optional(),
   legalEntityName: z.string().optional(),
@@ -48,7 +50,7 @@ const baseSchema = z.object({
   (data) => {
     // If hotelType is provided (PHYSICAL or LEGAL), all hotel fields must be provided
     if (data.hotelType) {
-      if (!data.hotelName || !data.hotelRegistrationNumber || !data.numberOfRooms || !data.hotelEmail || !data.pricePerKg) {
+      if (!data.hotelName || !data.hotelRegistrationNumber || !data.numberOfRooms || !data.hotelEmail || !data.pricePerKg || !data.address || !data.companyName) {
         return false;
       }
     }
@@ -163,6 +165,8 @@ export async function POST(request: NextRequest) {
           email: validatedData.hotelEmail!,
           mobileNumber: validatedData.mobileNumber,
           pricePerKg: validatedData.pricePerKg!,
+          companyName: validatedData.companyName || null,
+          address: validatedData.address || null,
         };
 
         if (validatedData.hotelType === "PHYSICAL") {

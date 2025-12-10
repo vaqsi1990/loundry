@@ -102,6 +102,8 @@ model Hotel {
   email                    String
   mobileNumber             String
   pricePerKg               Float      @default(0)
+  companyName              String?
+  address                  String?
 
   // Physical person
   firstName                String?
