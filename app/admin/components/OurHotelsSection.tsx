@@ -128,7 +128,7 @@ export default function OurHotelsSection() {
         numberOfRooms: numberOfRooms ? parseInt(numberOfRooms) : undefined,
         hotelEmail: trimmedHotelEmail || undefined,
         pricePerKg: pricePerKg ? parseFloat(pricePerKg) : undefined,
-        companyName: companyName.trim(),
+        companyName: companyName.trim() || undefined,
         address: address.trim(),
       };
 
@@ -550,17 +550,6 @@ export default function OurHotelsSection() {
                   </div>
                   <div>
                     <input
-                      id="companyName"
-                      type="text"
-                      required
-                      className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="შპს დასახელება"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <input
                       id="address"
                       type="text"
                       required
@@ -694,7 +683,7 @@ export default function OurHotelsSection() {
                 სასტუმროს დასახელება
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ოთახი (ნომრების რ.)
+              ნომრების რ.
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 ფასი (კგ)

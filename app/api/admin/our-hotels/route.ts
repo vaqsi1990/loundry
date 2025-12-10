@@ -18,7 +18,7 @@ const hotelSchema = z.object({
   hotelEmail: emailSchema.optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
   pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
-  companyName: z.string().min(1, "შპს დასახელება სავალდებულოა"),
+  companyName: z.string().optional(),
   address: z.string().min(1, "მისამართი სავალდებულოა"),
   // User account fields
   name: z.string().min(1, "სახელი სავალდებულოა").optional(),
@@ -88,7 +88,7 @@ const updateHotelSchema = z
     hotelEmail: emailSchema.optional(),
     mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
     pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
-    companyName: z.string().min(1, "შპს დასახელება სავალდებულოა"),
+    companyName: z.string().optional(),
     address: z.string().min(1, "მისამართი სავალდებულოა"),
     name: z.string().optional(),
     lastName: z.string().optional(),
@@ -341,7 +341,7 @@ export async function PUT(request: NextRequest) {
         email: validatedData.hotelEmail ?? existingHotel.email,
         mobileNumber: validatedData.mobileNumber,
         pricePerKg: validatedData.pricePerKg,
-        companyName: validatedData.companyName,
+        companyName: validatedData.companyName ?? null,
         address: validatedData.address,
         personalId:
           (validatedData.hotelType ?? existingHotel.type) === "PHYSICAL"
@@ -476,7 +476,7 @@ export async function POST(request: NextRequest) {
         email: hotelEmailForRecord,
         mobileNumber: validatedData.mobileNumber,
         pricePerKg: validatedData.pricePerKg,
-        companyName: validatedData.companyName,
+        companyName: validatedData.companyName ?? null,
         address: validatedData.address,
       };
 

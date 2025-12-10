@@ -26,7 +26,6 @@ export default function RegisterPage() {
   const [hotelRegistrationNumber, setHotelRegistrationNumber] = useState("");
   const [numberOfRooms, setNumberOfRooms] = useState("");
   const [hotelEmail, setHotelEmail] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [address, setAddress] = useState("");
 
   // Physical person fields
@@ -73,7 +72,6 @@ export default function RegisterPage() {
         requestBody.hotelRegistrationNumber = hotelRegistrationNumber;
         requestBody.numberOfRooms = numberOfRooms ? parseInt(numberOfRooms) : undefined;
         requestBody.hotelEmail = hotelEmail;
-        requestBody.companyName = companyName;
         requestBody.address = address;
 
         if (userType === "PHYSICAL") {
@@ -428,18 +426,6 @@ export default function RegisterPage() {
                   placeholder="სასტუმროს ელ. ფოსტა"
                   value={hotelEmail}
                   onChange={(e) => setHotelEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <input
-                  id="companyName"
-                  name="companyName"
-                  type="text"
-                  required
-                  className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border  text-black rounded-md  text-[16px] md:text-[18px]"
-                  placeholder="შპს დასახელება"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
                 />
               </div>
               <div>
