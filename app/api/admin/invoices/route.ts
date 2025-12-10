@@ -40,11 +40,17 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Aggregate daily sheets by hotel to provide a grouped invoice-style summary
+    // Aggregate daily sheets by normalized hotel name to provide a grouped invoice-style summary
+    const normalizeHotel = (name: string | null) => {
+      if (!name) return "-";
+      return name.trim().toLowerCase();
+    };
+
     const aggregateMap = new Map<
       string,
       {
         hotelName: string | null;
+        displayHotelName: string | null;
         sheetCount: number;
         totalDispatched: number;
         totalWeightKg: number;
@@ -54,7 +60,7 @@ export async function GET(request: NextRequest) {
     >();
 
     sheets.forEach((sheet) => {
-      const hotelKey = sheet.hotelName || "-";
+      const hotelKey = normalizeHotel(sheet.hotelName);
       const hasProtectors = sheet.items.some((item) => item.category === "PROTECTORS");
       const hasLinenOrTowels = sheet.items.some(
         (item) => item.category === "LINEN" || item.category === "TOWELS"
@@ -103,6 +109,7 @@ export async function GET(request: NextRequest) {
 
       const current = aggregateMap.get(hotelKey) ?? {
         hotelName: hotelKey === "-" ? null : hotelKey,
+        displayHotelName: sheet.hotelName?.trim() || null,
         sheetCount: 0,
         totalDispatched: 0,
         totalWeightKg: 0,
@@ -112,6 +119,7 @@ export async function GET(request: NextRequest) {
 
       aggregateMap.set(hotelKey, {
         hotelName: hotelKey === "-" ? null : hotelKey,
+        displayHotelName: current.displayHotelName || sheet.hotelName?.trim() || null,
         sheetCount: current.sheetCount + 1,
         totalDispatched: current.totalDispatched + totals.dispatched,
         totalWeightKg: current.totalWeightKg + (weightForPrice || 0),
@@ -121,8 +129,8 @@ export async function GET(request: NextRequest) {
     });
 
     const aggregated = Array.from(aggregateMap.values()).sort((a, b) => {
-      const hA = a.hotelName || "";
-      const hB = b.hotelName || "";
+      const hA = a.displayHotelName || a.hotelName || "";
+      const hB = b.displayHotelName || b.hotelName || "";
       return hA.localeCompare(hB);
     });
 
