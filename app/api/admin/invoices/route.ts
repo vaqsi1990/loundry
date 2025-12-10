@@ -40,11 +40,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Aggregate daily sheets by date to provide a day-level invoice-style summary
+    // Aggregate daily sheets by hotel to provide a grouped invoice-style summary
     const aggregateMap = new Map<
       string,
       {
-        date: string;
+        hotelName: string | null;
         sheetCount: number;
         totalDispatched: number;
         totalWeightKg: number;
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     >();
 
     sheets.forEach((sheet) => {
-      const dateKey = sheet.date.toISOString().split("T")[0]; // YYYY-MM-DD
+      const hotelKey = sheet.hotelName || "-";
       const hasProtectors = sheet.items.some((item) => item.category === "PROTECTORS");
       const hasLinenOrTowels = sheet.items.some(
         (item) => item.category === "LINEN" || item.category === "TOWELS"
@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
       // Aggregate counts; weight is raw (align with DailySheetsSection)
       const totals = sheet.items.reduce(
         (acc, item) => ({
-          dispatched: acc.dispatched + (item.dispatched || 0),
+          // Use dispatched, fallback to received to avoid zeroing items that were only marked received
+          dispatched: acc.dispatched + (item.dispatched ?? item.received ?? 0),
           totalWeight: acc.totalWeight + (item.totalWeight ?? item.weight ?? 0),
         }),
         { dispatched: 0, totalWeight: 0 }
@@ -100,8 +101,8 @@ export async function GET(request: NextRequest) {
 
       const totalAmount = linenTowelsAmount + protectorsAmount;
 
-      const current = aggregateMap.get(dateKey) ?? {
-        date: dateKey,
+      const current = aggregateMap.get(hotelKey) ?? {
+        hotelName: hotelKey === "-" ? null : hotelKey,
         sheetCount: 0,
         totalDispatched: 0,
         totalWeightKg: 0,
@@ -109,8 +110,8 @@ export async function GET(request: NextRequest) {
         totalAmount: 0,
       };
 
-      aggregateMap.set(dateKey, {
-        date: dateKey,
+      aggregateMap.set(hotelKey, {
+        hotelName: hotelKey === "-" ? null : hotelKey,
         sheetCount: current.sheetCount + 1,
         totalDispatched: current.totalDispatched + totals.dispatched,
         totalWeightKg: current.totalWeightKg + (weightForPrice || 0),
@@ -119,9 +120,11 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    const aggregated = Array.from(aggregateMap.values()).sort((a, b) =>
-      b.date.localeCompare(a.date)
-    );
+    const aggregated = Array.from(aggregateMap.values()).sort((a, b) => {
+      const hA = a.hotelName || "";
+      const hB = b.hotelName || "";
+      return hA.localeCompare(hB);
+    });
 
     return NextResponse.json(aggregated);
   } catch (error) {

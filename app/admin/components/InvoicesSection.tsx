@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 interface InvoiceDaySummary {
-  date: string;
+  hotelName: string | null;
   sheetCount: number;
   totalDispatched: number;
   totalWeightKg: number;
@@ -72,27 +72,9 @@ export default function InvoicesSection() {
   const totalProtectors = summaries.reduce((sum, d) => sum + (d.protectorsAmount || 0), 0);
   const totalAmount = summaries.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
   const totalDispatched = summaries.reduce((sum, d) => sum + (d.totalDispatched || 0), 0);
+  const totalSheets = summaries.reduce((sum, d) => sum + (d.sheetCount || 0), 0);
 
-  const formatDate = (date: string) => {
-    const [year, month, day] = date.split("-");
-    const d = new Date(Number(year), Number(month) - 1, Number(day));
-    const weekdays = ["კვირა", "ორშაბათი", "სამშაბათი", "ოთხშაბათი", "ხუთშაბათი", "პარასკევი", "შაბათი"];
-    const months = [
-      "იანვარი",
-      "თებერვალი",
-      "მარტი",
-      "აპრილი",
-      "მაისი",
-      "ივნისი",
-      "ივლისი",
-      "აგვისტო",
-      "სექტემბერი",
-      "ოქტომბერი",
-      "ნოემბერი",
-      "დეკემბერი",
-    ];
-    return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  };
+  const formatHotel = (name: string | null) => name || "-";
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
@@ -122,10 +104,14 @@ export default function InvoicesSection() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
         <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-gray-600">დღეების რაოდენობა</div>
+          <div className="text-gray-600">ჯგუფების რაოდენობა</div>
           <div className="text-2xl font-bold text-black">{summaries.length}</div>
+        </div>
+        <div className="bg-indigo-50 p-4 rounded-lg">
+          <div className="text-gray-600">ფურცლები</div>
+          <div className="text-2xl font-bold text-black">{totalSheets}</div>
         </div>
         <div className="bg-indigo-50 p-4 rounded-lg">
           <div className="text-gray-600">გაგზავნილი (ც.)</div>
@@ -149,7 +135,7 @@ export default function InvoicesSection() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თარიღი
+                სასტუმრო
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 ფურცლები
@@ -166,16 +152,13 @@ export default function InvoicesSection() {
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 სულ (₾)
               </th>
-            <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-              ქმედება
-            </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {summaries.map((day) => (
-              <tr key={day.date} className="hover:bg-gray-50">
+            {summaries.map((day, idx) => (
+              <tr key={(day.hotelName || "-") + idx} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {formatDate(day.date)}
+                  {formatHotel(day.hotelName)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {day.sheetCount}
@@ -192,15 +175,6 @@ export default function InvoicesSection() {
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {day.totalAmount.toFixed(2)} ₾
                 </td>
-              <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                <button
-                  onClick={() => deleteDay(day.date)}
-                  disabled={busy}
-                  className="text-red-600 hover:underline disabled:opacity-50"
-                >
-                  წაშლა
-                </button>
-              </td>
               </tr>
             ))}
           </tbody>
