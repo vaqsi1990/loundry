@@ -70,6 +70,13 @@ export async function GET(request: NextRequest) {
         totalEmailSendCount: number;
         sheetIds: Set<string>; // Track unique sheets
         sheetDispatched: Map<string, number>; // Track dispatched count per sheet (to avoid double counting)
+        dateDetails: Map<string, { // Track details by date
+          date: string;
+          emailSendCount: number;
+          weightKg: number;
+          protectorsAmount: number;
+          totalAmount: number;
+        }>;
       }
     >();
 
@@ -88,6 +95,7 @@ export async function GET(request: NextRequest) {
         totalEmailSendCount: 0,
         sheetIds: new Set<string>(),
         sheetDispatched: new Map<string, number>(),
+        dateDetails: new Map<string, { date: string; emailSendCount: number; weightKg: number; protectorsAmount: number; totalAmount: number }>(),
       };
 
       // Calculate dispatched count from sheet items (only once per sheet)
@@ -119,6 +127,21 @@ export async function GET(request: NextRequest) {
       // Track unique sheets
       current.sheetIds.add(sheet.id);
 
+      // Track details by date
+      const dateKey = new Date(emailSend.date).toISOString().split("T")[0];
+      const dateDetail = current.dateDetails.get(dateKey) ?? {
+        date: dateKey,
+        emailSendCount: 0,
+        weightKg: 0,
+        protectorsAmount: 0,
+        totalAmount: 0,
+      };
+      dateDetail.emailSendCount += 1;
+      dateDetail.weightKg += emailWeight;
+      dateDetail.protectorsAmount += emailProtectorsAmount;
+      dateDetail.totalAmount += emailTotalAmount;
+      current.dateDetails.set(dateKey, dateDetail);
+
       aggregateMap.set(hotelKey, {
         hotelName: hotelKey === "-" ? null : hotelKey,
         displayHotelName: current.displayHotelName || emailSend.hotelName?.trim() || null,
@@ -131,11 +154,17 @@ export async function GET(request: NextRequest) {
         totalEmailSendCount: current.totalEmailSendCount + 1,
         sheetIds: current.sheetIds,
         sheetDispatched: current.sheetDispatched,
+        dateDetails: current.dateDetails,
       });
     });
 
     const aggregated = Array.from(aggregateMap.values())
-      .map(({ sheetIds, sheetDispatched, ...rest }) => rest) // Remove internal fields from response
+      .map(({ sheetIds, sheetDispatched, dateDetails, ...rest }) => ({
+        ...rest,
+        dateDetails: Array.from(dateDetails.values()).sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
+      })) // Convert dateDetails Map to sorted array
       .sort((a, b) => {
         const hA = a.displayHotelName || a.hotelName || "";
         const hB = b.displayHotelName || b.hotelName || "";
