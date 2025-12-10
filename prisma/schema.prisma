@@ -168,10 +168,32 @@ model DailySheet {
   updatedAt       DateTime      @updatedAt
 
   items           DailySheetItem[]
+  emailSends      DailySheetEmailSend[]
 
   @@index([date])
   @@index([hotelName])
   @@index([emailedAt])
+}
+
+model DailySheetEmailSend {
+  id             String     @id @default(cuid())
+  dailySheetId   String
+  dailySheet     DailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  hotelName      String?
+  date           DateTime   @db.Date
+  sentTo         String
+  subject        String?
+  sheetType      String?
+  pricePerKg     Float?
+  totalWeight    Float?
+  protectorsAmount Float?
+  totalAmount    Float?
+  payload        Json?
+  sentAt         DateTime   @default(now())
+
+  @@index([dailySheetId])
+  @@index([date])
+  @@index([hotelName])
 }
 
 model DailySheetItem {

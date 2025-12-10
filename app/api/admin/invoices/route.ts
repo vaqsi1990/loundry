@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         items: true,
+        emailSends: true,
       },
       orderBy: {
         emailedAt: "desc",
@@ -154,7 +155,7 @@ export async function GET(request: NextRequest) {
         totalWeightKg: current.totalWeightKg + (totals.totalWeight || 0),
         protectorsAmount: current.protectorsAmount + protectorsAmount,
         totalAmount: current.totalAmount + totalAmount,
-        totalEmailSendCount: current.totalEmailSendCount + (sheet.emailSendCount ?? 0),
+        totalEmailSendCount: current.totalEmailSendCount + (sheet.emailSends?.length ?? 0),
       });
     });
 

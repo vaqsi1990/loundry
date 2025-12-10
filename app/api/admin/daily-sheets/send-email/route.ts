@@ -248,6 +248,39 @@ export async function POST(req: NextRequest) {
       companyName = hotel?.companyName ?? null;
     }
 
+    // Calculate amounts for persistence
+    const protectorsTotal =
+      sheet.sheetType === "STANDARD" && sheet.totalPrice
+        ? sheet.totalPrice
+        : sheet.items
+            .filter((p: any) => p.category === "PROTECTORS")
+            .reduce((sum: number, p: any) => {
+              const price = Number(p.price ?? 0);
+              const qty = Number(p.received ?? 0);
+              return sum + price * qty;
+            }, 0);
+
+    const totalsForSend = sheet.items.reduce(
+      (acc: any, item: any) => ({
+        received: acc.received + (item.received ?? 0),
+        washCount: acc.washCount + (item.washCount ?? 0),
+        dispatched: acc.dispatched + (item.dispatched ?? 0),
+        shortage: acc.shortage + (item.shortage ?? 0),
+        totalWeight: acc.totalWeight + (item.totalWeight ?? item.weight ?? 0),
+      }),
+      { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
+    );
+
+    const weightForPrice =
+      sheet.sheetType === "STANDARD" && sheet.totalWeight
+        ? sheet.totalWeight
+        : totalsForSend.totalWeight;
+
+    const linenTowelsPrice =
+      sheet.pricePerKg && weightForPrice ? sheet.pricePerKg * weightForPrice : 0;
+
+    const totalPrice = linenTowelsPrice + protectorsTotal;
+
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to,
@@ -256,14 +289,40 @@ export async function POST(req: NextRequest) {
     });
 
     // Mark sheet as emailed
-    await prisma.dailySheet.update({
-      where: { id: sheetId },
-      data: {
-        emailedAt: new Date(),
-        emailedTo: to,
-        emailSendCount: { increment: 1 },
-      },
-    });
+    await prisma.$transaction([
+      prisma.dailySheet.update({
+        where: { id: sheetId },
+        data: {
+          emailedAt: new Date(),
+          emailedTo: to,
+          emailSendCount: { increment: 1 },
+        },
+      }),
+     
+      prisma.dailySheetEmailSend.create({
+        data: {
+          dailySheetId: sheet.id,
+          hotelName: sheet.hotelName,
+          date: sheet.date,
+          sentTo: to,
+          subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+          sheetType: sheet.sheetType,
+          pricePerKg: sheet.pricePerKg,
+          totalWeight: sheet.totalWeight ?? totalsForSend.totalWeight ?? null,
+          protectorsAmount: protectorsTotal,
+          totalAmount: totalPrice,
+          payload: {
+            sheet,
+            totals: totalsForSend,
+            weightForPrice,
+            linenTowelsPrice,
+            protectorsTotal,
+            totalPrice,
+            companyName,
+          },
+        },
+      }),
+    ]);
 
     return NextResponse.json({ message: "გაგზავნილია" });
   } catch (error) {
