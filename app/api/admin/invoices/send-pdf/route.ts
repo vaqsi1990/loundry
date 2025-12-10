@@ -28,230 +28,267 @@ const SELLER_INFO = {
 };
 
 function generateInvoicePDF(
+  invoiceNumber: string,
+  issueDate: Date,
+  dueDate: Date,
+  paymentType: string,
   hotelName: string,
   hotelRegistrationNumber: string,
   hotelAddress: string | null,
   hotelPhone: string,
-  dateDetails: Array<{
-    date: string;
-    emailSendCount: number;
-    weightKg: number;
-    protectorsAmount: number;
-    totalAmount: number;
+  items: Array<{
+    description: string;
+    quantity: string;
+    unitPrice: number;
+    total: number;
   }>,
-  totals: {
-    totalWeightKg: number;
-    protectorsAmount: number;
-    totalAmount: number;
-    totalEmailSendCount: number;
-  }
+  totalAmount: number
 ): Promise<Buffer> {
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     try {
-      // Use regular require instead of dynamic import since PDFKit is excluded from bundling
-      // This allows PDFKit to use its internal __dirname correctly
       const PDFDocument = require("pdfkit");
-      
-      const doc = new PDFDocument({ 
-        margin: 50, 
-        autoFirstPage: true
+      const doc = new PDFDocument({
+        margin: 50,
+        autoFirstPage: true,
       });
-      const chunks: Buffer[] = [];
 
+      const chunks: Buffer[] = [];
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
 
-      // Register a font that supports Georgian characters
-      // IMPORTANT: Only use fonts from the project directory to ensure they are embedded in PDF
-      // System fonts are NOT embedded and will not work on other computers
-      // Try multiple possible locations for the font file
-      const possibleFontPaths = [
-        path.join(process.cwd(), "public", "fonts", "NotoSansGeorgian-Regular.ttf"), // Direct location
-        path.join(process.cwd(), "public", "fonts", "static", "NotoSansGeorgian-Regular.ttf"), // Static subdirectory
-      ];
-      
-      let customFontPath: string | null = null;
-      for (const fontPath of possibleFontPaths) {
-        if (fs.existsSync(fontPath)) {
-          customFontPath = fontPath;
-          break;
-        }
-      }
-      
-      let fontRegistered = false;
-      let registeredFontName = "GeorgianFont";
-      
-      // Only use custom font from project - this ensures it's embedded in PDF
-      if (customFontPath) {
-        try {
-          doc.registerFont(registeredFontName, customFontPath);
-          doc.font(registeredFontName);
-          fontRegistered = true;
-          console.log(`Successfully registered and embedded Georgian font from: ${customFontPath}`);
-        } catch (err) {
-          console.error(`Failed to register font at ${customFontPath}:`, err);
-        }
-      }
+      // FONT
+      const sylfaenFontPath = path.join(process.cwd(), "public", "fonts", "sylfaen.ttf");
+      doc.registerFont("Sylfaen", sylfaenFontPath);
+      doc.font("Sylfaen");
 
-      // If no font was registered, throw error to prevent creating PDFs with garbled text
-      if (!fontRegistered) {
-        const errorMsg = "CRITICAL: Georgian font not found! PDF will display incorrectly on other computers.\n" +
-          "Please download Noto Sans Georgian from:\n" +
-          "https://fonts.google.com/noto/specimen/Noto+Sans+Georgian\n" +
-          "And place it in: public/fonts/NotoSansGeorgian-Regular.ttf";
-        console.error(errorMsg);
-        throw new Error("Georgian font is required but not found. Please add NotoSansGeorgian-Regular.ttf to public/fonts/");
-      }
+      const pageWidth = doc.page.width;
+      const contentWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
+      const formatCurrency = (n: number) => `${n.toFixed(2)} ₾`;
 
-      // Add logo at the top
+      // =========================
+      // HEADER + LOGO (120px)
+      // =========================
+      const headerY = 40;
+
+      // LEFT SIDE (Invoice Info)
+      doc
+        .fontSize(16)
+        .fillColor("#000")
+        .text(`ინვოისი № ${invoiceNumber}`, doc.page.margins.left, headerY, {
+          width: contentWidth / 2,
+        });
+
+      doc
+        .fontSize(10)
+        .fillColor("#444")
+        .text(
+          `გამოშვების თარიღი: ${issueDate.toLocaleDateString("ka-GE")}\n` +
+          `გადახდის ვადა: ${dueDate.toLocaleDateString("ka-GE")}\n` +
+          `გადახდის ტიპი: ${paymentType}`,
+          doc.page.margins.left,
+          headerY + 22,
+          { width: contentWidth / 2 }
+        );
+
+      // RIGHT SIDE (LOGO)
       const logoPath = path.join(process.cwd(), "public", "logo.jpg");
       if (fs.existsSync(logoPath)) {
-        try {
-          // Center the logo - PDF width is typically 612 points (8.5 inches)
-          const pageWidth = 612;
-          const logoWidth = 150; // Adjust logo width as needed
-          const logoX = (pageWidth - logoWidth) / 2;
-          
-          doc.image(logoPath, logoX, 50, { 
-            width: logoWidth,
-            align: "center"
-          });
-          
-          // Move down after logo
-          doc.moveDown(3);
-        } catch (err) {
-          console.warn("Failed to add logo to PDF:", err);
-          // Continue without logo if it fails
-        }
+        const logoWidth = 120;
+        const logoMarginRight = 130;  // add this
+        
+        const logoX = pageWidth - doc.page.margins.right - logoWidth - logoMarginRight;
+        
+        doc.image(logoPath, logoX, headerY - 5, { width: logoWidth });
+        
       }
 
-      // Title
-      doc.fontSize(20).text("ინვოისი", { align: "center" });
-      doc.moveDown();
+      doc.moveDown(4);
 
-    // Buyer section (first)
-    doc.fontSize(14).text("მყიდველი", { underline: true });
-    doc.fontSize(12);
-    doc.text(`სასტუმროს სახელი: ${hotelName}`);
-    doc.text(`სასტუმროს საიდენტიფიკაციო კოდი: ${hotelRegistrationNumber}`);
-    if (hotelAddress) {
-      doc.text(`მისამართი: ${hotelAddress}`);
-    }
-    doc.moveDown(2);
+      // =========================
+      // SELLER / BUYER (Two columns)
+      // =========================
+      const colWidth = contentWidth / 2;
 
-    // Seller section (second)
-    doc.fontSize(14).text("გამყიდველი", { underline: true });
-    doc.fontSize(12);
-    doc.text(SELLER_INFO.name);
-    doc.text(SELLER_INFO.address);
-    doc.text(SELLER_INFO.city);
-    doc.text(`საიდენტიფიკაციო კოდი: ${SELLER_INFO.identificationCode}`);
-    doc.text(`ელფოსტა: ${SELLER_INFO.email}`);
-    doc.text(`ტელეფონი: ${SELLER_INFO.phone}`);
-    doc.text(`ანგარიში: ${SELLER_INFO.account}`);
-    doc.text(`ბანკი: ${SELLER_INFO.bank}`);
-    doc.text(`SWIFT: ${SELLER_INFO.swift}`);
-    doc.moveDown(2);
+      const sellerY = doc.y;
 
-    // Invoice details table
-    doc.fontSize(14).text("დეტალური ინფორმაცია", { underline: true });
-    doc.moveDown();
+      // SELLER
+      doc
+        .fontSize(12)
+        .fillColor("#000")
+        .text("გამყიდველი", doc.page.margins.left, sellerY, {
+          width: colWidth,
+          underline: true,
+        });
 
-    // Table header
-    const tableTop = doc.y;
-    const itemHeight = 20;
-    const tableLeft = 50;
-    const tableWidth = 500;
-    const colWidths = {
-      date: 100,
-      count: 80,
-      weight: 80,
-      protectors: 100,
-      total: 100,
-    };
+      doc.fontSize(10);
+      doc.text(SELLER_INFO.name);
+      doc.text(SELLER_INFO.address);
+      doc.text(SELLER_INFO.city);
+      doc.text(`საიდენტიფიკაციო კოდი ${SELLER_INFO.identificationCode}`);
+      doc.text(SELLER_INFO.email);
+      doc.text(`ტელ ${SELLER_INFO.phone}`);
+      doc.text(`ანგარიში : ${SELLER_INFO.account}`);
+      doc.text(`ბანკი : ${SELLER_INFO.bank}`);
+      doc.text(`SWIFT: ${SELLER_INFO.swift}`);
 
-    let currentY = tableTop;
+      // BUYER (Right Column)
+      const buyerX = doc.page.margins.left + colWidth + 20;
 
-    // Header row
-    doc.fontSize(10);
-    doc.rect(tableLeft, currentY, tableWidth, itemHeight).stroke();
-    doc.text("თარიღი", tableLeft + 5, currentY + 5, { width: colWidths.date - 10 });
-    doc.text("გაგზავნილი", tableLeft + colWidths.date, currentY + 5, {
-      width: colWidths.count - 10,
-      align: "center",
-    });
-    doc.text("წონა (კგ)", tableLeft + colWidths.date + colWidths.count, currentY + 5, {
-      width: colWidths.weight - 10,
-      align: "center",
-    });
-    doc.text("დამცავები (₾)", tableLeft + colWidths.date + colWidths.count + colWidths.weight, currentY + 5, {
-      width: colWidths.protectors - 10,
-      align: "center",
-    });
-    doc.text("სულ (₾)", tableLeft + colWidths.date + colWidths.count + colWidths.weight + colWidths.protectors, currentY + 5, {
-      width: colWidths.total - 10,
-      align: "center",
-    });
+      doc
+        .fontSize(12)
+        .fillColor("#000")
+        .text("მყიდველი", buyerX, sellerY, { width: colWidth, underline: true });
 
-    currentY += itemHeight;
+      doc.fontSize(10);
+      doc.text(hotelName, buyerX);
+      if (hotelAddress) doc.text(hotelAddress, { width: colWidth });
+      doc.text(`საიდენტიფიკაციო კოდი ${hotelRegistrationNumber}`);
+      if (hotelPhone) doc.text(`ტელეფონი ${hotelPhone}`);
 
-    // Data rows
-    doc.fontSize(10);
-    dateDetails.forEach((detail) => {
-      const date = new Date(detail.date);
-      const formattedDate = `${date.getDate()} ${["იანვარი", "თებერვალი", "მარტი", "აპრილი", "მაისი", "ივნისი", "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი"][date.getMonth()]}, ${date.getFullYear()}`;
+      doc.moveDown(2);
 
-      doc.rect(tableLeft, currentY, tableWidth, itemHeight).stroke();
-      doc.text(formattedDate, tableLeft + 5, currentY + 5, { width: colWidths.date - 10 });
-      doc.text(detail.emailSendCount.toString(), tableLeft + colWidths.date, currentY + 5, {
-        width: colWidths.count - 10,
-        align: "center",
+      // =========================
+      // TITLE ABOVE TABLE
+      // =========================
+      doc
+        .fontSize(11)
+        .fillColor("#000")
+      
+
+      doc.moveDown(1);
+
+      // =========================
+      // TABLE HEADER
+      // =========================
+      const tableTop = doc.y;
+      const tableLeft = doc.page.margins.left;
+      const tableWidthPixels = contentWidth;
+
+      const col = {
+        number: 30,
+        description: 250,
+        quantity: 80,
+        unitPrice: 80,
+        total: tableWidthPixels - (30 + 250 + 80 + 80)
+      };
+
+      // Header background
+      doc
+        .save()
+        .rect(tableLeft, tableTop, tableWidthPixels, 22)
+        .fill("#f2f2f2")
+        .restore();
+
+      doc.rect(tableLeft, tableTop, tableWidthPixels, 22).stroke();
+
+      const hY = tableTop + 6;
+      let x = tableLeft;
+
+      doc.fontSize(10).fillColor("#000");
+      doc.text("№", x, hY, { width: col.number, align: "center" });
+      x += col.number;
+
+      doc.text("დასახელება", x, hY, { width: col.description });
+      x += col.description;
+
+      doc.text("რაოდენობა", x, hY, { width: col.quantity, align: "center" });
+      x += col.quantity;
+
+      doc.text("ცალის ფასი", x, hY, { width: col.unitPrice, align: "center" });
+      x += col.unitPrice;
+
+      doc.text("სულ", x, hY, { width: col.total, align: "center" });
+
+      let currentY = tableTop + 22;
+
+      // =========================
+      // TABLE ROWS
+      // =========================
+      items.forEach((item, index) => {
+        doc.rect(tableLeft, currentY, tableWidthPixels, 20).stroke();
+
+        let xx = tableLeft;
+
+        doc.fontSize(9).fillColor("#000");
+        doc.text((index + 1).toString(), xx, currentY + 6, {
+          width: col.number,
+          align: "center",
+        });
+        xx += col.number;
+
+        doc.text(item.description, xx, currentY + 6, {
+          width: col.description,
+        });
+        xx += col.description;
+
+        doc.text(item.quantity, xx, currentY + 6, {
+          width: col.quantity,
+          align: "center",
+        });
+        xx += col.quantity;
+
+        doc.text(formatCurrency(item.unitPrice), xx, currentY + 6, {
+          width: col.unitPrice,
+          align: "center",
+        });
+        xx += col.unitPrice;
+
+        doc.text(formatCurrency(item.total), xx, currentY + 6, {
+          width: col.total - 5,
+          align: "right",
+        });
+
+        currentY += 20;
       });
-      doc.text(detail.weightKg.toFixed(2), tableLeft + colWidths.date + colWidths.count, currentY + 5, {
-        width: colWidths.weight - 10,
-        align: "center",
-      });
-      doc.text(detail.protectorsAmount.toFixed(2), tableLeft + colWidths.date + colWidths.count + colWidths.weight, currentY + 5, {
-        width: colWidths.protectors - 10,
-        align: "center",
-      });
-      doc.text(detail.totalAmount.toFixed(2), tableLeft + colWidths.date + colWidths.count + colWidths.weight + colWidths.protectors, currentY + 5, {
-        width: colWidths.total - 10,
-        align: "center",
+
+      // =========================
+      // TOTAL ROW — ONLY ONCE
+      // =========================
+      doc
+        .save()
+        .rect(tableLeft, currentY, tableWidthPixels, 22)
+        .fill("#e5f3ff")
+        .restore();
+
+      doc.rect(tableLeft, currentY, tableWidthPixels, 22).stroke();
+
+      doc.fontSize(11).fillColor("#000");
+
+      doc.text("სულ", tableLeft + tableWidthPixels - 150, currentY + 5, {
+        width: 60,
+        align: "right",
       });
 
-      currentY += itemHeight;
-    });
+      doc.text(formatCurrency(totalAmount), tableLeft + tableWidthPixels - 80, currentY + 5, {
+        width: 70,
+        align: "right",
+      });
 
-    // Total row
-    currentY += 5;
-    doc.fontSize(11);
-    doc.rect(tableLeft, currentY, tableWidth, itemHeight).stroke();
-    doc.text("სულ", tableLeft + 5, currentY + 5, { width: colWidths.date - 10 });
-    doc.text(totals.totalEmailSendCount.toString(), tableLeft + colWidths.date, currentY + 5, {
-      width: colWidths.count - 10,
-      align: "center",
-    });
-    doc.text(totals.totalWeightKg.toFixed(2), tableLeft + colWidths.date + colWidths.count, currentY + 5, {
-      width: colWidths.weight - 10,
-      align: "center",
-    });
-    doc.text(totals.protectorsAmount.toFixed(2), tableLeft + colWidths.date + colWidths.count + colWidths.weight, currentY + 5, {
-      width: colWidths.protectors - 10,
-      align: "center",
-    });
-    doc.text(totals.totalAmount.toFixed(2), tableLeft + colWidths.date + colWidths.count + colWidths.weight + colWidths.protectors, currentY + 5, {
-      width: colWidths.total - 10,
-      align: "center",
-    });
+      // =========================
+      // NO NOTES
+      // NO SECOND TOTAL
+      // =========================
 
-    doc.end();
+      // =========================
+      // FOOTER (Page 1 of 1)
+      // =========================
+      doc.fontSize(8).fillColor("#777");
+      doc.text(
+        "გვერდი 1 -დან 1",
+        doc.page.margins.left,
+        doc.page.height - doc.page.margins.bottom - 20
+      );
+
+      doc.end();
+
     } catch (error) {
       reject(error);
     }
   });
 }
+
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -295,10 +332,14 @@ export async function POST(request: NextRequest) {
         hotelName: hotelName,
       },
       include: {
-        dailySheet: true,
+        dailySheet: {
+          include: {
+            items: true,
+          },
+        },
       },
       orderBy: {
-        date: "desc",
+        date: "asc",
       },
     });
 
@@ -306,46 +347,171 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
     }
 
-    // Aggregate date details
-    const dateDetailsMap = new Map<string, { date: string; emailSendCount: number; weightKg: number; protectorsAmount: number; totalAmount: number }>();
-
-    emailSends.forEach((emailSend) => {
-      const dateKey = new Date(emailSend.date).toISOString().split("T")[0];
-      const existing = dateDetailsMap.get(dateKey) || {
-        date: dateKey,
-        emailSendCount: 0,
-        weightKg: 0,
-        protectorsAmount: 0,
-        totalAmount: 0,
-      };
-
-      existing.emailSendCount += 1;
-      existing.weightKg += emailSend.totalWeight ?? 0;
-      existing.protectorsAmount += emailSend.protectorsAmount ?? 0;
-      existing.totalAmount += emailSend.totalAmount ?? 0;
-
-      dateDetailsMap.set(dateKey, existing);
+    // Generate sequential invoice number starting from 1
+    const lastInvoice = await prisma.invoice.findFirst({
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        invoiceNumber: true,
+      },
     });
-
-    const dateDetails = Array.from(dateDetailsMap.values()).sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    
+    let invoiceNumber = "1";
+    if (lastInvoice && lastInvoice.invoiceNumber) {
+      const lastNumber = parseInt(lastInvoice.invoiceNumber);
+      if (!isNaN(lastNumber) && lastNumber > 0) {
+        invoiceNumber = (lastNumber + 1).toString();
+      }
+    }
+    
+    // Calculate dates
+    const issueDate = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3); // 3 days from issue
+    
+    // Build items array - each emailSend gets its own row (detailed)
+    const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
+    const pricePerKg = hotel.pricePerKg || 1.8; // Default price
+    
+    // Sort email sends by date
+    const sortedEmailSends = [...emailSends].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
     );
+    
+    // Create a separate item for each emailSend
+    sortedEmailSends.forEach((emailSend) => {
+      const date = new Date(emailSend.date);
+      const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
+      const weight = emailSend.totalWeight ?? 0;
+      
+      if (weight > 0) {
+        // Check if this sheet has tablecloths (სუფრები)
+        const hasTablecloths = emailSend.dailySheet?.items?.some(
+          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+        ) || false;
+        
+        if (hasTablecloths) {
+          // Separate regular linen and tablecloths
+          const tableclothsItems = emailSend.dailySheet?.items?.filter(
+            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+          ) || [];
+          const regularItems = emailSend.dailySheet?.items?.filter(
+            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
+          ) || [];
+          
+          const tableclothsWeight = tableclothsItems.reduce(
+            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+            0
+          );
+          const regularWeight = regularItems.reduce(
+            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+            0
+          );
+          
+          // Add regular linen item
+          if (regularWeight > 0) {
+            items.push({
+              description: dateStr,
+              quantity: `${regularWeight.toFixed(1)} კგ`,
+              unitPrice: pricePerKg,
+              total: regularWeight * pricePerKg,
+            });
+          }
+          
+          // Add tablecloths item
+          if (tableclothsWeight > 0) {
+            const tableclothsPrice = 3.00; // Price for tablecloths
+            items.push({
+              description: `${dateStr} - სუფრები`,
+              quantity: `${tableclothsWeight.toFixed(1)} კგ`,
+              unitPrice: tableclothsPrice,
+              total: tableclothsWeight * tableclothsPrice,
+            });
+          }
+        } else {
+          // Regular linen item (no tablecloths)
+          items.push({
+            description: dateStr,
+            quantity: `${weight.toFixed(1)} კგ`,
+            unitPrice: pricePerKg,
+            total: weight * pricePerKg,
+          });
+        }
+      }
+    });
+    
+    // Add protectors if any (as separate item)
+    const totalProtectors = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
+    if (totalProtectors > 0) {
+      items.push({
+        description: "დამცავები",
+        quantity: "1",
+        unitPrice: totalProtectors,
+        total: totalProtectors,
+      });
+    }
+    
+    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
-    const totals = {
-      totalWeightKg: dateDetails.reduce((sum, d) => sum + d.weightKg, 0),
-      protectorsAmount: dateDetails.reduce((sum, d) => sum + d.protectorsAmount, 0),
-      totalAmount: dateDetails.reduce((sum, d) => sum + d.totalAmount, 0),
-      totalEmailSendCount: dateDetails.reduce((sum, d) => sum + d.emailSendCount, 0),
-    };
+    // Save invoice to database to track the number (with retry if duplicate)
+    let savedInvoice;
+    try {
+      savedInvoice = await prisma.invoice.create({
+        data: {
+          invoiceNumber,
+          customerName: hotel.hotelName,
+          customerEmail: email,
+          amount: totalAmount,
+          status: "PENDING",
+          dueDate: dueDate,
+        },
+      });
+    } catch (error: any) {
+      // If invoice number already exists, get next number
+      if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
+        const lastInvoice = await prisma.invoice.findFirst({
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            invoiceNumber: true,
+          },
+        });
+        if (lastInvoice && lastInvoice.invoiceNumber) {
+          const lastNumber = parseInt(lastInvoice.invoiceNumber);
+          if (!isNaN(lastNumber) && lastNumber > 0) {
+            invoiceNumber = (lastNumber + 1).toString();
+          }
+        }
+        // Retry with new number
+        savedInvoice = await prisma.invoice.create({
+          data: {
+            invoiceNumber,
+            customerName: hotel.hotelName,
+            customerEmail: email,
+            amount: totalAmount,
+            status: "PENDING",
+            dueDate: dueDate,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     // Generate PDF
     const pdfBuffer = await generateInvoicePDF(
+      invoiceNumber,
+      issueDate,
+      dueDate,
+      "გადარიცხვით",
       hotel.hotelName,
       hotel.hotelRegistrationNumber,
       hotel.address,
       hotel.mobileNumber,
-      dateDetails,
-      totals
+      items,
+      totalAmount
     );
 
     // Send email with PDF attachment
