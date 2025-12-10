@@ -68,7 +68,7 @@ function renderSection(
   `;
 }
 
-function renderHtml(sheet: any) {
+function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
     weekday: "long",
     year: "numeric",
@@ -119,6 +119,7 @@ function renderHtml(sheet: any) {
       <h2 style="margin:0 0 8px 0;">დღის ფურცელი</h2>
       <p style="margin:0 0 4px 0;"><strong>თარიღი:</strong> ${date}</p>
       <p style="margin:0 0 4px 0;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
+      ${hotelCompanyName ? `<p style="margin:0 0 4px 0;"><strong>შპს:</strong> ${hotelCompanyName}</p>` : ""}
       ${sheet.roomNumber ? `<p style="margin:0 0 8px 0;"><strong>ოთახი:</strong> ${sheet.roomNumber}</p>` : ""}
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
       ${sheet.notes ? `<p style="margin:0 0 8px 0;"><strong>შენიშვნები:</strong> ${sheet.notes}</p>` : ""}
@@ -237,13 +238,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ფურცელი ვერ მოიძებნა" }, { status: 404 });
     }
 
-
+    // Try to fetch companyName for the hotel
+    let companyName: string | null = null;
+    if (sheet.hotelName) {
+      const hotel = await prisma.hotel.findFirst({
+        where: { hotelName: sheet.hotelName },
+        select: { companyName: true },
+      });
+      companyName = hotel?.companyName ?? null;
+    }
 
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to,
       subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
-      html: renderHtml(sheet),
+      html: renderHtml(sheet, companyName),
     });
 
     // Mark sheet as emailed
