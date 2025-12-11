@@ -152,23 +152,39 @@ function generateInvoicePDF(
 
       doc.fontSize(12);
       drawBoldText("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
-      doc.font("Sylfaen").fontSize(12).fillColor("#000");
-      doc.text(invoiceBodyLines.join("\n"), infoX, rowStartY + 16, { width: colWidth });
+      doc.font("Sylfaen").fontSize(11).fillColor("#000");
+      // Render each line individually without width constraint to prevent wrapping
+      let currentInfoY = rowStartY + 16;
+      invoiceBodyLines.forEach((line) => {
+        doc.text(line, infoX, currentInfoY);
+        currentInfoY += 14;
+      });
 
       doc.fontSize(12);
       drawBoldText("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
-      doc.font("Sylfaen").fontSize(12).fillColor("#000");
-      doc.text(sellerBodyLines.join("\n"), sellerX, rowStartY + 16, { width: colWidth });
+      doc.font("Sylfaen").fontSize(11).fillColor("#000");
+      // Render each line individually without width constraint to prevent wrapping
+      let currentSellerY = rowStartY + 16;
+      sellerBodyLines.forEach((line) => {
+        doc.text(line, sellerX, currentSellerY);
+        currentSellerY += 14;
+      });
 
       doc.fontSize(12);
       drawBoldText("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
-      doc.font("Sylfaen").fontSize(12).fillColor("#000");
-      doc.text(buyerBodyLines.join("\n"), buyerX, rowStartY + 16, { width: colWidth });
+      doc.font("Sylfaen").fontSize(11).fillColor("#000");
+      // Render each line individually without width constraint to prevent wrapping
+      let currentBuyerY = rowStartY + 16;
+      buyerBodyLines.forEach((line) => {
+        doc.text(line, buyerX, currentBuyerY);
+        currentBuyerY += 14;
+      });
 
       // Keep vertical spacing aligned to tallest column
-      const infoHeight = doc.heightOfString(["ინვოისის დეტალები", ...invoiceBodyLines].join("\n"), { width: colWidth });
-      const sellerHeight = doc.heightOfString(["გამყიდველი", ...sellerBodyLines].join("\n"), { width: colWidth });
-      const buyerHeight = doc.heightOfString(["მყიდველი", ...buyerBodyLines].join("\n"), { width: colWidth });
+      // Calculate height based on number of lines (header + body lines)
+      const infoHeight = 16 + (invoiceBodyLines.length * 14);
+      const sellerHeight = 16 + (sellerBodyLines.length * 14);
+      const buyerHeight = 16 + (buyerBodyLines.length * 14);
       const maxHeight = Math.max(sellerHeight, buyerHeight, infoHeight);
       doc.y = rowStartY + maxHeight + 15;
 
