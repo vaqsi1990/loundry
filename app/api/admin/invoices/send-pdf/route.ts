@@ -150,17 +150,17 @@ function generateInvoicePDF(
         `გადახდის ტიპი: ${paymentType}`,
       ];
 
-      doc.fontSize(12);
+      doc.fontSize(11);
       drawBoldText("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
       doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(invoiceBodyLines.join("\n"), infoX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(12);
+      doc.fontSize(11);
       drawBoldText("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
       doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(sellerBodyLines.join("\n"), sellerX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(12);
+      doc.fontSize(11);
       drawBoldText("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
       doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(buyerBodyLines.join("\n"), buyerX, rowStartY + 16, { width: colWidth });
@@ -176,7 +176,7 @@ function generateInvoicePDF(
       // TITLE ABOVE TABLE
       // =========================
       doc
-        .fontSize(12)
+        .fontSize(11)
         .fillColor("#000")
       
 
@@ -210,7 +210,7 @@ function generateInvoicePDF(
       const hY = tableTop + 6;
       let x = tableLeft;
 
-      doc.fontSize(12);
+      doc.fontSize(11);
       drawBoldText("№", x, hY, { width: col.number, align: "center" });
       x += col.number;
 
@@ -259,7 +259,7 @@ function generateInvoicePDF(
 
         let xx = tableLeft;
 
-        doc.fontSize(12);
+        doc.fontSize(11);
         drawBoldText((index + 1).toString(), xx, currentY + 6, {
           width: col.number,
           align: "center",
@@ -315,7 +315,7 @@ function generateInvoicePDF(
       totalVX += col.unitPrice;
       doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
 
-      doc.fontSize(12);
+      doc.fontSize(11);
 
       const totalLabelWidth = 200;
       const totalAmountWidth = 80;
@@ -339,7 +339,7 @@ function generateInvoicePDF(
       // =========================
       // FOOTER (Page 1 of 1)
       // =========================
-      doc.fontSize(12).fillColor("#777");
+      doc.fontSize(11).fillColor("#777");
       doc.text(
         "გვერდი 1 -დან 1",
         doc.page.margins.left,
