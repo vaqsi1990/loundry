@@ -73,9 +73,18 @@ function generateInvoicePDF(
         doc.font("Sylfaen").fillColor("#000");
         // Draw text with small offsets to simulate bold effect
         const offset = 0.25;
-        doc.text(text, x - offset, y, options);
-        doc.text(text, x + offset, y, options);
-        doc.text(text, x, y, options); // Final centered draw
+        const centerOffset = 0.15; // Smaller offset for center-aligned text
+        // If center alignment, use smaller horizontal offsets to maintain centering
+        if (options?.align === "center") {
+          doc.text(text, x - centerOffset, y, options);
+          doc.text(text, x + centerOffset, y, options);
+          doc.text(text, x, y, options); // Final centered draw
+        } else {
+          // For other alignments, use normal horizontal offsets
+          doc.text(text, x - offset, y, options);
+          doc.text(text, x + offset, y, options);
+          doc.text(text, x, y, options); // Final centered draw
+        }
       };
 
       // =========================
@@ -214,7 +223,7 @@ function generateInvoicePDF(
       drawBoldText("კგ-ის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
       x += col.unitPrice;
 
-      drawBoldText("ჯამი", x, hY, { width: col.total, align: "center" });
+      drawBoldText("ჯამი (₾)", x, hY, { width: col.total, align: "center" });
 
       // Draw vertical lines in header
       doc.strokeColor("#000");
