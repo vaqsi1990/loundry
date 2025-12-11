@@ -111,7 +111,7 @@ function generateInvoicePDF(
 
       // Start body below header/logo (extra spacing)
       doc.y = headerLineY + 20;
- console.log(doc.y);
+ 
       // =========================
       // INVOICE INFO / SELLER / BUYER (Three columns)
       // =========================
@@ -128,7 +128,7 @@ function generateInvoicePDF(
         SELLER_INFO.name,
         SELLER_INFO.address,
         SELLER_INFO.city,
-        `საიდენტიფიკაციო კოდი ${SELLER_INFO.identificationCode}`,
+        ` ს/კ ${SELLER_INFO.identificationCode}`,
         SELLER_INFO.email,
         `ტელ ${SELLER_INFO.phone}`,
         `ანგარიში : ${SELLER_INFO.account}`,
@@ -139,7 +139,7 @@ function generateInvoicePDF(
       const buyerBodyLines = [
         hotelName,
         ...(hotelAddress ? [hotelAddress] : []),
-        `საიდენტიფიკაციო კოდი ${hotelRegistrationNumber}`,
+        ` ს/კ ${hotelRegistrationNumber}`,
         ...(hotelPhone ? [`ტელეფონი ${hotelPhone}`] : []),
       ];
 
@@ -150,17 +150,17 @@ function generateInvoicePDF(
         `გადახდის ტიპი: ${paymentType}`,
       ];
 
-      doc.fontSize(11);
+      doc.fontSize(12);
       drawBoldText("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
       doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(invoiceBodyLines.join("\n"), infoX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(11);
+      doc.fontSize(12);
       drawBoldText("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
       doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(sellerBodyLines.join("\n"), sellerX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(11);
+      doc.fontSize(12);
       drawBoldText("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
       doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(buyerBodyLines.join("\n"), buyerX, rowStartY + 16, { width: colWidth });
