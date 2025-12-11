@@ -37,6 +37,88 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const { searchParams } = new URL(request.url);
+    const monthParam = searchParams.get("month");
+    const dateParam = searchParams.get("date");
+
+    // If specific day is provided (YYYY-MM-DD), return invoices for that date
+    if (dateParam) {
+      const [y, m, d] = dateParam.split("-").map(Number);
+      if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 31) {
+        return NextResponse.json(
+          { error: "არასწორი თარიღი (გამოიყენეთ YYYY-MM-DD)" },
+          { status: 400 }
+        );
+      }
+
+      const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+
+      const invoices = await prisma.invoice.findMany({
+        where: {
+          createdAt: {
+            gte: start,
+            lte: end,
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
+      const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
+      const totalProtectors = invoices.reduce((sum, inv) => sum + (inv.protectorsAmount ?? 0), 0);
+
+      return NextResponse.json({
+        date: dateParam,
+        count: invoices.length,
+        totalAmount,
+        totalWeightKg,
+        totalProtectors,
+        invoices,
+      });
+    }
+
+    // If month is provided (YYYY-MM), return archived invoices for that month
+    if (monthParam) {
+      const [y, m] = monthParam.split("-").map(Number);
+      if (!y || !m || m < 1 || m > 12) {
+        return NextResponse.json(
+          { error: "არასწორი თვე (გამოიყენეთ YYYY-MM)" },
+          { status: 400 }
+        );
+      }
+
+      const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+      const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1, 0, 0, 0, 0));
+
+      const invoices = await prisma.invoice.findMany({
+        where: {
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
+      const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
+      const totalProtectors = invoices.reduce((sum, inv) => sum + (inv.protectorsAmount ?? 0), 0);
+
+      return NextResponse.json({
+        month: monthParam,
+        count: invoices.length,
+        totalAmount,
+        totalWeightKg,
+        totalProtectors,
+        invoices,
+      });
+    }
+
     // Get all email sends from sheets that have been emailed
     const emailSends = await prisma.dailySheetEmailSend.findMany({
       include: {

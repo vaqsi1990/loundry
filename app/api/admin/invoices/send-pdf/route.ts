@@ -513,6 +513,13 @@ export async function POST(request: NextRequest) {
     }
     
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+    const totalWeightKg = items.reduce((sum, item) => {
+      // quantity is like "12.3 კგ" or "1" for protectors
+      const match = item.quantity.match(/([\d.]+)/);
+      const num = match ? parseFloat(match[1]) : 0;
+      return sum + num;
+    }, 0);
+    const protectorsAmount = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
 
     // Save invoice to database to track the number (with retry if duplicate)
     let savedInvoice;
@@ -523,9 +530,13 @@ export async function POST(request: NextRequest) {
           customerName: hotel.hotelName,
           customerEmail: email,
           amount: totalAmount,
+          // new totals (schema updated)
+          totalWeightKg,
+          protectorsAmount,
+          totalAmount,
           status: "PENDING",
           dueDate: dueDate,
-        },
+        } as any, // cast to allow newly added fields until prisma client is regenerated
       });
     } catch (error: any) {
       // If invoice number already exists, get next number
@@ -551,9 +562,12 @@ export async function POST(request: NextRequest) {
             customerName: hotel.hotelName,
             customerEmail: email,
             amount: totalAmount,
+            totalWeightKg,
+            protectorsAmount,
+            totalAmount,
             status: "PENDING",
             dueDate: dueDate,
-          },
+          } as any,
         });
       } else {
         throw error;

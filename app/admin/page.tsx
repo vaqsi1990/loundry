@@ -58,6 +58,12 @@ export default function AdminPage() {
       path: "/admin/invoices"
     },
     { 
+      id: "invoicesArchive",
+      label: "ინვოისების არქივი",
+      description: "ინვოისების თვიური არქივი და მოძიება",
+      path: "/admin/invoices/archive"
+    },
+    { 
       id: "dailySheets",
       label: "დღის ფურცელი",
       description: "შექმენით და მართეთ დღის ფურცლები",
