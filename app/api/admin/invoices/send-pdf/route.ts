@@ -111,7 +111,7 @@ function generateInvoicePDF(
 
       // Start body below header/logo (extra spacing)
       doc.y = headerLineY + 20;
-
+ console.log(doc.y);
       // =========================
       // INVOICE INFO / SELLER / BUYER (Three columns)
       // =========================
