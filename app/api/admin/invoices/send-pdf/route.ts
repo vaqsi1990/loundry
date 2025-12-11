@@ -200,7 +200,7 @@ function generateInvoicePDF(
       doc.text("№", x, hY, { width: col.number, align: "center" });
       x += col.number;
 
-      doc.text("მომსახურების პერიოდი", x, hY, { width: col.description });
+      doc.text("მომსახურების პერიოდი", x, hY, { width: col.description, align: "center" });
       x += col.description;
 
       doc.text("წონა (კგ)", x, hY, { width: col.quantity, align: "center" });
@@ -254,6 +254,7 @@ function generateInvoicePDF(
 
         doc.text(item.description, xx, currentY + 6, {
           width: col.description,
+          align: "center",
         });
         xx += col.description;
 
