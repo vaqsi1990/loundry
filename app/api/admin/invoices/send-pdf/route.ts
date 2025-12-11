@@ -128,19 +128,19 @@ function generateInvoicePDF(
         SELLER_INFO.name,
         SELLER_INFO.address,
         SELLER_INFO.city,
-        ` ს/კ ${SELLER_INFO.identificationCode}`,
+        `ს/კ: ${SELLER_INFO.identificationCode}`,
         SELLER_INFO.email,
-        `ტელ ${SELLER_INFO.phone}`,
-        `ანგარიში : ${SELLER_INFO.account}`,
-        `ბანკი : ${SELLER_INFO.bank}`,
+        `ტელ: ${SELLER_INFO.phone}`,
+        `ანგარიში: ${SELLER_INFO.account}`,
+        `ბანკი: ${SELLER_INFO.bank}`,
         `SWIFT: ${SELLER_INFO.swift}`,
       ];
 
       const buyerBodyLines = [
         hotelName,
         ...(hotelAddress ? [hotelAddress] : []),
-        ` ს/კ ${hotelRegistrationNumber}`,
-        ...(hotelPhone ? [`ტელ : ${hotelPhone}`] : []),
+        `ს/კ: ${hotelRegistrationNumber}`,
+        ...(hotelPhone ? [`ტელ: ${hotelPhone}`] : []),
       ];
 
       const invoiceBodyLines = [
