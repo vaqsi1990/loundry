@@ -26,6 +26,7 @@ export default function InvoicesSection() {
   const [summaries, setSummaries] = useState<InvoiceDaySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [pdfModal, setPdfModal] = useState<{ open: boolean; hotelName: string | null; email: string }>({
@@ -145,6 +146,7 @@ export default function InvoicesSection() {
   };
 
   const openPdfModal = (hotelName: string | null) => {
+    setSuccessMessage("");
     setPdfModal({ open: true, hotelName, email: "" });
   };
 
@@ -177,7 +179,9 @@ export default function InvoicesSection() {
         throw new Error(data.error || "PDF-ის გაგზავნა ვერ მოხერხდა");
       }
 
-      alert("PDF ინვოისი წარმატებით გაიგზავნა");
+      setSuccessMessage(
+        `PDF ინვოისი წარმატებით გაიგზავნა ${pdfModal.hotelName || ""} (${pdfModal.email})`
+      );
       closePdfModal();
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
@@ -211,6 +215,11 @@ export default function InvoicesSection() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}
+        </div>
+      )}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
+          {successMessage}
         </div>
       )}
 
