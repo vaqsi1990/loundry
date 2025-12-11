@@ -1,4 +1,4 @@
-
+ 
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -62,12 +62,21 @@ function generateInvoicePDF(
       // FONT
       const sylfaenFontPath = path.join(process.cwd(), "public", "fonts", "sylfaen.ttf");
       doc.registerFont("Sylfaen", sylfaenFontPath);
-      doc.registerFont("SylfaenBold", sylfaenFontPath);
       doc.font("Sylfaen");
 
       const pageWidth = doc.page.width;
       const contentWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
       const formatCurrency = (n: number) => `${n.toFixed(2)} ₾`;
+      
+      // Helper function to draw bold text by drawing with small offsets to simulate bold
+      const drawBoldText = (text: string, x: number, y: number, options?: any) => {
+        doc.font("Sylfaen").fillColor("#000");
+        // Draw text with small offsets to simulate bold effect
+        const offset = 0.25;
+        doc.text(text, x - offset, y, options);
+        doc.text(text, x + offset, y, options);
+        doc.text(text, x, y, options); // Final centered draw
+      };
 
       // =========================
       // HEADER + LOGO (120px)
@@ -132,19 +141,19 @@ function generateInvoicePDF(
         `გადახდის ტიპი: ${paymentType}`,
       ];
 
-      doc.fontSize(12).fillColor("#000");
-      doc.text("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
       doc.fontSize(12);
+      drawBoldText("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
+      doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(invoiceBodyLines.join("\n"), infoX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(12).fillColor("#000");
-      doc.text("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
       doc.fontSize(12);
+      drawBoldText("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
+      doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(sellerBodyLines.join("\n"), sellerX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(12).fillColor("#000");
-      doc.text("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
       doc.fontSize(12);
+      drawBoldText("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
+      doc.font("Sylfaen").fontSize(12).fillColor("#000");
       doc.text(buyerBodyLines.join("\n"), buyerX, rowStartY + 16, { width: colWidth });
 
       // Keep vertical spacing aligned to tallest column
@@ -192,20 +201,20 @@ function generateInvoicePDF(
       const hY = tableTop + 6;
       let x = tableLeft;
 
-      doc.font("SylfaenBold").fontSize(12).fillColor("#000");
-      doc.text("№", x, hY, { width: col.number, align: "center" });
+      doc.fontSize(12);
+      drawBoldText("№", x, hY, { width: col.number, align: "center" });
       x += col.number;
 
-      doc.text("მომსახურების პერიოდი", x, hY, { width: col.description, align: "center" });
+      drawBoldText("მომსახურების პერიოდი", x, hY, { width: col.description, align: "center" });
       x += col.description;
 
-      doc.text("წონა (კგ)", x, hY, { width: col.quantity, align: "center" });
+      drawBoldText("წონა (კგ)", x, hY, { width: col.quantity, align: "center" });
       x += col.quantity;
 
-      doc.text("კგ-ის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
+      drawBoldText("კგ-ის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
       x += col.unitPrice;
 
-      doc.text("ჯამი", x, hY, { width: col.total, align: "center" });
+      drawBoldText("ჯამი", x, hY, { width: col.total, align: "center" });
 
       // Draw vertical lines in header
       doc.strokeColor("#000");
@@ -241,32 +250,32 @@ function generateInvoicePDF(
 
         let xx = tableLeft;
 
-        doc.font("SylfaenBold").fontSize(12).fillColor("#000");
-        doc.text((index + 1).toString(), xx, currentY + 6, {
+        doc.fontSize(12);
+        drawBoldText((index + 1).toString(), xx, currentY + 6, {
           width: col.number,
           align: "center",
         });
         xx += col.number;
 
-        doc.text(item.description, xx, currentY + 6, {
+        drawBoldText(item.description, xx, currentY + 6, {
           width: col.description,
           align: "center",
         });
         xx += col.description;
 
-        doc.text(item.quantity, xx, currentY + 6, {
+        drawBoldText(item.quantity, xx, currentY + 6, {
           width: col.quantity,
           align: "center",
         });
         xx += col.quantity;
 
-        doc.text(formatCurrency(item.unitPrice), xx, currentY + 6, {
+        drawBoldText(formatCurrency(item.unitPrice), xx, currentY + 6, {
           width: col.unitPrice,
           align: "center",
         });
         xx += col.unitPrice;
 
-        doc.text(formatCurrency(item.total), xx, currentY + 6, {
+        drawBoldText(formatCurrency(item.total), xx, currentY + 6, {
           width: col.total - 5,
           align: "right",
         });
@@ -297,18 +306,18 @@ function generateInvoicePDF(
       totalVX += col.unitPrice;
       doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
 
-      doc.font("SylfaenBold").fontSize(12).fillColor("#000");
+      doc.fontSize(12);
 
       const totalLabelWidth = 200;
       const totalAmountWidth = 80;
       const totalLabelX = tableLeft + tableWidthPixels - (totalLabelWidth + totalAmountWidth);
 
-      doc.text("სულ გადასახდელი", totalLabelX, currentY + 5, {
+      drawBoldText("სულ გადასახდელი", totalLabelX, currentY + 5, {
         width: totalLabelWidth,
         align: "center",
       });
 
-      doc.text(formatCurrency(totalAmount), tableLeft + tableWidthPixels - totalAmountWidth, currentY + 5, {
+      drawBoldText(formatCurrency(totalAmount), tableLeft + tableWidthPixels - totalAmountWidth, currentY + 5, {
         width: totalAmountWidth,
         align: "center",
       });
