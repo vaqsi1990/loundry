@@ -92,7 +92,7 @@ function generateInvoicePDF(
         .stroke();
 
       // Start body below header/logo (extra spacing)
-      doc.y = headerLineY + 40;
+      doc.y = headerLineY + 20;
 
       // =========================
       // INVOICE INFO / SELLER / BUYER (Three columns)
@@ -168,7 +168,7 @@ function generateInvoicePDF(
       // TABLE HEADER
       // =========================
       // Push table down by 50px for spacing
-      const tableTop = doc.y + 50;
+      const tableTop = doc.y + 10;
       const tableLeft = doc.page.margins.left;
       const tableWidthPixels = contentWidth;
 
