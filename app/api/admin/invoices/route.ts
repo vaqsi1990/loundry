@@ -40,6 +40,39 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const monthParam = searchParams.get("month");
     const dateParam = searchParams.get("date");
+    const monthsOnly = searchParams.get("months") === "true";
+    const searchQuery = searchParams.get("search");
+
+    // If months=true, return all available months with invoice counts
+    if (monthsOnly) {
+      const invoices = await prisma.invoice.findMany({
+        select: {
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      // Group by month (YYYY-MM)
+      const monthMap = new Map<string, number>();
+      invoices.forEach((inv) => {
+        const date = new Date(inv.createdAt);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+        const monthKey = `${year}-${month}`;
+        monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + 1);
+      });
+
+      const months = Array.from(monthMap.entries())
+        .map(([month, count]) => ({
+          month,
+          count,
+        }))
+        .sort((a, b) => b.month.localeCompare(a.month)); // Most recent first
+
+      return NextResponse.json({ months });
+    }
 
     // If specific day is provided (YYYY-MM-DD), return invoices for that date
     if (dateParam) {
@@ -72,6 +105,42 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         date: dateParam,
+        count: invoices.length,
+        totalAmount,
+        totalWeightKg,
+        totalProtectors,
+        invoices,
+      });
+    }
+
+    // If search query is provided, search by customer name across all invoices
+    if (searchQuery) {
+      // Use raw query for case-insensitive search in PostgreSQL
+      const invoices = await prisma.$queryRaw<Array<{
+        id: string;
+        invoiceNumber: string;
+        customerName: string;
+        customerEmail: string | null;
+        amount: number;
+        totalWeightKg: number | null;
+        protectorsAmount: number | null;
+        totalAmount: number | null;
+        status: string;
+        dueDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
+      }>>`
+        SELECT * FROM "Invoice"
+        WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
+        ORDER BY "createdAt" DESC
+      `;
+
+      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
+      const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
+      const totalProtectors = invoices.reduce((sum, inv) => sum + (inv.protectorsAmount ?? 0), 0);
+
+      return NextResponse.json({
+        search: searchQuery,
         count: invoices.length,
         totalAmount,
         totalWeightKg,
