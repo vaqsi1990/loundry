@@ -140,7 +140,7 @@ function generateInvoicePDF(
         hotelName,
         ...(hotelAddress ? [hotelAddress] : []),
         ` ს/კ ${hotelRegistrationNumber}`,
-        ...(hotelPhone ? [`ტელეფონი ${hotelPhone}`] : []),
+        ...(hotelPhone ? [`ტელ : ${hotelPhone}`] : []),
       ];
 
       const invoiceBodyLines = [
