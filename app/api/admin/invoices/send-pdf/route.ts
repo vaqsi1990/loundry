@@ -1,3 +1,5 @@
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -60,6 +62,7 @@ function generateInvoicePDF(
       // FONT
       const sylfaenFontPath = path.join(process.cwd(), "public", "fonts", "sylfaen.ttf");
       doc.registerFont("Sylfaen", sylfaenFontPath);
+      doc.registerFont("SylfaenBold", sylfaenFontPath);
       doc.font("Sylfaen");
 
       const pageWidth = doc.page.width;
@@ -71,40 +74,16 @@ function generateInvoicePDF(
       // =========================
       const headerY = 40;
 
-      // LEFT SIDE (Invoice Info)
-      doc
-        .fontSize(16)
-        .fillColor("#000")
-        .text(`ინვოისი № ${invoiceNumber}`, doc.page.margins.left, headerY, {
-          width: contentWidth / 2,
-        });
-
-      doc
-        .fontSize(10)
-        .fillColor("#444")
-        .text(
-          `გამოშვების თარიღი: ${issueDate.toLocaleDateString("ka-GE")}\n` +
-          `გადახდის ვადა: ${dueDate.toLocaleDateString("ka-GE")}\n` +
-          `გადახდის ტიპი: ${paymentType}`,
-          doc.page.margins.left,
-          headerY + 22,
-          { width: contentWidth / 2 }
-        );
-
       // RIGHT SIDE (LOGO)
       const logoPath = path.join(process.cwd(), "public", "logo.jpg");
       if (fs.existsSync(logoPath)) {
-        const logoWidth = 200;
-        const logoMarginRight = 130;  // add this
-        
-        const logoX = pageWidth - doc.page.margins.right - logoWidth - logoMarginRight;
-        
+        const logoWidth = 260;
+        const logoX = (pageWidth - logoWidth) / 2;
         doc.image(logoPath, logoX, headerY - 40, { width: logoWidth });
-        
       }
 
-      // Draw horizontal divider under invoice info + logo
-      const headerLineY = Math.max(doc.y, headerY + 90);
+      // Draw horizontal divider under header + logo
+      const headerLineY = headerY + 110;
       doc
         .strokeColor("#000")
         .lineWidth(1)
@@ -112,57 +91,74 @@ function generateInvoicePDF(
         .lineTo(pageWidth - doc.page.margins.right, headerLineY)
         .stroke();
 
-      doc.moveDown(4);
+      // Start body below header/logo (extra spacing)
+      doc.y = headerLineY + 40;
 
       // =========================
-      // SELLER / BUYER (Two columns)
+      // INVOICE INFO / SELLER / BUYER (Three columns)
       // =========================
-      const colWidth = contentWidth / 2;
+      const colGap = 20;
+      const colWidth = (contentWidth - colGap * 2) / 3;
 
-      const sellerY = doc.y;
+      const rowStartY = doc.y;
+      const infoX = doc.page.margins.left;
+      const sellerX = infoX + colWidth + colGap;
+      const buyerX = sellerX + colWidth + colGap;
 
-      // SELLER
-      doc
-        .fontSize(12)
-        .fillColor("#000")
-        .text("გამყიდველი", doc.page.margins.left, sellerY, {
-          width: colWidth,
-          underline: true,
-        });
+      // Pre-build column text to measure height consistently
+      const sellerBodyLines = [
+        SELLER_INFO.name,
+        SELLER_INFO.address,
+        SELLER_INFO.city,
+        `საიდენტიფიკაციო კოდი ${SELLER_INFO.identificationCode}`,
+        SELLER_INFO.email,
+        `ტელ ${SELLER_INFO.phone}`,
+        `ანგარიში : ${SELLER_INFO.account}`,
+        `ბანკი : ${SELLER_INFO.bank}`,
+        `SWIFT: ${SELLER_INFO.swift}`,
+      ];
 
-      doc.fontSize(10);
-      doc.text(SELLER_INFO.name);
-      doc.text(SELLER_INFO.address);
-      doc.text(SELLER_INFO.city);
-      doc.text(`საიდენტიფიკაციო კოდი ${SELLER_INFO.identificationCode}`);
-      doc.text(SELLER_INFO.email);
-      doc.text(`ტელ ${SELLER_INFO.phone}`);
-      doc.text(`ანგარიში : ${SELLER_INFO.account}`);
-      doc.text(`ბანკი : ${SELLER_INFO.bank}`);
-      doc.text(`SWIFT: ${SELLER_INFO.swift}`);
- 
+      const buyerBodyLines = [
+        hotelName,
+        ...(hotelAddress ? [hotelAddress] : []),
+        `საიდენტიფიკაციო კოდი ${hotelRegistrationNumber}`,
+        ...(hotelPhone ? [`ტელეფონი ${hotelPhone}`] : []),
+      ];
 
-      // BUYER (Right Column)
-      const buyerX = doc.page.margins.left + colWidth + 20;
+      const invoiceBodyLines = [
+        `ინვოისი № ${invoiceNumber}`,
+        `გამოშვების თარიღი: ${issueDate.toLocaleDateString("ka-GE")}`,
+        `გადახდის ვადა: ${dueDate.toLocaleDateString("ka-GE")}`,
+        `გადახდის ტიპი: ${paymentType}`,
+      ];
 
-      doc
-        .fontSize(12)
-        .fillColor("#000")
-        .text("მყიდველი", buyerX, sellerY, { width: colWidth, underline: true });
+      doc.fontSize(12).fillColor("#000");
+      doc.text("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
+      doc.fontSize(12);
+      doc.text(invoiceBodyLines.join("\n"), infoX, rowStartY + 16, { width: colWidth });
 
-      doc.fontSize(10);
-      doc.text(hotelName, buyerX);
-      if (hotelAddress) doc.text(hotelAddress, { width: colWidth });
-      doc.text(`საიდენტიფიკაციო კოდი ${hotelRegistrationNumber}`);
-      if (hotelPhone) doc.text(`ტელეფონი ${hotelPhone}`);
+      doc.fontSize(12).fillColor("#000");
+      doc.text("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
+      doc.fontSize(12);
+      doc.text(sellerBodyLines.join("\n"), sellerX, rowStartY + 16, { width: colWidth });
 
-      doc.moveDown(2);
+      doc.fontSize(12).fillColor("#000");
+      doc.text("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
+      doc.fontSize(12);
+      doc.text(buyerBodyLines.join("\n"), buyerX, rowStartY + 16, { width: colWidth });
+
+      // Keep vertical spacing aligned to tallest column
+      const infoHeight = doc.heightOfString(["ინვოისის დეტალები", ...invoiceBodyLines].join("\n"), { width: colWidth });
+      const sellerHeight = doc.heightOfString(["გამყიდველი", ...sellerBodyLines].join("\n"), { width: colWidth });
+      const buyerHeight = doc.heightOfString(["მყიდველი", ...buyerBodyLines].join("\n"), { width: colWidth });
+      const maxHeight = Math.max(sellerHeight, buyerHeight, infoHeight);
+      doc.y = rowStartY + maxHeight + 15;
 
       // =========================
       // TITLE ABOVE TABLE
       // =========================
       doc
-        .fontSize(11)
+        .fontSize(12)
         .fillColor("#000")
       
 
@@ -196,7 +192,7 @@ function generateInvoicePDF(
       const hY = tableTop + 6;
       let x = tableLeft;
 
-      doc.fontSize(10).fillColor("#000");
+      doc.font("SylfaenBold").fontSize(12).fillColor("#000");
       doc.text("№", x, hY, { width: col.number, align: "center" });
       x += col.number;
 
@@ -245,7 +241,7 @@ function generateInvoicePDF(
 
         let xx = tableLeft;
 
-        doc.fontSize(9).fillColor("#000");
+        doc.font("SylfaenBold").fontSize(12).fillColor("#000");
         doc.text((index + 1).toString(), xx, currentY + 6, {
           width: col.number,
           align: "center",
@@ -301,7 +297,7 @@ function generateInvoicePDF(
       totalVX += col.unitPrice;
       doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
 
-      doc.fontSize(11).fillColor("#000");
+      doc.font("SylfaenBold").fontSize(12).fillColor("#000");
 
       const totalLabelWidth = 200;
       const totalAmountWidth = 80;
@@ -325,7 +321,7 @@ function generateInvoicePDF(
       // =========================
       // FOOTER (Page 1 of 1)
       // =========================
-      doc.fontSize(8).fillColor("#777");
+      doc.fontSize(12).fillColor("#777");
       doc.text(
         "გვერდი 1 -დან 1",
         doc.page.margins.left,
@@ -440,7 +436,7 @@ export async function POST(request: NextRequest) {
       let sentLabel = dateStr;
       if (emailSend.sentAt) {
         const sentAt = new Date(emailSend.sentAt);
-        sentLabel = `გაგზავნა: ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
+        sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
       }
 
       const weight = emailSend.totalWeight ?? 0;
@@ -609,4 +605,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "PDF-ის გაგზავნისას მოხდა შეცდომა" }, { status: 500 });
   }
 }
-
