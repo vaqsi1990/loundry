@@ -94,14 +94,23 @@ function generateInvoicePDF(
       // RIGHT SIDE (LOGO)
       const logoPath = path.join(process.cwd(), "public", "logo.jpg");
       if (fs.existsSync(logoPath)) {
-        const logoWidth = 120;
+        const logoWidth = 200;
         const logoMarginRight = 130;  // add this
         
         const logoX = pageWidth - doc.page.margins.right - logoWidth - logoMarginRight;
         
-        doc.image(logoPath, logoX, headerY - 5, { width: logoWidth });
+        doc.image(logoPath, logoX, headerY - 40, { width: logoWidth });
         
       }
+
+      // Draw horizontal divider under invoice info + logo
+      const headerLineY = Math.max(doc.y, headerY + 90);
+      doc
+        .strokeColor("#000")
+        .lineWidth(1)
+        .moveTo(doc.page.margins.left, headerLineY)
+        .lineTo(pageWidth - doc.page.margins.right, headerLineY)
+        .stroke();
 
       doc.moveDown(4);
 
@@ -167,10 +176,10 @@ function generateInvoicePDF(
 
       const col = {
         number: 30,
-        description: 250,
-        quantity: 80,
-        unitPrice: 80,
-        total: tableWidthPixels - (30 + 250 + 80 + 80)
+        description: 150, // shrink service period
+        quantity: 90,     // widen
+        unitPrice: 120,   // widen
+        total: tableWidthPixels - (30 + 200 + 90 + 120), // widen remainder
       };
 
       // Header background
@@ -189,16 +198,28 @@ function generateInvoicePDF(
       doc.text("№", x, hY, { width: col.number, align: "center" });
       x += col.number;
 
-      doc.text("დასახელება", x, hY, { width: col.description });
+      doc.text("მომსახურების პერიოდი", x, hY, { width: col.description });
       x += col.description;
 
-      doc.text("რაოდენობა", x, hY, { width: col.quantity, align: "center" });
+      doc.text("წონა (კგ)", x, hY, { width: col.quantity, align: "center" });
       x += col.quantity;
 
-      doc.text("ცალის ფასი", x, hY, { width: col.unitPrice, align: "center" });
+      doc.text("კგ-ის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
       x += col.unitPrice;
 
-      doc.text("სულ", x, hY, { width: col.total, align: "center" });
+      doc.text("ჯამი", x, hY, { width: col.total, align: "center" });
+
+      // Draw vertical lines in header
+      doc.strokeColor("#000");
+      doc.lineWidth(1);
+      let headerVX = tableLeft + col.number;
+      doc.moveTo(headerVX, tableTop).lineTo(headerVX, tableTop + 22).stroke();
+      headerVX += col.description;
+      doc.moveTo(headerVX, tableTop).lineTo(headerVX, tableTop + 22).stroke();
+      headerVX += col.quantity;
+      doc.moveTo(headerVX, tableTop).lineTo(headerVX, tableTop + 22).stroke();
+      headerVX += col.unitPrice;
+      doc.moveTo(headerVX, tableTop).lineTo(headerVX, tableTop + 22).stroke();
 
       let currentY = tableTop + 22;
 
@@ -207,6 +228,18 @@ function generateInvoicePDF(
       // =========================
       items.forEach((item, index) => {
         doc.rect(tableLeft, currentY, tableWidthPixels, 20).stroke();
+
+        // Draw vertical lines in each row
+        doc.strokeColor("#000");
+        doc.lineWidth(1);
+        let vX = tableLeft + col.number;
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        vX += col.description;
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        vX += col.quantity;
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        vX += col.unitPrice;
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
 
         let xx = tableLeft;
 
@@ -253,16 +286,32 @@ function generateInvoicePDF(
 
       doc.rect(tableLeft, currentY, tableWidthPixels, 22).stroke();
 
+      // Draw vertical lines in total row
+      doc.strokeColor("#000");
+      doc.lineWidth(1);
+      let totalVX = tableLeft + col.number;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      totalVX += col.description;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      totalVX += col.quantity;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      totalVX += col.unitPrice;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+
       doc.fontSize(11).fillColor("#000");
 
-      doc.text("სულ", tableLeft + tableWidthPixels - 150, currentY + 5, {
-        width: 60,
-        align: "right",
+      const totalLabelWidth = 200;
+      const totalAmountWidth = 80;
+      const totalLabelX = tableLeft + tableWidthPixels - (totalLabelWidth + totalAmountWidth);
+
+      doc.text("სულ გადასახდელი", totalLabelX, currentY + 5, {
+        width: totalLabelWidth,
+        align: "center",
       });
 
-      doc.text(formatCurrency(totalAmount), tableLeft + tableWidthPixels - 80, currentY + 5, {
-        width: 70,
-        align: "right",
+      doc.text(formatCurrency(totalAmount), tableLeft + tableWidthPixels - totalAmountWidth, currentY + 5, {
+        width: totalAmountWidth,
+        align: "center",
       });
 
       // =========================
@@ -383,6 +432,14 @@ export async function POST(request: NextRequest) {
     sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
       const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
+
+      // Show only the send date in parentheses; fallback to sheet date if missing
+      let sentLabel = dateStr;
+      if (emailSend.sentAt) {
+        const sentAt = new Date(emailSend.sentAt);
+        sentLabel = `გაგზავნა: ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
+      }
+
       const weight = emailSend.totalWeight ?? 0;
       
       if (weight > 0) {
@@ -412,7 +469,7 @@ export async function POST(request: NextRequest) {
           // Add regular linen item
           if (regularWeight > 0) {
             items.push({
-              description: dateStr,
+              description: sentLabel,
               quantity: `${regularWeight.toFixed(1)} კგ`,
               unitPrice: pricePerKg,
               total: regularWeight * pricePerKg,
@@ -423,7 +480,7 @@ export async function POST(request: NextRequest) {
           if (tableclothsWeight > 0) {
             const tableclothsPrice = 3.00; // Price for tablecloths
             items.push({
-              description: `${dateStr} - სუფრები`,
+              description: `${sentLabel} - სუფრები`,
               quantity: `${tableclothsWeight.toFixed(1)} კგ`,
               unitPrice: tableclothsPrice,
               total: tableclothsWeight * tableclothsPrice,
@@ -432,7 +489,7 @@ export async function POST(request: NextRequest) {
         } else {
           // Regular linen item (no tablecloths)
           items.push({
-            description: dateStr,
+            description: sentLabel,
             quantity: `${weight.toFixed(1)} კგ`,
             unitPrice: pricePerKg,
             total: weight * pricePerKg,

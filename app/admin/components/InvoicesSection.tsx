@@ -8,6 +8,7 @@ interface DateDetail {
   weightKg: number;
   protectorsAmount: number;
   totalAmount: number;
+  sentAt: string | null;
 }
 
 interface InvoiceDaySummary {
@@ -342,6 +343,9 @@ export default function InvoicesSection() {
                                   თარიღი
                                 </th>
                                 <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
+                                  გაგზავნის თარიღი
+                                </th>
+                                <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
                                   გაგზავნილი რაოდენობა
                                 </th>
                                 <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
@@ -360,6 +364,9 @@ export default function InvoicesSection() {
                                 <tr key={detail.date + detailIdx} className="hover:bg-gray-50">
                                   <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
                                     {formatDate(detail.date)}
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                    {detail.sentAt ? formatDate(detail.sentAt) : "-"}
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
                                     {detail.emailSendCount}

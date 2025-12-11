@@ -70,12 +70,13 @@ export async function GET(request: NextRequest) {
         totalEmailSendCount: number;
         sheetIds: Set<string>; // Track unique sheets
         sheetDispatched: Map<string, number>; // Track dispatched count per sheet (to avoid double counting)
-        dateDetails: Map<string, { // Track details by date
+        dateDetails: Array<{ // Track each email send separately
           date: string;
           emailSendCount: number;
           weightKg: number;
           protectorsAmount: number;
           totalAmount: number;
+          sentAt: string | null;
         }>;
       }
     >();
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
         totalEmailSendCount: 0,
         sheetIds: new Set<string>(),
         sheetDispatched: new Map<string, number>(),
-        dateDetails: new Map<string, { date: string; emailSendCount: number; weightKg: number; protectorsAmount: number; totalAmount: number }>(),
+        dateDetails: [] as Array<{ date: string; emailSendCount: number; weightKg: number; protectorsAmount: number; totalAmount: number; sentAt: string | null }>,
       };
 
       // Calculate dispatched count from sheet items (only once per sheet)
@@ -127,20 +128,24 @@ export async function GET(request: NextRequest) {
       // Track unique sheets
       current.sheetIds.add(sheet.id);
 
-      // Track details by date
-      const dateKey = new Date(emailSend.date).toISOString().split("T")[0];
-      const dateDetail = current.dateDetails.get(dateKey) ?? {
+      // Track each email send separately - use UTC methods to avoid timezone issues
+      const dateObj = new Date(emailSend.date);
+      // Get year, month, day in UTC to ensure consistent date formatting
+      const year = dateObj.getUTCFullYear();
+      const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getUTCDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
+      
+      // Add each email send as a separate detail entry
+      const dateDetail = {
         date: dateKey,
-        emailSendCount: 0,
-        weightKg: 0,
-        protectorsAmount: 0,
-        totalAmount: 0,
+        emailSendCount: 1, // Each entry represents one email send
+        weightKg: emailWeight,
+        protectorsAmount: emailProtectorsAmount,
+        totalAmount: emailTotalAmount,
+        sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
       };
-      dateDetail.emailSendCount += 1;
-      dateDetail.weightKg += emailWeight;
-      dateDetail.protectorsAmount += emailProtectorsAmount;
-      dateDetail.totalAmount += emailTotalAmount;
-      current.dateDetails.set(dateKey, dateDetail);
+      current.dateDetails.push(dateDetail);
 
       aggregateMap.set(hotelKey, {
         hotelName: hotelKey === "-" ? null : hotelKey,
@@ -161,10 +166,17 @@ export async function GET(request: NextRequest) {
     const aggregated = Array.from(aggregateMap.values())
       .map(({ sheetIds, sheetDispatched, dateDetails, ...rest }) => ({
         ...rest,
-        dateDetails: Array.from(dateDetails.values()).sort((a, b) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        ),
-      })) // Convert dateDetails Map to sorted array
+        dateDetails: dateDetails.sort((a, b) => {
+          // Sort by date string first (YYYY-MM-DD format), then by sentAt time
+          const dateCompare = b.date.localeCompare(a.date);
+          if (dateCompare !== 0) return dateCompare;
+          // If same date, sort by sentAt (most recent first)
+          if (a.sentAt && b.sentAt) {
+            return b.sentAt.localeCompare(a.sentAt);
+          }
+          return 0;
+        }),
+      })) // dateDetails is already an array, just sort it
       .sort((a, b) => {
         const hA = a.displayHotelName || a.hotelName || "";
         const hB = b.displayHotelName || b.hotelName || "";
