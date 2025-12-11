@@ -140,6 +140,7 @@ function generateInvoicePDF(
       doc.text(`ანგარიში : ${SELLER_INFO.account}`);
       doc.text(`ბანკი : ${SELLER_INFO.bank}`);
       doc.text(`SWIFT: ${SELLER_INFO.swift}`);
+ 
 
       // BUYER (Right Column)
       const buyerX = doc.page.margins.left + colWidth + 20;
@@ -170,7 +171,8 @@ function generateInvoicePDF(
       // =========================
       // TABLE HEADER
       // =========================
-      const tableTop = doc.y;
+      // Push table down by 50px for spacing
+      const tableTop = doc.y + 50;
       const tableLeft = doc.page.margins.left;
       const tableWidthPixels = contentWidth;
 
