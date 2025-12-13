@@ -17,6 +17,7 @@ interface SentInvoice {
   customerName: string;
   totalAmount: number | null;
   amount: number;
+  paidAmount: number | null;
   createdAt: string;
 }
 
@@ -34,6 +35,8 @@ export default function RevenuesSection() {
   const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [editingPayment, setEditingPayment] = useState<string | null>(null);
+  const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState({
     source: "",
@@ -122,6 +125,51 @@ export default function RevenuesSection() {
       date: new Date().toISOString().split("T")[0],
     });
     setShowAddForm(false);
+  };
+
+  const handlePaymentUpdate = async (invoiceId: string) => {
+    const paymentAmount = paymentAmounts[invoiceId];
+    if (!paymentAmount || paymentAmount.trim() === "") {
+      setError("გთხოვთ შეიყვანოთ ჩარიცხვის თანხა");
+      return;
+    }
+
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount < 0) {
+      setError("არასწორი თანხა");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          paidAmount: amount,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "ჩარიცხვის განახლება ვერ მოხერხდა");
+      }
+
+      setEditingPayment(null);
+      setPaymentAmounts({});
+      await fetchRevenues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
+  const startEditingPayment = (invoiceId: string, currentPaidAmount: number | null) => {
+    setEditingPayment(invoiceId);
+    setPaymentAmounts({
+      ...paymentAmounts,
+      [invoiceId]: currentPaidAmount?.toString() || "0",
+    });
   };
 
   const totalRevenueAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
@@ -290,22 +338,92 @@ export default function RevenuesSection() {
                   <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                     ჯამი
                   </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    ჩაირიცხა
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    მოქმედებები
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sentInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                      {new Date(invoice.createdAt).toLocaleDateString("ka-GE")}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                      {invoice.customerName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-green-600 font-bold">
-                      {(invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2)} ₾
-                    </td>
-                  </tr>
-                ))}
+                {sentInvoices.map((invoice) => {
+                  const totalAmount = invoice.totalAmount ?? invoice.amount ?? 0;
+                  const paidAmount = invoice.paidAmount ?? 0;
+                  const remaining = totalAmount - paidAmount;
+                  const isEditing = editingPayment === invoice.id;
+                  
+                  return (
+                    <tr key={invoice.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                        {new Date(invoice.createdAt).toLocaleDateString("ka-GE")}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                        {invoice.customerName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-green-600 font-bold">
+                        {totalAmount.toFixed(2)} ₾
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
+                        {isEditing ? (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={paymentAmounts[invoice.id] || "0"}
+                              onChange={(e) =>
+                                setPaymentAmounts({
+                                  ...paymentAmounts,
+                                  [invoice.id]: e.target.value,
+                                })
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded-md text-black text-sm"
+                              placeholder="0.00"
+                            />
+                            <span className="text-[14px] text-black">₾</span>
+                            <button
+                              onClick={() => handlePaymentUpdate(invoice.id)}
+                              className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                            >
+                              შენახვა
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingPayment(null);
+                                setPaymentAmounts({});
+                              }}
+                              className="bg-gray-300 text-black px-3 py-1 rounded text-sm hover:bg-gray-400"
+                            >
+                              გაუქმება
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="text-[16px] md:text-[18px] text-blue-600 font-semibold">
+                              {paidAmount.toFixed(2)} ₾
+                            </div>
+                            {remaining > 0 && (
+                              <div className="text-[12px] text-gray-500">
+                                დარჩენილი: {remaining.toFixed(2)} ₾
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
+                        {!isEditing && (
+                          <button
+                            onClick={() => startEditingPayment(invoice.id, invoice.paidAmount)}
+                            className="text-blue-600 hover:underline"
+                          >
+                            ჩარიცხვის რედაქტირება
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

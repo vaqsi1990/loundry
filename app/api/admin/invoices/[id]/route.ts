@@ -77,18 +77,34 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { status } = body;
+    const { status, paidAmount } = body;
 
-    if (!["PENDING", "PAID", "CANCELLED"].includes(status)) {
-      return NextResponse.json(
-        { error: "არასწორი სტატუსი" },
-        { status: 400 }
-      );
+    const updateData: any = {};
+    
+    if (status !== undefined) {
+      if (!["PENDING", "PAID", "CANCELLED"].includes(status)) {
+        return NextResponse.json(
+          { error: "არასწორი სტატუსი" },
+          { status: 400 }
+        );
+      }
+      updateData.status = status;
+    }
+
+    if (paidAmount !== undefined) {
+      const paid = parseFloat(paidAmount);
+      if (isNaN(paid) || paid < 0) {
+        return NextResponse.json(
+          { error: "არასწორი ჩარიცხვის თანხა" },
+          { status: 400 }
+        );
+      }
+      updateData.paidAmount = paid;
     }
 
     const invoice = await prisma.invoice.update({
       where: { id },
-      data: { status },
+      data: updateData,
     });
 
     return NextResponse.json(invoice);

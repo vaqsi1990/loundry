@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
         customerName: true,
         totalAmount: true,
         amount: true,
+        paidAmount: true,
         createdAt: true,
       },
     });
