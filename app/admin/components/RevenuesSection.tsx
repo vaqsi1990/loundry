@@ -18,6 +18,7 @@ interface SentInvoice {
   totalAmount: number | null;
   amount: number;
   paidAmount: number | null;
+  status: string;
   createdAt: string;
 }
 
@@ -184,6 +185,33 @@ export default function RevenuesSection() {
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      }
+
+      await fetchRevenues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
+  const handleConfirmInvoice = async (invoiceId: string) => {
+    if (!confirm("დარწმუნებული ხართ რომ ინვოისი სრულად ჩაირიცხა? ამის შემდეგ ფასის შეცვლა ვეღარ შეიძლება.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: "PAID",
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "დასტური ვერ მოხერხდა");
       }
 
       await fetchRevenues();
@@ -372,6 +400,9 @@ export default function RevenuesSection() {
                   const paidAmount = invoice.paidAmount ?? 0;
                   const remaining = totalAmount - paidAmount;
                   const isEditing = editingPayment === invoice.id;
+                  const isPaid = invoice.status === "PAID";
+                  const isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+                  const canConfirm = isFullyPaid && !isPaid;
                   
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
@@ -390,6 +421,7 @@ export default function RevenuesSection() {
                             type="number"
                             step="0.01"
                             min="0"
+                            disabled={isPaid}
                             value={
                               isEditing
                                 ? paymentAmounts[invoice.id] || ""
@@ -398,6 +430,7 @@ export default function RevenuesSection() {
                                 : ""
                             }
                             onChange={(e) => {
+                              if (isPaid) return;
                               if (!isEditing) {
                                 startEditingPayment(invoice.id, invoice.paidAmount);
                               }
@@ -407,6 +440,7 @@ export default function RevenuesSection() {
                               });
                             }}
                             onBlur={() => {
+                              if (isPaid) return;
                               // Auto-save on blur if value changed
                               if (isEditing) {
                                 const inputValue = paymentAmounts[invoice.id] || "";
@@ -420,6 +454,7 @@ export default function RevenuesSection() {
                               }
                             }}
                             onKeyDown={(e) => {
+                              if (isPaid) return;
                               if (e.key === "Enter") {
                                 e.preventDefault();
                                 if (isEditing) {
@@ -433,11 +468,16 @@ export default function RevenuesSection() {
                               }
                             }}
                             onClick={() => {
+                              if (isPaid) return;
                               if (!isEditing) {
                                 startEditingPayment(invoice.id, invoice.paidAmount);
                               }
                             }}
-                            className="w-28 px-2 py-1 border border-gray-300 rounded-md text-black text-[16px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-28 px-2 py-1 border border-gray-300 rounded-md text-[16px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                              isPaid
+                                ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                                : "text-black"
+                            }`}
                             placeholder="0.00"
                           />
                           <span className="text-[16px] text-black">₾</span>
@@ -451,9 +491,14 @@ export default function RevenuesSection() {
                             </button>
                           )}
                         </div>
-                        {!isEditing && remaining > 0 && (
-                          <div className="text-[12px] text-gray-500 mt-1">
+                        {!isEditing && remaining > 0 && !isPaid && (
+                          <div className="text-[16px] text-red-600 mt-1">
                             დარჩენილი: {remaining.toFixed(2)} ₾
+                          </div>
+                        )}
+                        {isPaid && (
+                          <div className="text-[16px] text-green-600 font-semibold mt-1">
+                            ✓ დადასტურებული
                           </div>
                         )}
                       </td>
@@ -471,7 +516,15 @@ export default function RevenuesSection() {
                               გაუქმება
                             </button>
                           )}
-                          {!isEditing && (
+                          {!isEditing && canConfirm && (
+                            <button
+                              onClick={() => handleConfirmInvoice(invoice.id)}
+                              className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 font-semibold"
+                            >
+                              დასტური
+                            </button>
+                          )}
+                          {!isEditing && !isPaid && (
                             <button
                               onClick={() => handleDeleteInvoice(invoice.id)}
                               className="text-red-600 hover:underline text-[18px] md:text-[20px]"
