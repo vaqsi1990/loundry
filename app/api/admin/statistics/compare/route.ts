@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     const statistics: Array<{
       period: string;
       revenues: number;
+      expenses: number;
     }> = [];
 
     const getPeriodData = async (period: string) => {
@@ -52,8 +53,19 @@ export async function GET(request: NextRequest) {
         const endOfMonth = new Date(year, month, 0);
         endOfMonth.setHours(23, 59, 59, 999);
 
-        const [revenues, invoices] = await Promise.all([
+        const [revenues, expenses, invoices] = await Promise.all([
           prisma.revenue.aggregate({
+            where: {
+              date: {
+                gte: startOfMonth,
+                lte: endOfMonth,
+              },
+            },
+            _sum: {
+              amount: true,
+            },
+          }),
+          prisma.expense.aggregate({
             where: {
               date: {
                 gte: startOfMonth,
@@ -88,10 +100,12 @@ export async function GET(request: NextRequest) {
 
         const totalRevenues = (revenues._sum.amount || 0) + 
           (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        const totalExpenses = expenses._sum.amount || 0;
 
         return {
           period: `${monthNames[month - 1]} ${year}`,
           revenues: totalRevenues,
+          expenses: totalExpenses,
         };
       } else {
         const year = parseInt(period);
@@ -101,8 +115,19 @@ export async function GET(request: NextRequest) {
         const endOfYear = new Date(year, 11, 31);
         endOfYear.setHours(23, 59, 59, 999);
 
-        const [revenues, invoices] = await Promise.all([
+        const [revenues, expenses, invoices] = await Promise.all([
           prisma.revenue.aggregate({
+            where: {
+              date: {
+                gte: startOfYear,
+                lte: endOfYear,
+              },
+            },
+            _sum: {
+              amount: true,
+            },
+          }),
+          prisma.expense.aggregate({
             where: {
               date: {
                 gte: startOfYear,
@@ -132,10 +157,12 @@ export async function GET(request: NextRequest) {
 
         const totalRevenues = (revenues._sum.amount || 0) + 
           (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        const totalExpenses = expenses._sum.amount || 0;
 
         return {
           period: year.toString(),
           revenues: totalRevenues,
+          expenses: totalExpenses,
         };
       }
     };
@@ -146,10 +173,10 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Only add periods that have actual data
-    if (data1.revenues > 0) {
+    if (data1.revenues > 0 || data1.expenses > 0) {
       statistics.push(data1);
     }
-    if (data2.revenues > 0) {
+    if (data2.revenues > 0 || data2.expenses > 0) {
       statistics.push(data2);
     }
 

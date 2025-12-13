@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const statistics: Array<{
       period: string;
       revenues: number;
+      expenses: number;
     }> = [];
 
     if (view === "monthly" && year) {
@@ -44,8 +45,19 @@ export async function GET(request: NextRequest) {
         const endOfMonth = new Date(parseInt(year), month, 0);
         endOfMonth.setHours(23, 59, 59, 999);
 
-        const [revenues, invoices] = await Promise.all([
+        const [revenues, expenses, invoices] = await Promise.all([
           prisma.revenue.aggregate({
+            where: {
+              date: {
+                gte: startOfMonth,
+                lte: endOfMonth,
+              },
+            },
+            _sum: {
+              amount: true,
+            },
+          }),
+          prisma.expense.aggregate({
             where: {
               date: {
                 gte: startOfMonth,
@@ -80,12 +92,14 @@ export async function GET(request: NextRequest) {
 
         const monthRevenues = (revenues._sum.amount || 0) + 
           (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        const monthExpenses = expenses._sum.amount || 0;
         
         // Only add period if there is actual data
-        if (monthRevenues > 0) {
+        if (monthRevenues > 0 || monthExpenses > 0) {
           statistics.push({
             period: `${monthNames[month - 1]} ${year}`,
             revenues: monthRevenues,
+            expenses: monthExpenses,
           });
         }
       }
@@ -99,8 +113,19 @@ export async function GET(request: NextRequest) {
         const endOfYear = new Date(y, 11, 31);
         endOfYear.setHours(23, 59, 59, 999);
 
-        const [revenues, invoices] = await Promise.all([
+        const [revenues, expenses, invoices] = await Promise.all([
           prisma.revenue.aggregate({
+            where: {
+              date: {
+                gte: startOfYear,
+                lte: endOfYear,
+              },
+            },
+            _sum: {
+              amount: true,
+            },
+          }),
+          prisma.expense.aggregate({
             where: {
               date: {
                 gte: startOfYear,
@@ -130,12 +155,14 @@ export async function GET(request: NextRequest) {
 
         const yearRevenues = (revenues._sum.amount || 0) + 
           (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        const yearExpenses = expenses._sum.amount || 0;
         
         // Only add period if there is actual data
-        if (yearRevenues > 0) {
+        if (yearRevenues > 0 || yearExpenses > 0) {
           statistics.push({
             period: y.toString(),
             revenues: yearRevenues,
+            expenses: yearExpenses,
           });
         }
       }

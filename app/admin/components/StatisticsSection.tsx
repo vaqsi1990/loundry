@@ -6,6 +6,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 interface StatisticsData {
   period: string;
   revenues: number;
+  expenses: number;
 }
 
 export default function StatisticsSection() {
@@ -252,6 +253,9 @@ export default function StatisticsSection() {
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 შემოსავლები
               </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                ხარჯები
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -262,6 +266,9 @@ export default function StatisticsSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-green-600 font-semibold">
                   +{stat.revenues.toFixed(2)} ₾
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
+                  -{stat.expenses.toFixed(2)} ₾
                 </td>
               </tr>
             ))}
