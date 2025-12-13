@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
 
 interface StatisticsData {
   period: string;
   revenues: number;
   expenses: number;
+  netIncome: number;
 }
 
 export default function StatisticsSection() {
@@ -179,6 +180,7 @@ export default function StatisticsSection() {
         </div>
       )}
 
+    
       {/* Compare Mode */}
       <div className="bg-gray-50 p-6 rounded-lg mb-6">
         <h3 className="text-lg font-semibold text-black mb-4">შედარება</h3>
@@ -256,6 +258,9 @@ export default function StatisticsSection() {
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 ხარჯები
               </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                მოგება
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -269,6 +274,11 @@ export default function StatisticsSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
                   -{stat.expenses.toFixed(2)} ₾
+                </td>
+                <td className={`px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] font-bold ${
+                  stat.netIncome >= 0 ? "text-green-600" : "text-red-600"
+                }`}>
+                  {stat.netIncome >= 0 ? "+" : ""}{stat.netIncome.toFixed(2)} ₾
                 </td>
               </tr>
             ))}

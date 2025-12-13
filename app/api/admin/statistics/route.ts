@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       period: string;
       revenues: number;
       expenses: number;
+      netIncome: number;
     }> = [];
 
     if (view === "monthly" && year) {
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
             period: `${monthNames[month - 1]} ${year}`,
             revenues: monthRevenues,
             expenses: monthExpenses,
+            netIncome: monthRevenues - monthExpenses,
           });
         }
       }
@@ -163,6 +165,7 @@ export async function GET(request: NextRequest) {
             period: y.toString(),
             revenues: yearRevenues,
             expenses: yearExpenses,
+            netIncome: yearRevenues - yearExpenses,
           });
         }
       }

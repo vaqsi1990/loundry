@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       period: string;
       revenues: number;
       expenses: number;
+      netIncome: number;
     }> = [];
 
     const getPeriodData = async (period: string) => {
@@ -106,6 +107,7 @@ export async function GET(request: NextRequest) {
           period: `${monthNames[month - 1]} ${year}`,
           revenues: totalRevenues,
           expenses: totalExpenses,
+          netIncome: totalRevenues - totalExpenses,
         };
       } else {
         const year = parseInt(period);
@@ -163,6 +165,7 @@ export async function GET(request: NextRequest) {
           period: year.toString(),
           revenues: totalRevenues,
           expenses: totalExpenses,
+          netIncome: totalRevenues - totalExpenses,
         };
       }
     };
