@@ -11,8 +11,23 @@ interface Revenue {
   createdAt: string;
 }
 
+interface SentInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  totalAmount: number | null;
+  amount: number;
+  createdAt: string;
+}
+
+interface RevenuesResponse {
+  revenues: Revenue[];
+  sentInvoices: SentInvoice[];
+}
+
 export default function RevenuesSection() {
   const [revenues, setRevenues] = useState<Revenue[]>([]);
+  const [sentInvoices, setSentInvoices] = useState<SentInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -41,8 +56,9 @@ export default function RevenuesSection() {
       if (!response.ok) {
         throw new Error("შემოსავლების ჩატვირთვა ვერ მოხერხდა");
       }
-      const data = await response.json();
-      setRevenues(data);
+      const data: RevenuesResponse = await response.json();
+      setRevenues(data.revenues || []);
+      setSentInvoices(data.sentInvoices || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -108,7 +124,9 @@ export default function RevenuesSection() {
     setShowAddForm(false);
   };
 
-  const totalAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
+  const totalRevenueAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
+  const totalInvoiceAmount = sentInvoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
+  const totalAmount = totalRevenueAmount + totalInvoiceAmount;
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
@@ -174,7 +192,7 @@ export default function RevenuesSection() {
       {/* Summary */}
       <div className="bg-green-50 p-4 rounded-lg mb-4">
         <div className="text-lg font-bold text-black">
-          სულ: {totalAmount.toFixed(2)} ₾ ({revenues.length} შემოსავალი)
+          სულ: {totalAmount.toFixed(2)} ₾ ({revenues.length} შემოსავალი, {sentInvoices.length} ინვოისი)
         </div>
       </div>
 
@@ -255,58 +273,47 @@ export default function RevenuesSection() {
         </div>
       )}
 
-      {/* Revenues List */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თარიღი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                წყარო
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                აღწერა
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თანხა
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                მოქმედებები
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {revenues.map((revenue) => (
-              <tr key={revenue.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {new Date(revenue.date).toLocaleDateString("ka-GE")}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {revenue.source}
-                </td>
-                <td className="px-6 py-4 text-[16px] md:text-[18px] text-black">
-                  {revenue.description}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {revenue.amount.toFixed(2)} ₾
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                  <button
-                    onClick={() => handleDelete(revenue.id)}
-                    className="text-red-600 hover:underline"
-                  >
-                    წაშლა
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Sent Invoices Section */}
+      {sentInvoices.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-black mb-4">გაგზავნილი ინვოისები</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    თარიღი
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    სასტუმროს სახელი
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    ჯამი
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sentInvoices.map((invoice) => (
+                  <tr key={invoice.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {new Date(invoice.createdAt).toLocaleDateString("ka-GE")}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                      {invoice.customerName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-green-600 font-bold">
+                      {(invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2)} ₾
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      {revenues.length === 0 && (
+     
+      {revenues.length === 0 && sentInvoices.length === 0 && (
         <div className="text-center py-8 text-black">
           შემოსავლები არ მოიძებნა
         </div>

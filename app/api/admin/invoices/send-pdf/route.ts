@@ -314,7 +314,7 @@ function generateInvoicePDF(
       doc
         .save()
         .rect(tableLeft, currentY, tableWidthPixels, 22)
-        .fill("#d0d0d0")
+        .fill("#ffffff")
         .restore();
 
       doc.rect(tableLeft, currentY, tableWidthPixels, 22).stroke();

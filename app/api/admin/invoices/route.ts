@@ -378,11 +378,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    let whereClause: any = {
-      emailedAt: {
-        not: null,
-      },
-    };
+    // Build where clause for DailySheetEmailSend deletion
+    let emailSendWhereClause: any = {};
 
     if (dateParam && !clearAll) {
       const [y, m, d] = dateParam.split("-").map(Number);
@@ -394,8 +391,7 @@ export async function DELETE(request: NextRequest) {
       }
       const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
       const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
-      whereClause = {
-        ...whereClause,
+      emailSendWhereClause = {
         date: {
           gte: start,
           lte: end,
@@ -403,12 +399,40 @@ export async function DELETE(request: NextRequest) {
       };
     }
 
-    const result = await prisma.dailySheet.updateMany({
-      where: whereClause,
-      data: { emailedAt: null, emailedTo: null },
+    // Delete DailySheetEmailSend records (this is what the GET endpoint uses)
+    const emailSendDeleteResult = await prisma.dailySheetEmailSend.deleteMany({
+      where: emailSendWhereClause,
     });
 
-    return NextResponse.json({ updated: result.count });
+    // Also clear emailedAt and emailedTo from dailySheet records
+    let sheetWhereClause: any = {
+      emailedAt: {
+        not: null,
+      },
+    };
+
+    if (dateParam && !clearAll) {
+      const [y, m, d] = dateParam.split("-").map(Number);
+      const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      sheetWhereClause = {
+        ...sheetWhereClause,
+        date: {
+          gte: start,
+          lte: end,
+        },
+      };
+    }
+
+    const sheetUpdateResult = await prisma.dailySheet.updateMany({
+      where: sheetWhereClause,
+      data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
+    });
+
+    return NextResponse.json({ 
+      deletedEmailSends: emailSendDeleteResult.count,
+      updatedSheets: sheetUpdateResult.count 
+    });
   } catch (error) {
     console.error("Invoices delete error:", error);
     return NextResponse.json(
