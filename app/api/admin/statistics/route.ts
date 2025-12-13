@@ -33,18 +33,18 @@ export async function GET(request: NextRequest) {
     const statistics: Array<{
       period: string;
       revenues: number;
-      expenses: number;
-      netIncome: number;
     }> = [];
 
     if (view === "monthly" && year) {
       // Get statistics for each month of the year
       for (let month = 1; month <= 12; month++) {
-        // Create dates in UTC to avoid timezone issues
-        const startOfMonth = new Date(Date.UTC(parseInt(year), month - 1, 1));
-        const endOfMonth = new Date(Date.UTC(parseInt(year), month, 0, 23, 59, 59, 999));
+        // Create dates - use local timezone to match how dates are stored
+        const startOfMonth = new Date(parseInt(year), month - 1, 1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const endOfMonth = new Date(parseInt(year), month, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
 
-        const [revenues, expenses] = await Promise.all([
+        const [revenues, invoices] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -56,15 +56,19 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.expense.aggregate({
+          prisma.invoice.findMany({
             where: {
-              date: {
+              createdAt: {
                 gte: startOfMonth,
                 lte: endOfMonth,
               },
+              paidAmount: {
+                not: null,
+                gt: 0,
+              },
             },
-            _sum: {
-              amount: true,
+            select: {
+              paidAmount: true,
             },
           }),
         ]);
@@ -74,22 +78,28 @@ export async function GET(request: NextRequest) {
           "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი"
         ];
 
-        statistics.push({
-          period: `${monthNames[month - 1]} ${year}`,
-          revenues: revenues._sum.amount || 0,
-          expenses: expenses._sum.amount || 0,
-          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0),
-        });
+        const monthRevenues = (revenues._sum.amount || 0) + 
+          (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        
+        // Only add period if there is actual data
+        if (monthRevenues > 0) {
+          statistics.push({
+            period: `${monthNames[month - 1]} ${year}`,
+            revenues: monthRevenues,
+          });
+        }
       }
     } else if (view === "yearly") {
       // Get statistics for last 5 years
       const currentYear = new Date().getFullYear();
       for (let y = currentYear - 4; y <= currentYear; y++) {
-        // Create dates in UTC to avoid timezone issues
-        const startOfYear = new Date(Date.UTC(y, 0, 1));
-        const endOfYear = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
+        // Create dates - use local timezone to match how dates are stored
+        const startOfYear = new Date(y, 0, 1);
+        startOfYear.setHours(0, 0, 0, 0);
+        const endOfYear = new Date(y, 11, 31);
+        endOfYear.setHours(23, 59, 59, 999);
 
-        const [revenues, expenses] = await Promise.all([
+        const [revenues, invoices] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -101,25 +111,33 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.expense.aggregate({
+          prisma.invoice.findMany({
             where: {
-              date: {
+              createdAt: {
                 gte: startOfYear,
                 lte: endOfYear,
               },
+              paidAmount: {
+                not: null,
+                gt: 0,
+              },
             },
-            _sum: {
-              amount: true,
+            select: {
+              paidAmount: true,
             },
           }),
         ]);
 
-        statistics.push({
-          period: y.toString(),
-          revenues: revenues._sum.amount || 0,
-          expenses: expenses._sum.amount || 0,
-          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0),
-        });
+        const yearRevenues = (revenues._sum.amount || 0) + 
+          (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        
+        // Only add period if there is actual data
+        if (yearRevenues > 0) {
+          statistics.push({
+            period: y.toString(),
+            revenues: yearRevenues,
+          });
+        }
       }
     }
 

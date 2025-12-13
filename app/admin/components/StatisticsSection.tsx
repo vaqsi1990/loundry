@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface StatisticsData {
   period: string;
   revenues: number;
-  expenses: number;
-  netIncome: number;
 }
 
 export default function StatisticsSection() {
@@ -123,6 +122,62 @@ export default function StatisticsSection() {
         </div>
       )}
 
+      {/* Revenue Chart */}
+      {statistics.length > 0 && (
+        <div className="bg-white p-6 rounded-lg mb-6 border border-gray-200">
+          <h3 className="text-lg font-semibold text-black mb-4">შემოსავლების გრაფიკი</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            {viewMode === "monthly" ? (
+              <BarChart data={statistics}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="period" 
+                  tick={{ fill: '#000', fontSize: 12 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis 
+                  tick={{ fill: '#000', fontSize: 12 }}
+                  tickFormatter={(value) => `${value.toFixed(0)} ₾`}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`${value.toFixed(2)} ₾`, "შემოსავლები"]}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '4px' }}
+                />
+                <Legend />
+                <Bar dataKey="revenues" fill="#10b981" name="შემოსავლები" />
+              </BarChart>
+            ) : (
+              <LineChart data={statistics}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="period" 
+                  tick={{ fill: '#000', fontSize: 12 }}
+                />
+                <YAxis 
+                  tick={{ fill: '#000', fontSize: 12 }}
+                  tickFormatter={(value) => `${value.toFixed(0)} ₾`}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`${value.toFixed(2)} ₾`, "შემოსავლები"]}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '4px' }}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="revenues" 
+                  stroke="#10b981" 
+                  strokeWidth={3}
+                  name="შემოსავლები"
+                  dot={{ fill: '#10b981', r: 5 }}
+                />
+              </LineChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Compare Mode */}
       <div className="bg-gray-50 p-6 rounded-lg mb-6">
         <h3 className="text-lg font-semibold text-black mb-4">შედარება</h3>
@@ -197,12 +252,6 @@ export default function StatisticsSection() {
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 შემოსავლები
               </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ხარჯები
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                წმინდა შემოსავალი
-              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -213,14 +262,6 @@ export default function StatisticsSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-green-600 font-semibold">
                   +{stat.revenues.toFixed(2)} ₾
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
-                  -{stat.expenses.toFixed(2)} ₾
-                </td>
-                <td className={`px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] font-bold ${
-                  stat.netIncome >= 0 ? "text-green-600" : "text-red-600"
-                }`}>
-                  {stat.netIncome >= 0 ? "+" : ""}{stat.netIncome.toFixed(2)} ₾
                 </td>
               </tr>
             ))}

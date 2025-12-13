@@ -41,18 +41,18 @@ export async function GET(request: NextRequest) {
     const statistics: Array<{
       period: string;
       revenues: number;
-      expenses: number;
-      netIncome: number;
     }> = [];
 
     const getPeriodData = async (period: string) => {
       if (view === "monthly") {
         const [year, month] = period.split("-").map(Number);
-        // Create dates in UTC to avoid timezone issues
-        const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
-        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+        // Create dates - use local timezone to match how dates are stored
+        const startOfMonth = new Date(year, month - 1, 1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const endOfMonth = new Date(year, month, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
 
-        const [revenues, expenses] = await Promise.all([
+        const [revenues, invoices] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -64,15 +64,19 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.expense.aggregate({
+          prisma.invoice.findMany({
             where: {
-              date: {
+              createdAt: {
                 gte: startOfMonth,
                 lte: endOfMonth,
               },
+              paidAmount: {
+                not: null,
+                gt: 0,
+              },
             },
-            _sum: {
-              amount: true,
+            select: {
+              paidAmount: true,
             },
           }),
         ]);
@@ -82,19 +86,22 @@ export async function GET(request: NextRequest) {
           "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი"
         ];
 
+        const totalRevenues = (revenues._sum.amount || 0) + 
+          (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+
         return {
           period: `${monthNames[month - 1]} ${year}`,
-          revenues: revenues._sum.amount || 0,
-          expenses: expenses._sum.amount || 0,
-          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0),
+          revenues: totalRevenues,
         };
       } else {
         const year = parseInt(period);
-        // Create dates in UTC to avoid timezone issues
-        const startOfYear = new Date(Date.UTC(year, 0, 1));
-        const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+        // Create dates - use local timezone to match how dates are stored
+        const startOfYear = new Date(year, 0, 1);
+        startOfYear.setHours(0, 0, 0, 0);
+        const endOfYear = new Date(year, 11, 31);
+        endOfYear.setHours(23, 59, 59, 999);
 
-        const [revenues, expenses] = await Promise.all([
+        const [revenues, invoices] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -106,24 +113,29 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.expense.aggregate({
+          prisma.invoice.findMany({
             where: {
-              date: {
+              createdAt: {
                 gte: startOfYear,
                 lte: endOfYear,
               },
+              paidAmount: {
+                not: null,
+                gt: 0,
+              },
             },
-            _sum: {
-              amount: true,
+            select: {
+              paidAmount: true,
             },
           }),
         ]);
 
+        const totalRevenues = (revenues._sum.amount || 0) + 
+          (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+
         return {
           period: year.toString(),
-          revenues: revenues._sum.amount || 0,
-          expenses: expenses._sum.amount || 0,
-          netIncome: (revenues._sum.amount || 0) - (expenses._sum.amount || 0),
+          revenues: totalRevenues,
         };
       }
     };
@@ -133,7 +145,13 @@ export async function GET(request: NextRequest) {
       getPeriodData(period2),
     ]);
 
-    statistics.push(data1, data2);
+    // Only add periods that have actual data
+    if (data1.revenues > 0) {
+      statistics.push(data1);
+    }
+    if (data2.revenues > 0) {
+      statistics.push(data2);
+    }
 
     return NextResponse.json(statistics);
   } catch (error) {
