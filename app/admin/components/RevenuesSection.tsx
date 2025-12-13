@@ -129,12 +129,11 @@ export default function RevenuesSection() {
 
   const handlePaymentUpdate = async (invoiceId: string) => {
     const paymentAmount = paymentAmounts[invoiceId];
-    if (!paymentAmount || paymentAmount.trim() === "") {
-      setError("გთხოვთ შეიყვანოთ ჩარიცხვის თანხა");
-      return;
-    }
-
-    const amount = parseFloat(paymentAmount);
+    // Allow empty string (which means 0)
+    const amount = paymentAmount === "" || !paymentAmount || paymentAmount.trim() === "" 
+      ? 0 
+      : parseFloat(paymentAmount);
+    
     if (isNaN(amount) || amount < 0) {
       setError("არასწორი თანხა");
       return;
@@ -170,6 +169,27 @@ export default function RevenuesSection() {
       ...paymentAmounts,
       [invoiceId]: currentPaidAmount?.toString() || "0",
     });
+  };
+
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    if (!confirm("დარწმუნებული ხართ რომ გსურთ ინვოისის წაშლა?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      }
+
+      await fetchRevenues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
   };
 
   const totalRevenueAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
@@ -238,7 +258,7 @@ export default function RevenuesSection() {
       </div>
 
       {/* Summary */}
-      <div className="bg-green-50 p-4 rounded-lg mb-4">
+      <div className=" p-4 rounded-lg mb-4">
         <div className="text-lg font-bold text-black">
           სულ: {totalAmount.toFixed(2)} ₾ ({revenues.length} შემოსავალი, {sentInvoices.length} ინვოისი)
         </div>
@@ -361,65 +381,105 @@ export default function RevenuesSection() {
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                         {invoice.customerName}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-green-600 font-bold">
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-bold">
                         {totalAmount.toFixed(2)} ₾
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                        {isEditing ? (
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={paymentAmounts[invoice.id] || "0"}
-                              onChange={(e) =>
-                                setPaymentAmounts({
-                                  ...paymentAmounts,
-                                  [invoice.id]: e.target.value,
-                                })
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={
+                              isEditing
+                                ? paymentAmounts[invoice.id] || ""
+                                : paidAmount > 0
+                                ? paidAmount.toFixed(2)
+                                : ""
+                            }
+                            onChange={(e) => {
+                              if (!isEditing) {
+                                startEditingPayment(invoice.id, invoice.paidAmount);
                               }
-                              className="w-24 px-2 py-1 border border-gray-300 rounded-md text-black text-sm"
-                              placeholder="0.00"
-                            />
-                            <span className="text-[14px] text-black">₾</span>
+                              setPaymentAmounts({
+                                ...paymentAmounts,
+                                [invoice.id]: e.target.value,
+                              });
+                            }}
+                            onBlur={() => {
+                              // Auto-save on blur if value changed
+                              if (isEditing) {
+                                const inputValue = paymentAmounts[invoice.id] || "";
+                                const newValue = inputValue === "" ? 0 : parseFloat(inputValue);
+                                if (newValue !== paidAmount) {
+                                  handlePaymentUpdate(invoice.id);
+                                } else {
+                                  setEditingPayment(null);
+                                  setPaymentAmounts({});
+                                }
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (isEditing) {
+                                  handlePaymentUpdate(invoice.id);
+                                } else {
+                                  startEditingPayment(invoice.id, invoice.paidAmount);
+                                }
+                              } else if (e.key === "Escape") {
+                                setEditingPayment(null);
+                                setPaymentAmounts({});
+                              }
+                            }}
+                            onClick={() => {
+                              if (!isEditing) {
+                                startEditingPayment(invoice.id, invoice.paidAmount);
+                              }
+                            }}
+                            className="w-28 px-2 py-1 border border-gray-300 rounded-md text-black text-[16px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0.00"
+                          />
+                          <span className="text-[16px] text-black">₾</span>
+                          {isEditing && (
                             <button
                               onClick={() => handlePaymentUpdate(invoice.id)}
                               className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                              title="შენახვა (Enter)"
                             >
-                              შენახვა
+                              ✓
                             </button>
+                          )}
+                        </div>
+                        {!isEditing && remaining > 0 && (
+                          <div className="text-[12px] text-gray-500 mt-1">
+                            დარჩენილი: {remaining.toFixed(2)} ₾
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
+                        <div className="flex items-center space-x-3">
+                          {isEditing && (
                             <button
                               onClick={() => {
                                 setEditingPayment(null);
                                 setPaymentAmounts({});
                               }}
-                              className="bg-gray-300 text-black px-3 py-1 rounded text-sm hover:bg-gray-400"
+                              className="text-red-600 hover:underline text-sm"
+                              title="გაუქმება (Esc)"
                             >
                               გაუქმება
                             </button>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="text-[16px] md:text-[18px] text-blue-600 font-semibold">
-                              {paidAmount.toFixed(2)} ₾
-                            </div>
-                            {remaining > 0 && (
-                              <div className="text-[12px] text-gray-500">
-                                დარჩენილი: {remaining.toFixed(2)} ₾
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                        {!isEditing && (
-                          <button
-                            onClick={() => startEditingPayment(invoice.id, invoice.paidAmount)}
-                            className="text-blue-600 hover:underline"
-                          >
-                            ჩარიცხვის რედაქტირება
-                          </button>
-                        )}
+                          )}
+                          {!isEditing && (
+                            <button
+                              onClick={() => handleDeleteInvoice(invoice.id)}
+                              className="text-red-600 hover:underline text-[18px] md:text-[20px]"
+                            >
+                              წაშლა
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
