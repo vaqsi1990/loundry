@@ -46,6 +46,33 @@ const CATEGORY_LABELS: Record<string, string> = {
   PROTECTORS: "დამცავები",
 };
 
+// Helper function to get item order index
+const getItemOrder = (category: string, itemNameKa: string): number => {
+  let items: Omit<DailySheetItem, "id" | "totalWeight">[];
+  if (category === "LINEN") {
+    items = LINEN_ITEMS;
+  } else if (category === "TOWELS") {
+    items = TOWEL_ITEMS;
+  } else if (category === "PROTECTORS") {
+    items = PROTECTOR_ITEMS;
+  } else {
+    return 999; // Unknown category, put at end
+  }
+  
+  const index = items.findIndex(item => item.itemNameKa === itemNameKa);
+  return index === -1 ? 999 : index;
+};
+
+// Function to sort items by predefined order
+const sortItemsByOrder = (items: DailySheetItem[]): DailySheetItem[] => {
+  return [...items].sort((a, b) => {
+    if (a.category !== b.category) {
+      return 0; // Categories are already grouped
+    }
+    return getItemOrder(a.category, a.itemNameKa) - getItemOrder(b.category, b.itemNameKa);
+  });
+};
+
 const LINEN_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "LINEN", itemNameKa: "კონვერტი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "კონვერტი საშუალო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
@@ -56,7 +83,6 @@ const LINEN_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "LINEN", itemNameKa: "ზეწარი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ზეწარი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის პირი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
- 
   { category: "LINEN", itemNameKa: "ბალიშის პირი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის პირი საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
   { category: "LINEN", itemNameKa: "ბალიშის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0 },
@@ -85,7 +111,6 @@ const PROTECTOR_PRICES: Record<string, number> = {
 const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "PROTECTORS", itemNameKa: "საბანი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 15 },
   { category: "PROTECTORS", itemNameKa: "საბანი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 10 },
- 
   { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 15 },
   { category: "PROTECTORS", itemNameKa: "მატრასის დამცავი პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 10 },
   { category: "PROTECTORS", itemNameKa: "ბალიში დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 7 },
@@ -101,6 +126,7 @@ export default function DailySheetsSection() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedHotel, setSelectedHotel] = useState<string>("");
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set()); // Track which sheets are expanded
   const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null }>({
     open: false,
@@ -372,9 +398,9 @@ export default function DailySheetsSection() {
   };
 
   const filteredSheets = sheets.filter(sheet => {
-    if (!selectedDate) return true;
-    const sheetDateStr = getDateString(sheet.date);
-    return sheetDateStr === selectedDate;
+    const dateMatch = !selectedDate || getDateString(sheet.date) === selectedDate;
+    const hotelMatch = !selectedHotel || sheet.hotelName === selectedHotel;
+    return dateMatch && hotelMatch;
   });
 
   const formatDateGe = (date: string | Date) => {
@@ -401,11 +427,13 @@ export default function DailySheetsSection() {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
 
-  const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL", hasProtectors: boolean = false) =>
+  const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL", hasProtectors: boolean = false, hasLinenOrTowels: boolean = false) =>
     items.map((item, idx) => {
       const isProtector = item.category === "PROTECTORS";
+      const isLinenOrTowel = item.category === "LINEN" || item.category === "TOWELS";
       const itemPrice = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
       const itemTotalPrice = isProtector ? (itemPrice * (item.received || 0)) : 0;
+      const showPriceColumn = hasProtectors || hasLinenOrTowels;
       
       return (
         <tr key={`${item.itemNameKa}-${idx}`} className="bg-white">
@@ -418,9 +446,9 @@ export default function DailySheetsSection() {
               <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
               <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
               <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
-              {hasProtectors && (
+              {showPriceColumn && (
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {isProtector ? itemTotalPrice.toFixed(2) : "-"}
+                  {isProtector ? itemTotalPrice.toFixed(2) : (isLinenOrTowel ? "0" : "-")}
                 </td>
               )}
             </>
@@ -430,9 +458,9 @@ export default function DailySheetsSection() {
               <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
               <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
               <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-              {hasProtectors && (
+              {showPriceColumn && (
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {isProtector ? itemTotalPrice.toFixed(2) : "-"}
+                  {isProtector ? itemTotalPrice.toFixed(2) : (isLinenOrTowel ? "0" : "-")}
                 </td>
               )}
             </>
@@ -468,6 +496,7 @@ export default function DailySheetsSection() {
     const totals = calculateTotals(sheet.items);
     const hasProtectors = sheet.items.some(item => item.category === "PROTECTORS");
     const hasLinenOrTowels = sheet.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
+    const showPriceColumn = hasProtectors || hasLinenOrTowels;
     
     // Calculate total price: LINEN/TOWELS price + PROTECTORS price
     let calculatedTotalPrice: string | null = null;
@@ -506,7 +535,7 @@ export default function DailySheetsSection() {
         <table className="w-full border-collapse border border-gray-300 md:text-[18px] text-[16px]">
           <thead>
             <tr className="bg-orange-100">
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-left font-semibold">ერთეული</th>
+              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-left font-semibold">დასახელება</th>
               {sheet.sheetType === "INDIVIDUAL" && (
                 <>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">წონა (კგ)</th>
@@ -515,7 +544,7 @@ export default function DailySheetsSection() {
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
-                  {hasProtectors && (
+                  {showPriceColumn && (
                     <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                   )}
                 </>
@@ -525,7 +554,7 @@ export default function DailySheetsSection() {
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
                   <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
-                  {hasProtectors && (
+                  {showPriceColumn && (
                     <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                   )}
                 </>
@@ -537,14 +566,15 @@ export default function DailySheetsSection() {
             {categories.map((category) => {
               const sectionItems = sheet.items.filter((i) => i.category === category);
               if (sectionItems.length === 0) return null;
+              const sortedItems = sortItemsByOrder(sectionItems);
               return (
                 <React.Fragment key={category}>
                   <tr>
-                    <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (hasProtectors ? 9 : 8) : (hasProtectors ? 6 : 5)} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                    <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 9 : 8) : (showPriceColumn ? 6 : 5)} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
                       {CATEGORY_LABELS[category]}
                     </td>
                   </tr>
-                  {renderSectionRows(sectionItems, sheet.sheetType, hasProtectors)}
+                  {renderSectionRows(sortedItems, sheet.sheetType, hasProtectors, hasLinenOrTowels)}
                 </React.Fragment>
               );
             })}
@@ -560,7 +590,7 @@ export default function DailySheetsSection() {
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
-                  {hasProtectors && (
+                  {showPriceColumn && (
                     <td className="border border-gray-300 px-2 py-1 text-center">
                       {protectorsPrice > 0 ? protectorsPrice.toFixed(2) : "-"}
                     </td>
@@ -572,7 +602,7 @@ export default function DailySheetsSection() {
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                   <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
-                  {hasProtectors && (
+                  {showPriceColumn && (
                     <td className="border border-gray-300 px-2 py-1 text-center">
                       {protectorsPrice > 0 ? protectorsPrice.toFixed(2) : "-"}
                     </td>
@@ -605,13 +635,13 @@ export default function DailySheetsSection() {
             )}
             {hasProtectors && protectorsPrice > 0 && (
               <tr className="bg-purple-50 font-semibold">
-                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (hasProtectors ? 6 : 6) : (hasProtectors ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
                   დამცავების ფასი:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
                   {protectorsPrice.toFixed(2)} ₾
                 </td>
-                {hasProtectors && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
+                {showPriceColumn && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             )}
@@ -650,8 +680,8 @@ export default function DailySheetsSection() {
         </div>
       )}
 
-      {/* Date Filter */}
-      <div className="mb-4 flex items-center gap-4">
+      {/* Filters */}
+      <div className="mb-4 flex items-end gap-4 flex-wrap">
         <div>
           <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
             თარიღის ფილტრი
@@ -663,11 +693,31 @@ export default function DailySheetsSection() {
             className="px-3 py-2 border border-gray-300 rounded-md text-black"
           />
         </div>
+        <div>
+          <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+            დასახელებები
+          </label>
+          <select
+            value={selectedHotel}
+            onChange={(e) => setSelectedHotel(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-black min-w-[200px]"
+          >
+            <option value="">ყველა სასტუმრო</option>
+            {hotels.map((hotel) => (
+              <option key={hotel.id} value={hotel.hotelName}>
+                {hotel.hotelName}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
-          onClick={() => setSelectedDate("")}
-          className="mt-6 bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300"
+          onClick={() => {
+            setSelectedDate("");
+            setSelectedHotel("");
+          }}
+          className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300 h-[42px]"
         >
-          ყველა თარიღი
+          ყველა
         </button>
       </div>
 
@@ -745,16 +795,169 @@ export default function DailySheetsSection() {
                 </div>
               </div>
 
+              {/* Notes Field */}
+
+
               {/* Items Table */}
               <div className="mt-6">
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-300  text-[16px]">
-                    <thead>
-                      {(() => {
-                        const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
-                        return (
+                  {(() => {
+                    const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
+                    const hasLinenOrTowels = formData.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
+                    const showPriceColumn = hasProtectors || hasLinenOrTowels;
+                    
+                    // Map function that uses showPriceColumn
+                    const renderCategoryRows = (category: string) => {
+                      const sectionItems = formData.items.filter((i) => i.category === category);
+                      const sortedItems = sortItemsByOrder(sectionItems);
+                      const isProtectors = category === "PROTECTORS";
+                      const colSpanValue = formData.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 9 : 8) : (showPriceColumn ? 6 : 5);
+                      
+                      return (
+                        <React.Fragment key={category}>
+                          <tr>
+                            <td colSpan={colSpanValue} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
+                              {CATEGORY_LABELS[category]}
+                            </td>
+                          </tr>
+                          {sortedItems.map((item, index) => {
+                            const actualIndex = formData.items.findIndex((i) => i === item);
+                            const isLinenOrTowel = item.category === "LINEN" || item.category === "TOWELS";
+                            return (
+                              <tr key={`${item.itemNameKa}-${actualIndex}`} className="bg-white">
+                                <td className="border border-gray-300 px-2 py-1">
+                                  {item.itemNameKa}
+                                </td>
+                                {formData.sheetType === "INDIVIDUAL" && (
+                                  <>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        step="0.001"
+                                        value={item.weight}
+                                        onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.received}
+                                        onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.washCount}
+                                        onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.dispatched}
+                                        onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.shortage}
+                                        onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
+                                      {item.totalWeight.toFixed(2)}
+                                    </td>
+                                    {showPriceColumn && (
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        {isProtectors ? (
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
+                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
+                                            className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                          />
+                                        ) : isLinenOrTowel ? (
+                                          <span className="text-center block">0</span>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
+                                    )}
+                                  </>
+                                )}
+                                {formData.sheetType === "STANDARD" && (
+                                  <>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.received}
+                                        onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.dispatched}
+                                        onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    <td className="border border-gray-300 px-2 py-1">
+                                      <input
+                                        type="number"
+                                        value={item.shortage}
+                                        onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                        className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                      />
+                                    </td>
+                                    {showPriceColumn && (
+                                      <td className="border border-gray-300 px-2 py-1">
+                                        {isProtectors ? (
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
+                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
+                                            className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
+                                          />
+                                        ) : isLinenOrTowel ? (
+                                          <span className="text-center block">0</span>
+                                        ) : (
+                                          "-"
+                                        )}
+                                      </td>
+                                    )}
+                                  </>
+                                )}
+                                <td className="border border-gray-300 px-2 py-1">
+                                  <input
+                                    type="text"
+                                    value={item.comment || ""}
+                                    onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
+                                    className="w-full px-1 py-1 border-0 text-black bg-transparent"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    };
+                    
+                    return (
+                      <table className="w-full border-collapse border border-gray-300  text-[16px]">
+                        <thead>
                           <tr className="bg-orange-100">
-                            <th className="border border-gray-300 px-2 py-1 text-left font-semibold">ერთეული</th>
+                            <th className="border border-gray-300 px-2 py-1 text-left font-semibold">დასახელება</th>
                             {formData.sheetType === "INDIVIDUAL" && (
                               <>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">წონა (კგ)</th>
@@ -763,7 +966,7 @@ export default function DailySheetsSection() {
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
-                                {hasProtectors && (
+                                {showPriceColumn && (
                                   <th className="border border-gray-300 px-2 py-1 text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                                 )}
                               </>
@@ -773,151 +976,23 @@ export default function DailySheetsSection() {
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
-                                {hasProtectors && (
+                                {showPriceColumn && (
                                   <th className="border border-gray-300 px-2 py-1 text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                                 )}
                               </>
                             )}
                             <th className="border border-gray-300 px-2 py-1 text-center font-semibold">შენიშვნა</th>
                           </tr>
-                        );
-                      })()}
-                    </thead>
-                    <tbody>
-                      {["LINEN", "TOWELS", "PROTECTORS"].map((category) => {
-                        const sectionItems = formData.items.filter((i) => i.category === category);
-                        const isProtectors = category === "PROTECTORS";
-                        return (
-                          <React.Fragment key={category}>
-                            <tr>
-                              <td colSpan={formData.sheetType === "INDIVIDUAL" ? (isProtectors ? 9 : 8) : (isProtectors ? 6 : 5)} className="bg-orange-100 border border-gray-300 px-2 py-1 font-semibold">
-                                {CATEGORY_LABELS[category]}
-                              </td>
-                            </tr>
-                            {sectionItems.map((item, index) => {
-                              const actualIndex = formData.items.findIndex((i) => i === item);
-                              return (
-                                <tr key={`${item.itemNameKa}-${actualIndex}`} className="bg-white">
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    {item.itemNameKa}
-                                  </td>
-                                  {formData.sheetType === "INDIVIDUAL" && (
-                                    <>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          step="0.001"
-                                          value={item.weight}
-                                          onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.received}
-                                          onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.washCount}
-                                          onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.dispatched}
-                                          onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.shortage}
-                                          onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
-                                        {item.totalWeight.toFixed(2)}
-                                      </td>
-                                      {isProtectors && (
-                                        <td className="border border-gray-300 px-2 py-1">
-                                          <input
-                                            type="number"
-                                            step="0.01"
-                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
-                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
-                                            className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                          />
-                                        </td>
-                                      )}
-                                    </>
-                                  )}
-                                  {formData.sheetType === "STANDARD" && (
-                                    <>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.received}
-                                          onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.dispatched}
-                                          onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 px-2 py-1">
-                                        <input
-                                          type="number"
-                                          value={item.shortage}
-                                          onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
-                                          className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                        />
-                                      </td>
-                                      {isProtectors && (
-                                        <td className="border border-gray-300 px-2 py-1">
-                                          <input
-                                            type="number"
-                                            step="0.01"
-                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
-                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
-                                            className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
-                                          />
-                                        </td>
-                                      )}
-                                    </>
-                                  )}
-                                  <td className="border border-gray-300 px-2 py-1">
-                                    <input
-                                      type="text"
-                                      value={item.comment || ""}
-                                      onChange={(e) => handleItemChange(actualIndex, "comment", e.target.value)}
-                                      className="w-full px-1 py-1 border-0 text-black bg-transparent"
-                                    />
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
+                        </thead>
+                        <tbody>
+                          {["LINEN", "TOWELS", "PROTECTORS"].map((category) => renderCategoryRows(category))}
+                        </tbody>
                     <tfoot>
                       {(() => {
                         const totals = calculateTotals(formData.items);
                         const hasProtectors = formData.items.some(item => item.category === "PROTECTORS");
+                        const hasLinenOrTowels = formData.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
+                        const showPriceColumn = hasProtectors || hasLinenOrTowels;
                         const protectorsTotalPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
                         return (
                           <tr className="bg-gray-50 font-semibold">
@@ -930,7 +1005,7 @@ export default function DailySheetsSection() {
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
-                                {hasProtectors && (
+                                {showPriceColumn && (
                                   <td className="border border-gray-300 px-2 py-1 text-center">
                                     {protectorsTotalPrice > 0 ? protectorsTotalPrice.toFixed(2) : "-"}
                                   </td>
@@ -942,7 +1017,7 @@ export default function DailySheetsSection() {
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
                                 <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
-                                {hasProtectors && (
+                                {showPriceColumn && (
                                   <td className="border border-gray-300 px-2 py-1 text-center">
                                     {protectorsTotalPrice > 0 ? protectorsTotalPrice.toFixed(2) : "-"}
                                   </td>
@@ -955,6 +1030,8 @@ export default function DailySheetsSection() {
                       })()}
                     </tfoot>
                   </table>
+                    );
+                  })()}
                 </div>
               </div>
 
