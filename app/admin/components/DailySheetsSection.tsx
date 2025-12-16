@@ -132,18 +132,19 @@ export default function DailySheetsSection() {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
       }
       const data = await response.json();
-      // Normalize shape from our-hotels API
-      setHotels(
-        Array.isArray(data)
-          ? data.map((hotel: any) => ({
-              id: hotel.id,
-              hotelName: hotel.hotelName,
-              contactPhone: hotel.mobileNumber,
-              email: hotel.email,
-              pricePerKg: hotel.pricePerKg,
-            }))
-          : []
-      );
+      // Normalize shape from our-hotels API and sort by hotelName alphabetically
+      const normalizedHotels = Array.isArray(data)
+        ? data.map((hotel: any) => ({
+            id: hotel.id,
+            hotelName: hotel.hotelName,
+            contactPhone: hotel.mobileNumber,
+            email: hotel.email,
+            pricePerKg: hotel.pricePerKg,
+          }))
+        : [];
+      // Sort hotels alphabetically by hotelName
+      normalizedHotels.sort((a, b) => a.hotelName.localeCompare(b.hotelName, 'ka', { sensitivity: 'base' }));
+      setHotels(normalizedHotels);
     } catch (err) {
       console.error("Hotels fetch error:", err);
       setError("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
