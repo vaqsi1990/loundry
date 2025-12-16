@@ -2,6 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 
+interface Hotel {
+  id: string;
+  hotelName: string;
+  email?: string;
+}
+
 interface DateDetail {
   date: string;
   emailSendCount: number;
@@ -33,10 +39,13 @@ export default function InvoicesSection() {
     open: false,
     hotelName: null,
   });
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
+    fetchHotels();
   }, []);
 
   // Debug: log dispatched counts to verify totals
@@ -63,6 +72,28 @@ export default function InvoicesSection() {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHotels = async () => {
+    try {
+      const response = await fetch("/api/admin/our-hotels");
+      if (!response.ok) {
+        throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
+      }
+      const data = await response.json();
+      setHotels(
+        Array.isArray(data)
+          ? data.map((h: any) => ({
+              id: h.id,
+              hotelName: h.hotelName,
+              email: h.email,
+            }))
+          : []
+      );
+    } catch (err) {
+      console.error("Hotels fetch error:", err);
+      // Silence error to not block invoices table
     }
   };
 
@@ -147,11 +178,26 @@ export default function InvoicesSection() {
   const openPdfModal = (hotelName: string | null) => {
     setSuccessMessage("");
     setPdfModal({ open: true, hotelName });
+    if (hotelName) {
+      const h = hotels.find(h => h.hotelName === hotelName);
+      setModalEmail(h?.email || null);
+    } else {
+      setModalEmail(null);
+    }
   };
 
   const closePdfModal = () => {
     setPdfModal({ open: false, hotelName: null });
+    setModalEmail(null);
   };
+
+  useEffect(() => {
+    if (!pdfModal.open || !pdfModal.hotelName) return;
+    const h = hotels.find(h => h.hotelName === pdfModal.hotelName);
+    if (h?.email !== modalEmail) {
+      setModalEmail(h?.email || null);
+    }
+  }, [pdfModal.open, pdfModal.hotelName, hotels, modalEmail]);
 
   const sendPdfInvoice = async () => {
     if (!pdfModal.hotelName) {
@@ -418,6 +464,7 @@ export default function InvoicesSection() {
             </p>
             <p className="text-[16px] text-gray-700 mb-4">
               ელფოსტა ავტომატურად გაიგზავნება სასტუმროს ელ.ფოსტაზე
+              {modalEmail ? `: ${modalEmail}` : " (ელფოსტა არ მოიძებნა)"}
             </p>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">

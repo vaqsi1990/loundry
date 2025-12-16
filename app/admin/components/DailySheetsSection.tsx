@@ -106,6 +106,7 @@ export default function DailySheetsSection() {
     open: false,
     sheetId: null,
   });
+  const [modalEmail, setModalEmail] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -169,6 +170,22 @@ export default function DailySheetsSection() {
       setLoading(false);
     }
   };
+
+  const deriveHotelEmail = (hotelName: string | null | undefined) => {
+    if (!hotelName) return null;
+    const hotel = hotels.find(h => h.hotelName === hotelName);
+    return hotel?.email || null;
+  };
+
+  useEffect(() => {
+    if (!emailModal.open || !emailModal.sheetId) return;
+    const sheet = sheets.find(s => s.id === emailModal.sheetId);
+    if (!sheet) return;
+    const email = deriveHotelEmail(sheet.hotelName);
+    if (email !== modalEmail) {
+      setModalEmail(email);
+    }
+  }, [emailModal.open, emailModal.sheetId, sheets, hotels, modalEmail]);
 
   const initializeItems = () => {
     const allItems: DailySheetItem[] = [
@@ -1128,7 +1145,10 @@ export default function DailySheetsSection() {
                     წაშლა
                   </button>
                   <button
-                    onClick={() => setEmailModal({ open: true, sheetId: sheet.id })}
+                    onClick={() => {
+                      setEmailModal({ open: true, sheetId: sheet.id });
+                      setModalEmail(deriveHotelEmail(sheet.hotelName));
+                    }}
                     className="text-green-700 hover:underline px-2"
                   >
                     გაგზავნა მეილზე
@@ -1159,6 +1179,7 @@ export default function DailySheetsSection() {
             <div className="space-y-3">
               <p className="text-[16px] text-gray-700 mb-4">
                 ელფოსტა ავტომატურად გაიგზავნება სასტუმროს ელ.ფოსტაზე
+                {modalEmail ? `: ${modalEmail}` : " (ელფოსტა არ მოიძებნა)"}
               </p>
               <div className="flex space-x-2">
                 <button
