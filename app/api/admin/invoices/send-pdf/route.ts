@@ -392,9 +392,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { hotelName, email } = body;
 
-    if (!hotelName || !email) {
+    if (!hotelName) {
       return NextResponse.json(
-        { error: "სასტუმროს სახელი და ელფოსტა სავალდებულოა" },
+        { error: "სასტუმროს სახელი სავალდებულოა" },
         { status: 400 }
       );
     }
@@ -406,6 +406,16 @@ export async function POST(request: NextRequest) {
 
     if (!hotel) {
       return NextResponse.json({ error: "სასტუმრო ვერ მოიძებნა" }, { status: 404 });
+    }
+
+    // Use provided email or hotel's email, prioritize provided email
+    const recipientEmail = email || hotel.email;
+
+    if (!recipientEmail) {
+      return NextResponse.json(
+        { error: "სასტუმროს ელფოსტა არ არის მითითებული" },
+        { status: 400 }
+      );
     }
 
     // Get invoice data for this hotel
@@ -621,7 +631,7 @@ export async function POST(request: NextRequest) {
     // Send email with PDF attachment
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: email,
+      to: recipientEmail,
       subject: `ინვოისი - ${hotel.hotelName}`,
       text: `გთხოვთ იხილოთ მიმაგრებული ინვოისი ${hotel.hotelName}-ისთვის.`,
       html: `<p>გთხოვთ იხილოთ მიმაგრებული ინვოისი <strong>${hotel.hotelName}</strong>-ისთვის.</p>`,

@@ -232,8 +232,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { sheetId, to } = body;
 
-    if (!sheetId || !to) {
-      return NextResponse.json({ error: "sheetId და მიმღები ელფოსტა სავალდებულოა" }, { status: 400 });
+    if (!sheetId) {
+      return NextResponse.json({ error: "sheetId სავალდებულოა" }, { status: 400 });
     }
 
     const sheet = await prisma.dailySheet.findUnique({
@@ -245,14 +245,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ფურცელი ვერ მოიძებნა" }, { status: 404 });
     }
 
-    // Try to fetch companyName for the hotel
+    // Fetch hotel information including email
     let companyName: string | null = null;
+    let hotelEmail: string | null = null;
     if (sheet.hotelName) {
       const hotel = await prisma.hotel.findFirst({
         where: { hotelName: sheet.hotelName },
-        select: { companyName: true },
+        select: { companyName: true, email: true },
       });
       companyName = hotel?.companyName ?? null;
+      hotelEmail = hotel?.email ?? null;
+    }
+
+    // Use provided email or hotel's email, prioritize provided email
+    const recipientEmail = to || hotelEmail;
+
+    if (!recipientEmail) {
+      return NextResponse.json({ error: "სასტუმროს ელფოსტა არ არის მითითებული" }, { status: 400 });
     }
 
     // Calculate amounts for persistence
@@ -294,7 +303,7 @@ export async function POST(req: NextRequest) {
 
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
+      to: recipientEmail,
       subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
       html: renderHtml(sheet, companyName),
       attachments: logoExists
@@ -314,7 +323,7 @@ export async function POST(req: NextRequest) {
         where: { id: sheetId },
         data: {
           emailedAt: new Date(),
-          emailedTo: to,
+          emailedTo: recipientEmail,
           emailSendCount: { increment: 1 },
         },
       }),
@@ -324,7 +333,7 @@ export async function POST(req: NextRequest) {
           dailySheetId: sheet.id,
           hotelName: sheet.hotelName,
           date: sheet.date,
-          sentTo: to,
+          sentTo: recipientEmail,
           subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
           sheetType: sheet.sheetType,
           pricePerKg: sheet.pricePerKg,

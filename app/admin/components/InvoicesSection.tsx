@@ -29,10 +29,9 @@ export default function InvoicesSection() {
   const [successMessage, setSuccessMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [pdfModal, setPdfModal] = useState<{ open: boolean; hotelName: string | null; email: string }>({
+  const [pdfModal, setPdfModal] = useState<{ open: boolean; hotelName: string | null }>({
     open: false,
     hotelName: null,
-    email: "",
   });
   const [sendingPdf, setSendingPdf] = useState(false);
 
@@ -147,16 +146,16 @@ export default function InvoicesSection() {
 
   const openPdfModal = (hotelName: string | null) => {
     setSuccessMessage("");
-    setPdfModal({ open: true, hotelName, email: "" });
+    setPdfModal({ open: true, hotelName });
   };
 
   const closePdfModal = () => {
-    setPdfModal({ open: false, hotelName: null, email: "" });
+    setPdfModal({ open: false, hotelName: null });
   };
 
   const sendPdfInvoice = async () => {
-    if (!pdfModal.hotelName || !pdfModal.email) {
-      setError("გთხოვთ შეიყვანოთ ელფოსტა");
+    if (!pdfModal.hotelName) {
+      setError("სასტუმროს სახელი არ არის მითითებული");
       return;
     }
 
@@ -169,7 +168,6 @@ export default function InvoicesSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           hotelName: pdfModal.hotelName,
-          email: pdfModal.email,
         }),
       });
 
@@ -180,7 +178,7 @@ export default function InvoicesSection() {
       }
 
       setSuccessMessage(
-        `PDF ინვოისი წარმატებით გაიგზავნა ${pdfModal.hotelName || ""} (${pdfModal.email})`
+        `PDF ინვოისი წარმატებით გაიგზავნა ${pdfModal.hotelName || ""}`
       );
       closePdfModal();
     } catch (err) {
@@ -418,18 +416,9 @@ export default function InvoicesSection() {
             <p className="text-gray-700 mb-4">
               სასტუმრო: <strong>{formatHotel(pdfModal.hotelName)}</strong>
             </p>
-            <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-medium mb-2">
-                ელფოსტა
-              </label>
-              <input
-                type="email"
-                value={pdfModal.email}
-                onChange={(e) => setPdfModal({ ...pdfModal, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="example@email.com"
-              />
-            </div>
+            <p className="text-[16px] text-gray-700 mb-4">
+              ელფოსტა ავტომატურად გაიგზავნება სასტუმროს ელ.ფოსტაზე
+            </p>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
                 {error}

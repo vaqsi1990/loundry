@@ -102,10 +102,9 @@ export default function DailySheetsSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set()); // Track which sheets are expanded
-  const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null; to: string }>({
+  const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null }>({
     open: false,
     sheetId: null,
-    to: "",
   });
   
   const [formData, setFormData] = useState({
@@ -233,8 +232,8 @@ export default function DailySheetsSection() {
   };
 
   const handleSendEmail = async () => {
-    if (!emailModal.sheetId || !emailModal.to) {
-      setError("გთხოვთ მიუთითოთ მიმღების ელფოსტა");
+    if (!emailModal.sheetId) {
+      setError("ფურცლის ID არ არის მითითებული");
       return;
     }
     setError("");
@@ -242,14 +241,14 @@ export default function DailySheetsSection() {
       const res = await fetch("/api/admin/daily-sheets/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetId: emailModal.sheetId, to: emailModal.to }),
+        body: JSON.stringify({ sheetId: emailModal.sheetId }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "გაგზავნა ვერ მოხერხდა");
       }
       await fetchSheets(); // refresh to show updated send count
-      setEmailModal({ open: false, sheetId: null, to: "" });
+      setEmailModal({ open: false, sheetId: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     }
@@ -1129,7 +1128,7 @@ export default function DailySheetsSection() {
                     წაშლა
                   </button>
                   <button
-                    onClick={() => setEmailModal({ open: true, sheetId: sheet.id, to: "" })}
+                    onClick={() => setEmailModal({ open: true, sheetId: sheet.id })}
                     className="text-green-700 hover:underline px-2"
                   >
                     გაგზავნა მეილზე
@@ -1158,19 +1157,9 @@ export default function DailySheetsSection() {
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-black mb-4">გაგზავნა მეილზე</h3>
             <div className="space-y-3">
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  მიმღების ელფოსტა *
-                </label>
-                <input
-                  type="email"
-                  value={emailModal.to}
-                  onChange={(e) => setEmailModal({ ...emailModal, to: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  placeholder="example@domain.com"
-                  required
-                />
-              </div>
+              <p className="text-[16px] text-gray-700 mb-4">
+                ელფოსტა ავტომატურად გაიგზავნება სასტუმროს ელ.ფოსტაზე
+              </p>
               <div className="flex space-x-2">
                 <button
                   onClick={handleSendEmail}
@@ -1179,7 +1168,7 @@ export default function DailySheetsSection() {
                   გაგზავნა
                 </button>
                 <button
-                  onClick={() => setEmailModal({ open: false, sheetId: null, to: "" })}
+                  onClick={() => setEmailModal({ open: false, sheetId: null })}
                   className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
                 >
                   გაუქმება
