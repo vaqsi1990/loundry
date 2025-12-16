@@ -24,7 +24,9 @@ function renderSection(
     .map(
       (item: any) => {
         const price = item.price ?? "";
-        const qty = sheetType === "STANDARD" ? (item.received ?? 0) : (item.dispatched ?? item.received ?? 0);
+        // დამცავებისთვის: გამოიყენე dispatched (გაგზავნილი), სხვებისთვის: received (მიღებული)
+        const isProtector = item.category === "PROTECTORS";
+        const qty = isProtector ? (item.dispatched ?? 0) : (sheetType === "STANDARD" ? (item.received ?? 0) : (item.dispatched ?? item.received ?? 0));
         const lineTotal = price ? (Number(price) * Number(qty)).toFixed(2) : "";
         if (sheetType === "INDIVIDUAL") {
           return `
@@ -82,6 +84,8 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const linen = sheet.items.filter((i: any) => i.category === "LINEN");
   const protectors = sheet.items.filter((i: any) => i.category === "PROTECTORS");
   const hasProtectors = protectors.length > 0;
+  const hasLinenOrTowels = linen.length > 0 || towels.length > 0;
+  const showPriceColumn = hasProtectors || hasLinenOrTowels; // იგივე ლოგიკა, როგორც DailySheetsSection-ში
 
   const totals = sheet.items.reduce(
     (acc: any, item: any) => {
@@ -97,12 +101,13 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   );
 
   // Prices (mirror DailySheetsSection)
+  // დამცავების ფასი: გაგზავნილი (dispatched) * ფასი
   const protectorsTotal =
     sheet.sheetType === "STANDARD" && sheet.totalPrice
       ? sheet.totalPrice
       : protectors.reduce((sum: number, p: any) => {
           const price = Number(p.price ?? 0);
-          const qty = Number(p.received ?? 0);
+          const qty = Number(p.dispatched ?? 0); // გამოიყენე dispatched-ის ნაცვლად received-ის
           return sum + price * qty;
         }, 0);
 
@@ -131,17 +136,6 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
       ${sheet.notes ? `<p style="margin:0 0 8px 0;"><strong>შენიშვნები:</strong> ${sheet.notes}</p>` : ""}
 
-      <div style="margin:10px 0; padding:10px; border:1px solid #ddd; border-radius:6px; background:#f9f9f9;">
-        <p style="margin:4px 0;"><strong>სულ მიღებული:</strong> ${totals.received} ც.</p>
-        <p style="margin:4px 0;"><strong>სულ რეცხვის რაოდენობა:</strong> ${totals.washCount} ც.</p>
-        <p style="margin:4px 0;"><strong>სულ გაგზავნილი:</strong> ${totals.dispatched} ც.</p>
-        <p style="margin:4px 0;"><strong>სულ დეფიციტი:</strong> ${totals.shortage} ც.</p>
-        <p style="margin:4px 0;"><strong>მთლიანი წონა:</strong> ${totals.totalWeight.toFixed(2)} კგ</p>
-        ${sheet.pricePerKg ? `<p style="margin:4px 0;"><strong>1 კგ-ის ფასი:</strong> ${sheet.pricePerKg.toFixed(2)} ₾</p>` : ""}
-        ${hasProtectors ? `<p style="margin:4px 0;"><strong>დამცავების ფასი:</strong> ${protectorsTotal.toFixed(2)} ₾</p>` : ""}
-        ${totalPrice > 0 ? `<p style="margin:4px 0;"><strong>მთლიანი ფასი:</strong> ${totalPrice.toFixed(2)} ₾</p>` : ""}
-      </div>
-
       <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px;">
         <thead>
           <tr style="background:#fde9d9;">
@@ -162,15 +156,15 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
                 `
             }
-            ${hasProtectors ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">1 ც-ის ფასი</th>' : ""}
-            ${hasProtectors ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">ჯამი (₾)</th>' : ""}
+            ${showPriceColumn ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">1 ც-ის ფასი (₾) *</th>' : ""}
+            ${showPriceColumn ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">ჯამი (₾)</th>' : ""}
             <th style="border:1px solid #ccc;padding:6px;text-align:center;">შენიშვნა</th>
           </tr>
         </thead>
         <tbody>
-          ${renderSection("პირსახოცები", towels, false, sheet.sheetType)}
-          ${renderSection("თეთრეული", linen, false, sheet.sheetType)}
-          ${hasProtectors ? renderSection("დამცავები", protectors, true, sheet.sheetType) : ""}
+        ${renderSection("თეთრეული", linen, showPriceColumn, sheet.sheetType)}
+          ${renderSection("პირსახოცები", towels, showPriceColumn, sheet.sheetType)}
+          ${hasProtectors ? renderSection("დამცავები", protectors, showPriceColumn, sheet.sheetType) : ""}
         </tbody>
         <tfoot>
           <tr style="background:#f5f5f5;font-weight:600;">
@@ -191,17 +185,51 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${totals.shortage}</td>
                 `
             }
-            ${hasProtectors ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
-            ${hasProtectors ? `<td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal.toFixed(2)} ₾</td>` : ""}
+            ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
+            ${showPriceColumn ? `<td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal > 0 ? protectorsTotal.toFixed(2) + " ₾" : "-"}</td>` : ""}
             <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
           </tr>
           ${
             sheet.sheetType === "STANDARD" && sheet.totalWeight
               ? `
                 <tr style="background:#e8f2ff;font-weight:600;">
-                  <td colspan="3" style="border:1px solid #ccc;padding:6px;text-align:right;">მთლიანი წონა:</td>
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მთლიანი წონა:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.totalWeight.toFixed(2)} კგ</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;" colspan="${hasProtectors ? 3 : 1}">-</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
+            sheet.pricePerKg
+              ? `
+                <tr style="background:#e8f2ff;font-weight:600;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">1 კგ-ის ფასი:</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.pricePerKg.toFixed(2)} ₾</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
+            hasProtectors && protectorsTotal > 0
+              ? `
+                <tr style="background:#f3e5f5;font-weight:600;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">დამცავების ფასი (იც):</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal.toFixed(2)} ₾</td>
+                  ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
+            totalPrice > 0
+              ? `
+                <tr style="background:#e8f5e9;font-weight:700;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მთლიანი ფასი:</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${totalPrice.toFixed(2)} ₾</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
               `
               : ""
@@ -265,6 +293,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Calculate amounts for persistence
+    // დამცავების ფასი: გაგზავნილი (dispatched) * ფასი
     const protectorsTotal =
       sheet.sheetType === "STANDARD" && sheet.totalPrice
         ? sheet.totalPrice
@@ -272,7 +301,7 @@ export async function POST(req: NextRequest) {
             .filter((p: any) => p.category === "PROTECTORS")
             .reduce((sum: number, p: any) => {
               const price = Number(p.price ?? 0);
-              const qty = Number(p.received ?? 0);
+              const qty = Number(p.dispatched ?? 0); // გამოიყენე dispatched-ის ნაცვლად received-ის
               return sum + price * qty;
             }, 0);
 
