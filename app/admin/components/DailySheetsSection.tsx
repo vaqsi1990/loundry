@@ -432,7 +432,8 @@ export default function DailySheetsSection() {
       const isProtector = item.category === "PROTECTORS";
       const isLinenOrTowel = item.category === "LINEN" || item.category === "TOWELS";
       const itemPrice = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
-      const itemTotalPrice = isProtector ? (itemPrice * (item.received || 0)) : 0;
+      // დამცავებისთვის: ფასი * გაგზავნილი რაოდენობა (dispatched)
+      const itemTotalPrice = isProtector ? (itemPrice * (item.dispatched || 0)) : 0;
       const showPriceColumn = hasProtectors || hasLinenOrTowels;
       
       return (
@@ -482,12 +483,20 @@ export default function DailySheetsSection() {
       { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
     );
 
+  // დამცავების ჯამის გამოთვლა:
+  // ფორმულა: თითოეული დამცავისთვის = (ფასი * გაგზავნილი რაოდენობა)
+  // ჯამი = ყველა დამცავის ჯამი
+  // მაგალითი: საბანი დიდი (15₾) * 2 ცალი (გაგზავნილი) = 30₾
+  //           + ბალიში დიდი (7₾) * 3 ცალი (გაგზავნილი) = 21₾
+  //           = სულ: 51₾
   const calculateProtectorsPrice = (items: DailySheetItem[]): number => {
     return items
-      .filter(item => item.category === "PROTECTORS")
+      .filter(item => item.category === "PROTECTORS") // მხოლოდ დამცავები
       .reduce((sum, item) => {
+        // აიღე ფასი: ან item.price-დან, ან PROTECTOR_PRICES-დან, ან 0
         const price = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
-        return sum + (price * (item.received || 0));
+        // დაუმატე ჯამს: ფასი * გაგზავნილი რაოდენობა (dispatched)
+        return sum + (price * (item.dispatched || 0));
       }, 0);
   };
 
@@ -513,13 +522,16 @@ export default function DailySheetsSection() {
       }
     }
     
-    // Calculate PROTECTORS price (for both STANDARD and INDIVIDUAL)
-    // Use manual totalPrice if provided, otherwise calculate from items
+    // დამცავების ფასის გამოთვლა (STANDARD და INDIVIDUAL ტიპებისთვის)
+    // თუ STANDARD ტიპია და totalPrice არის, გამოიყენე ის
+    // წინააღმდეგ შემთხვევაში გამოთვალე პროდუქტებიდან: ფასი * მიღებული
     if (hasProtectors) {
       if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
+        // STANDARD ტიპისთვის: გამოიყენე ხელით შეყვანილი totalPrice
         protectorsPrice = sheet.totalPrice;
       } else {
-        // Calculate from items: price * received
+        // INDIVIDUAL ტიპისთვის ან თუ totalPrice არ არის: გამოთვალე პროდუქტებიდან
+        // calculateProtectorsPrice ფუნქცია: თითოეული დამცავისთვის (ფასი * მიღებული)
         protectorsPrice = calculateProtectorsPrice(sheet.items);
       }
     }
