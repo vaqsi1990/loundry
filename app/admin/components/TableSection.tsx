@@ -28,8 +28,8 @@ interface EmployeeRow {
 }
 
 export default function TableSection() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
@@ -38,6 +38,8 @@ export default function TableSection() {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [employeeRows, setEmployeeRows] = useState<EmployeeRow[]>([]);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
+  const [showAddEmployeesPopup, setShowAddEmployeesPopup] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
   
   // Popup states
   const [showDayPopup, setShowDayPopup] = useState(false);
@@ -51,23 +53,20 @@ export default function TableSection() {
   const [popupSelectedEmployeeId, setPopupSelectedEmployeeId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  useEffect(() => {
-    if (selectedDate && employees.length > 0) {
+    if (selectedDate && employeeRows.length > 0) {
       fetchTimeEntries();
     }
-  }, [selectedDate, employees]);
+  }, [selectedDate, employeeRows.length]);
 
-  const fetchEmployees = async () => {
+  const fetchAllEmployees = async () => {
     try {
+      setLoading(true);
       const response = await fetch("/api/admin/employees");
       if (!response.ok) {
         throw new Error("თანამშრომლების ჩატვირთვა ვერ მოხერხდა");
       }
       const data = await response.json();
-      setEmployees(data);
+      setAllEmployees(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -84,18 +83,18 @@ export default function TableSection() {
       const data = await response.json();
       setTimeEntries(data);
 
-      // Initialize employee rows with existing data or empty values
-      const rows: EmployeeRow[] = employees.map((emp) => {
-        const entry = data.find((e: TimeEntry) => e.employeeId === emp.id);
-        return {
-          employeeId: emp.id,
-          employeeName: emp.name,
-          arrivalTime: entry?.arrivalTime || "",
-          departureTime: entry?.departureTime || "",
-          dailySalary: entry?.dailySalary?.toString() || "",
-        };
-      });
-      setEmployeeRows(rows);
+      // Update existing employee rows with time entry data
+      setEmployeeRows((prevRows) =>
+        prevRows.map((row) => {
+          const entry = data.find((e: TimeEntry) => e.employeeId === row.employeeId);
+          return {
+            ...row,
+            arrivalTime: entry?.arrivalTime || row.arrivalTime || "",
+            departureTime: entry?.departureTime || row.departureTime || "",
+            dailySalary: entry?.dailySalary?.toString() || row.dailySalary || "",
+          };
+        })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     }
@@ -221,6 +220,53 @@ export default function TableSection() {
     }
   };
 
+  const handleAddEmployees = async () => {
+    if (allEmployees.length === 0) {
+      await fetchAllEmployees();
+    }
+    setSelectedEmployeeIds(new Set());
+    setShowAddEmployeesPopup(true);
+  };
+
+  const handleToggleEmployeeSelection = (employeeId: string) => {
+    setSelectedEmployeeIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(employeeId)) {
+        newSet.delete(employeeId);
+      } else {
+        newSet.add(employeeId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleAddSelectedEmployees = () => {
+    const employeesToAdd = allEmployees.filter(
+      (emp) => selectedEmployeeIds.has(emp.id) && !employeeRows.some((row) => row.employeeId === emp.id)
+    );
+
+    const newRows: EmployeeRow[] = employeesToAdd.map((emp) => ({
+      employeeId: emp.id,
+      employeeName: emp.name,
+      arrivalTime: "",
+      departureTime: "",
+      dailySalary: "",
+    }));
+
+    setEmployeeRows([...employeeRows, ...newRows]);
+    setSelectedEmployeeIds(new Set());
+    setShowAddEmployeesPopup(false);
+    
+    // If date is selected, try to load existing time entries
+    if (selectedDate) {
+      fetchTimeEntries();
+    }
+  };
+
+  const handleRemoveEmployeeFromTable = (employeeId: string) => {
+    setEmployeeRows(employeeRows.filter((row) => row.employeeId !== employeeId));
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("ka-GE", {
@@ -249,6 +295,12 @@ export default function TableSection() {
         <h2 className="text-xl font-bold text-black">თანამშრომლების ტაბელი</h2>
         <div className="flex space-x-2">
           <button
+            onClick={handleAddEmployees}
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+          >
+            + თანამშრომლების დამატება
+          </button>
+          <button
             onClick={() => {
               setShowDayPopup(true);
               setPopupDayStep("date");
@@ -272,12 +324,14 @@ export default function TableSection() {
           >
             თვეების მიხედვით
           </button>
-          <button
-            onClick={saveAll}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            ყველას შენახვა
-          </button>
+          {employeeRows.length > 0 && (
+            <button
+              onClick={saveAll}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            >
+              ყველას შენახვა
+            </button>
+          )}
         </div>
       </div>
 
@@ -302,9 +356,9 @@ export default function TableSection() {
 
       {/* Table */}
       <div className="overflow-x-auto">
-        {employees.length === 0 ? (
+        {employeeRows.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            თანამშრომლები არ მოიძებნა
+            ტაბელი ცარიელია. დაამატეთ თანამშრომლები
           </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
@@ -414,13 +468,21 @@ export default function TableSection() {
                     />
                   </td>
                   <td className="px-4 py-2 border border-gray-300">
-                    <button
-                      onClick={() => saveRow(row.employeeId)}
-                      disabled={saving[row.employeeId]}
-                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-[16px] md:text-[18px]"
-                    >
-                      {saving[row.employeeId] ? "შენახვა..." : "შენახვა"}
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => saveRow(row.employeeId)}
+                        disabled={saving[row.employeeId]}
+                        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-[16px] md:text-[18px]"
+                      >
+                        {saving[row.employeeId] ? "შენახვა..." : "შენახვა"}
+                      </button>
+                      <button
+                        onClick={() => handleRemoveEmployeeFromTable(row.employeeId)}
+                        className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[16px] md:text-[18px]"
+                      >
+                        წაშლა
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -428,6 +490,97 @@ export default function TableSection() {
           </table>
         )}
       </div>
+
+      {/* Add Employees Popup */}
+      {showAddEmployeesPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-black">თანამშრომლების დამატება</h2>
+              <button
+                onClick={() => {
+                  setShowAddEmployeesPopup(false);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-8 text-black">იტვირთება...</div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <p className="text-[16px] md:text-[18px] text-black mb-4">
+                    აირჩიეთ თანამშრომლები checkbox-ებით ტაბელში დასამატებლად:
+                  </p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {allEmployees.map((emp) => {
+                      const isInTable = employeeRows.some((row) => row.employeeId === emp.id);
+                      const isSelected = selectedEmployeeIds.has(emp.id);
+                      return (
+                        <div
+                          key={emp.id}
+                          className={`flex items-center p-3 border rounded-md ${
+                            isInTable ? "bg-gray-100 opacity-60" : "bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            id={`emp-${emp.id}`}
+                            checked={isSelected}
+                            onChange={() => handleToggleEmployeeSelection(emp.id)}
+                            disabled={isInTable}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                          />
+                          <label
+                            htmlFor={`emp-${emp.id}`}
+                            className={`ml-3 text-[16px] md:text-[18px] text-black cursor-pointer flex-1 ${
+                              isInTable ? "text-gray-500" : ""
+                            }`}
+                          >
+                            {emp.name}
+                            {isInTable && <span className="ml-2 text-sm text-gray-400">(უკვე დამატებულია)</span>}
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {allEmployees.length === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      თანამშრომლები არ მოიძებნა
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex justify-between items-center">
+                  <div className="text-[16px] md:text-[18px] text-black">
+                    არჩეული: {selectedEmployeeIds.size} თანამშრომელი
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setShowAddEmployeesPopup(false);
+                        setSelectedEmployeeIds(new Set());
+                      }}
+                      className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
+                    >
+                      დახურვა
+                    </button>
+                    <button
+                      onClick={handleAddSelectedEmployees}
+                      disabled={selectedEmployeeIds.size === 0}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      დამატება ({selectedEmployeeIds.size})
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Day Popup */}
       {showDayPopup && (
@@ -517,7 +670,7 @@ export default function TableSection() {
                 <div className="overflow-x-auto">
                   <h3 className="text-lg font-semibold text-black mb-2">
                     {(() => {
-                      const selectedEmp = employees.find((e) => e.id === popupSelectedEmployeeId);
+                      const selectedEmp = allEmployees.find((e: Employee) => e.id === popupSelectedEmployeeId);
                       return `${selectedEmp?.name || ""} - ${formatDate(popupSelectedDate)}`;
                     })()}
                   </h3>
@@ -660,7 +813,7 @@ export default function TableSection() {
                 <div className="overflow-x-auto">
                   <h3 className="text-lg font-semibold text-black mb-2">
                     {(() => {
-                      const selectedEmp = employees.find((e) => e.id === popupSelectedEmployeeId);
+                      const selectedEmp = allEmployees.find((e: Employee) => e.id === popupSelectedEmployeeId);
                       return `${selectedEmp?.name || ""} - ${formatMonth(popupSelectedMonth)}`;
                     })()}
                   </h3>
