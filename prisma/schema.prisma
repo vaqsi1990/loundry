@@ -133,6 +133,24 @@ model Employee {
   canLogin        Boolean       @default(false) // Only MANAGER, MANAGER_ASSISTANT, COURIER can login
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  timeEntries     EmployeeTimeEntry[]
+}
+
+model EmployeeTimeEntry {
+  id              String        @id @default(cuid())
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date            DateTime      @db.Date
+  arrivalTime     String?       // მოსვლის საათი (format: HH:mm)
+  departureTime   String?       // გამოსვლის საათი (format: HH:mm)
+  dailySalary     Float?        // დღეში დარიცხული ხელფასი
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
 }
 
 model Invoice {
