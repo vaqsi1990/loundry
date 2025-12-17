@@ -135,6 +135,7 @@ model Employee {
   updatedAt       DateTime      @updatedAt
 
   timeEntries     EmployeeTimeEntry[]
+  tableConfigs    EmployeeTableConfiguration[]
 }
 
 model EmployeeTimeEntry {
@@ -151,6 +152,18 @@ model EmployeeTimeEntry {
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
+}
+
+model EmployeeTableConfiguration {
+  id              String        @id @default(cuid())
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  order           Int           @default(0) // რიგითობა ტაბელში
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([employeeId])
+  @@index([order])
 }
 
 model Invoice {

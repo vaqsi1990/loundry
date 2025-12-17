@@ -52,13 +52,124 @@ export default function TableSection() {
   const [popupMonthStep, setPopupMonthStep] = useState<"date" | "employees" | "table">("date");
   const [popupSelectedEmployeeId, setPopupSelectedEmployeeId] = useState<string | null>(null);
 
+  // Load employee rows from Prisma and localStorage on mount
+  useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        // First, try to load from Prisma
+        const response = await fetch("/api/admin/table-configuration");
+        if (response.ok) {
+          const configs = await response.json();
+          if (configs.length > 0) {
+            await fetchAllEmployees();
+            const rows: EmployeeRow[] = configs.map((config: any) => ({
+              employeeId: config.employee.id,
+              employeeName: config.employee.name,
+              arrivalTime: "",
+              departureTime: "",
+              dailySalary: "",
+            }));
+            setEmployeeRows(rows);
+            
+            // Also save to localStorage for backup
+            localStorage.setItem("tableEmployeeRows", JSON.stringify(rows));
+            return; // Exit early if Prisma load succeeded
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load from Prisma, trying localStorage", e);
+      }
+      
+      // Fallback to localStorage
+      const savedEmployeeRows = localStorage.getItem("tableEmployeeRows");
+      if (savedEmployeeRows) {
+        try {
+          const parsed = JSON.parse(savedEmployeeRows);
+          const employees = await fetchAllEmployees();
+          // Update employee names from fetched employees
+          const updatedRows = parsed.map((row: EmployeeRow) => {
+            const employee = employees.find((e) => e.id === row.employeeId);
+            return {
+              ...row,
+              employeeName: employee?.name || row.employeeName,
+            };
+          });
+          setEmployeeRows(updatedRows);
+        } catch (err) {
+          console.error("Failed to parse saved employee rows", err);
+        }
+      }
+      
+      const savedDate = localStorage.getItem("tableSelectedDate");
+      if (savedDate) {
+        setSelectedDate(savedDate);
+      }
+    };
+    
+    loadSavedData();
+  }, []);
+
+  // Save employee rows to Prisma and localStorage whenever they change
+  useEffect(() => {
+    const saveToPrisma = async () => {
+      if (employeeRows.length > 0) {
+        try {
+          const employeeIds = employeeRows.map((row) => row.employeeId);
+          await fetch("/api/admin/table-configuration", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ employeeIds }),
+          });
+        } catch (error) {
+          console.error("Failed to save to Prisma:", error);
+        }
+      } else {
+        // Clear Prisma config if no employees
+        try {
+          await fetch("/api/admin/table-configuration", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ employeeIds: [] }),
+          });
+        } catch (error) {
+          console.error("Failed to clear Prisma config:", error);
+        }
+      }
+    };
+
+    // Save to localStorage
+    if (employeeRows.length > 0) {
+      localStorage.setItem("tableEmployeeRows", JSON.stringify(employeeRows));
+    } else {
+      localStorage.removeItem("tableEmployeeRows");
+    }
+
+    // Save to Prisma (with debounce to avoid too many requests)
+    const timeoutId = setTimeout(() => {
+      saveToPrisma();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [employeeRows]);
+
+  // Save selected date to localStorage
+  useEffect(() => {
+    if (selectedDate) {
+      localStorage.setItem("tableSelectedDate", selectedDate);
+    }
+  }, [selectedDate]);
+
   useEffect(() => {
     if (selectedDate && employeeRows.length > 0) {
       fetchTimeEntries();
     }
   }, [selectedDate, employeeRows.length]);
 
-  const fetchAllEmployees = async () => {
+  const fetchAllEmployees = async (): Promise<Employee[]> => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/employees");
@@ -67,14 +178,18 @@ export default function TableSection() {
       }
       const data = await response.json();
       setAllEmployees(data);
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      return [];
     } finally {
       setLoading(false);
     }
   };
 
   const fetchTimeEntries = async () => {
+    if (!selectedDate || employeeRows.length === 0) return;
+    
     try {
       const response = await fetch(`/api/admin/employee-time-entries?date=${selectedDate}`);
       if (!response.ok) {
@@ -84,8 +199,8 @@ export default function TableSection() {
       setTimeEntries(data);
 
       // Update existing employee rows with time entry data
-      setEmployeeRows((prevRows) =>
-        prevRows.map((row) => {
+      setEmployeeRows((prevRows) => {
+        const updated = prevRows.map((row) => {
           const entry = data.find((e: TimeEntry) => e.employeeId === row.employeeId);
           return {
             ...row,
@@ -93,8 +208,11 @@ export default function TableSection() {
             departureTime: entry?.departureTime || row.departureTime || "",
             dailySalary: entry?.dailySalary?.toString() || row.dailySalary || "",
           };
-        })
-      );
+        });
+        // Save updated rows to localStorage
+        localStorage.setItem("tableEmployeeRows", JSON.stringify(updated));
+        return updated;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     }
@@ -253,7 +371,11 @@ export default function TableSection() {
       dailySalary: "",
     }));
 
-    setEmployeeRows([...employeeRows, ...newRows]);
+    const updatedRows = [...employeeRows, ...newRows];
+    setEmployeeRows(updatedRows);
+    // localStorage will be saved by useEffect
+    // Prisma will be saved by useEffect
+    
     setSelectedEmployeeIds(new Set());
     setShowAddEmployeesPopup(false);
     
@@ -264,7 +386,9 @@ export default function TableSection() {
   };
 
   const handleRemoveEmployeeFromTable = (employeeId: string) => {
-    setEmployeeRows(employeeRows.filter((row) => row.employeeId !== employeeId));
+    const newRows = employeeRows.filter((row) => row.employeeId !== employeeId);
+    setEmployeeRows(newRows);
+    // localStorage and Prisma will be saved by useEffect
   };
 
   const formatDate = (dateString: string) => {
@@ -340,7 +464,7 @@ export default function TableSection() {
         <label className="block text-[16px] md:text-[18px] font-medium text-black mb-2">
           თარიღი
         </label>
-        <input
+          <input
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
@@ -375,7 +499,7 @@ export default function TableSection() {
                 </th>
                 <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
                   დღეში დარიცხული ხელფასი
-                </th>
+                  </th>
                 <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
                   მოქმედებები
                 </th>
@@ -423,8 +547,8 @@ export default function TableSection() {
                     />
                   </td>
                   <td className="px-4 py-2 border border-gray-300">
-                    <input
-                      type="text"
+                        <input
+                          type="text"
                       value={row.departureTime}
                       onChange={(e) => {
                         const value = e.target.value;
@@ -463,11 +587,11 @@ export default function TableSection() {
                       step="0.01"
                       value={row.dailySalary}
                       onChange={(e) => updateRow(row.employeeId, "dailySalary", e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-200 rounded text-black text-[16px] md:text-[18px] focus:outline-none focus:border-blue-500"
+                          className="w-full px-2 py-1 border border-gray-200 rounded text-black text-[16px] md:text-[18px] focus:outline-none focus:border-blue-500"
                       placeholder="0.00"
-                    />
-                  </td>
-                  <td className="px-4 py-2 border border-gray-300">
+                        />
+                      </td>
+                    <td className="px-4 py-2 border border-gray-300">
                     <div className="flex space-x-2">
                       <button
                         onClick={() => saveRow(row.employeeId)}
@@ -483,8 +607,8 @@ export default function TableSection() {
                         წაშლა
                       </button>
                     </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
               ))}
             </tbody>
           </table>
@@ -717,7 +841,7 @@ export default function TableSection() {
             )}
 
             {popupTimeEntries.length === 0 && popupSelectedDate && !popupLoading && popupDayStep === "employees" && (
-              <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500">
                 ამ დღეს ჩანაწერები არ მოიძებნა
               </div>
             )}
@@ -882,9 +1006,9 @@ export default function TableSection() {
             {popupTimeEntries.length === 0 && popupSelectedMonth && !popupLoading && popupMonthStep === "employees" && (
               <div className="text-center py-8 text-gray-500">
                 ამ თვეში ჩანაწერები არ მოიძებნა
-              </div>
-            )}
           </div>
+        )}
+      </div>
         </div>
       )}
     </div>
