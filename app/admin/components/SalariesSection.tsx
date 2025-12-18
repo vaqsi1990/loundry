@@ -495,35 +495,20 @@ export default function SalariesSection() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  თანხა (უკან თავსებადობისთვის)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.amount || (formData.accruedAmount ? formData.accruedAmount : '')}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  placeholder="ავტომატურად შეივსება დარიცხული თანხიდან"
-                />
-              </div>
-              <div>
-                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  სტატუსი *
-                </label>
-                <select
-                  required
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                >
-                  <option value="PENDING">მოლოდინში</option>
-                  <option value="PAID">გადახდილი</option>
-                  <option value="CANCELLED">გაუქმებული</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                სტატუსი *
+              </label>
+              <select
+                required
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+              >
+                <option value="PENDING">მოლოდინში</option>
+                <option value="PAID">გადახდილი</option>
+                <option value="CANCELLED">გაუქმებული</option>
+              </select>
             </div>
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
