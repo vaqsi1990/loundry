@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Fragment as ReactFragment } from "react";
 
 interface Salary {
   id: string;
@@ -41,6 +41,9 @@ export default function SalariesSection() {
   const [editingIssuedAmount, setEditingIssuedAmount] = useState<{ [key: string]: string | undefined }>({});
   const lastAutoCreateRef = useRef<string>("");
   const [accruedAmountsFromTable, setAccruedAmountsFromTable] = useState<{ [key: string]: number }>({});
+  const [expandedSalaryId, setExpandedSalaryId] = useState<string | null>(null);
+  const [timeEntriesDetails, setTimeEntriesDetails] = useState<{ [key: string]: any[] }>({});
+  const [loadingDetails, setLoadingDetails] = useState<{ [key: string]: boolean }>({});
   
   const [formData, setFormData] = useState({
     employeeId: "",
@@ -409,6 +412,59 @@ export default function SalariesSection() {
     }
   };
 
+  const handleShowDetails = async (salary: Salary) => {
+    // Toggle: if already expanded, collapse it
+    if (expandedSalaryId === salary.id) {
+      setExpandedSalaryId(null);
+      return;
+    }
+
+    // Expand this salary
+    setExpandedSalaryId(salary.id);
+    
+    // If details already loaded, don't fetch again
+    if (timeEntriesDetails[salary.id]) {
+      return;
+    }
+
+    setLoadingDetails({ ...loadingDetails, [salary.id]: true });
+    
+    try {
+      if (!salary.employeeId) {
+        setTimeEntriesDetails({ ...timeEntriesDetails, [salary.id]: [] });
+        setLoadingDetails({ ...loadingDetails, [salary.id]: false });
+        return;
+      }
+
+      const monthStr = `${salary.year}-${String(salary.month).padStart(2, '0')}`;
+      const response = await fetch(`/api/admin/employee-time-entries?month=${monthStr}&employeeId=${salary.employeeId}`);
+      
+      if (!response.ok) {
+        throw new Error("დეტალების ჩატვირთვა ვერ მოხერხდა");
+      }
+      
+      const entries = await response.json();
+      // Sort by date
+      const sortedEntries = entries.sort((a: any, b: any) => {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
+      setTimeEntriesDetails({ ...timeEntriesDetails, [salary.id]: sortedEntries });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      setTimeEntriesDetails({ ...timeEntriesDetails, [salary.id]: [] });
+    } finally {
+      setLoadingDetails({ ...loadingDetails, [salary.id]: false });
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  };
+
   const resetForm = () => {
     setFormData({
       employeeId: "",
@@ -771,11 +827,22 @@ export default function SalariesSection() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {uniqueSalaries.map((salary) => (
-              <tr key={salary.id} className="hover:bg-gray-50">
+              <ReactFragment key={salary.id}>
+                <tr className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {salary.firstName && salary.lastName
-                    ? `${salary.firstName} ${salary.lastName}`
-                    : salary.employeeName}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleShowDetails(salary)}
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      {expandedSalaryId === salary.id ? '▼' : '▶'}
+                    </button>
+                    <span>
+                      {salary.firstName && salary.lastName
+                        ? `${salary.firstName} ${salary.lastName}`
+                        : salary.employeeName}
+                    </span>
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {salary.personalId || '-'}
@@ -849,7 +916,91 @@ export default function SalariesSection() {
                     </button>
                   </div>
                 </td>
-              </tr>
+                </tr>
+                {expandedSalaryId === salary.id && (
+                  <tr key={`${salary.id}-details`}>
+                    <td colSpan={6} className="px-6 py-4 bg-gray-50">
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="font-semibold text-black mb-2">
+                          დეტალური ინფორმაცია - {salary.firstName && salary.lastName
+                            ? `${salary.firstName} ${salary.lastName}`
+                            : salary.employeeName}
+                        </h4>
+                        <p className="text-sm text-black">
+                          <strong>თვე:</strong> {getMonthName(salary.month)} {salary.year} | 
+                          <strong> პ/ნ:</strong> {salary.personalId || '-'}
+                        </p>
+                      </div>
+
+                      {loadingDetails[salary.id] ? (
+                        <div className="text-center py-4 text-black">იტვირთება...</div>
+                      ) : !timeEntriesDetails[salary.id] || timeEntriesDetails[salary.id].length === 0 ? (
+                        <div className="text-center py-4 text-black">
+                          ამ თვისთვის ტაბელში ჩანაწერები არ მოიძებნა
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <p className="text-black font-semibold">
+                              სულ დარიცხული: {timeEntriesDetails[salary.id].reduce((sum, entry) => sum + (entry.dailySalary || 0), 0).toFixed(2)} ₾
+                            </p>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-sm font-medium text-black uppercase border border-gray-300">
+                                    თარიღი
+                                  </th>
+                                  <th className="px-4 py-2 text-left text-sm font-medium text-black uppercase border border-gray-300">
+                                    მოსვლის საათი
+                                  </th>
+                                  <th className="px-4 py-2 text-left text-sm font-medium text-black uppercase border border-gray-300">
+                                    გამოსვლის საათი
+                                  </th>
+                                  <th className="px-4 py-2 text-left text-sm font-medium text-black uppercase border border-gray-300">
+                                    დარიცხული ხელფასი
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {timeEntriesDetails[salary.id].map((entry) => (
+                                  <tr key={entry.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-black border border-gray-300">
+                                      {formatDate(entry.date)}
+                                    </td>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-black border border-gray-300">
+                                      {entry.arrivalTime || '-'}
+                                    </td>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-black border border-gray-300">
+                                      {entry.departureTime || '-'}
+                                    </td>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-black font-semibold border border-gray-300">
+                                      {entry.dailySalary ? `${entry.dailySalary.toFixed(2)} ₾` : '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot className="bg-gray-100">
+                                <tr>
+                                  <td colSpan={3} className="px-4 py-2 text-right text-sm font-bold text-black border border-gray-300">
+                                    ჯამი:
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm font-bold text-black border border-gray-300">
+                                    {timeEntriesDetails[salary.id].reduce((sum, entry) => sum + (entry.dailySalary || 0), 0).toFixed(2)} ₾
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    </td>
+                  </tr>
+                )}
+              </ReactFragment>
             ))}
           </tbody>
         </table>
