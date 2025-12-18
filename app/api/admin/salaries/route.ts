@@ -95,6 +95,30 @@ export async function POST(request: NextRequest) {
       notes 
     } = body;
 
+    // Check if salary already exists for this employee and month/year
+    const existingSalary = await prisma.salary.findFirst({
+      where: {
+        month: parseInt(month),
+        year: parseInt(year),
+        OR: [
+          employeeId ? { employeeId } : { employeeName: employeeName },
+        ],
+      },
+    });
+
+    if (existingSalary) {
+      // Update existing salary instead of creating duplicate
+      const updatedSalary = await prisma.salary.update({
+        where: { id: existingSalary.id },
+        data: {
+          accruedAmount: (existingSalary.accruedAmount || 0) + (accruedAmount ? parseFloat(accruedAmount) : 0),
+          amount: (existingSalary.amount || 0) + (amount ? parseFloat(amount) : 0),
+          remainingAmount: ((existingSalary.accruedAmount || 0) + (accruedAmount ? parseFloat(accruedAmount) : 0)) - (existingSalary.issuedAmount || 0),
+        },
+      });
+      return NextResponse.json(updatedSalary, { status: 200 });
+    }
+
     const salary = await prisma.salary.create({
       data: {
         employeeId: employeeId || null,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface Salary {
   id: string;
@@ -39,6 +39,8 @@ export default function SalariesSection() {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [editingIssuedAmount, setEditingIssuedAmount] = useState<{ [key: string]: string | undefined }>({});
+  const lastAutoCreateRef = useRef<string>("");
+  const [accruedAmountsFromTable, setAccruedAmountsFromTable] = useState<{ [key: string]: number }>({});
   
   const [formData, setFormData] = useState({
     employeeId: "",
@@ -59,6 +61,13 @@ export default function SalariesSection() {
     fetchSalaries();
   }, [filterMonth, filterYear]);
 
+  // Fetch accrued amounts from table for all employees
+  useEffect(() => {
+    if (filterMonth && filterYear && employees.length > 0) {
+      fetchAccruedAmountsFromTable();
+    }
+  }, [filterMonth, filterYear, employees.length]);
+
   useEffect(() => {
     fetchEmployees();
   }, []);
@@ -70,15 +79,17 @@ export default function SalariesSection() {
 
   // Auto-create salaries for all employees with time entries when month/year changes
   useEffect(() => {
-    if (filterMonth && filterYear && employees.length > 0 && !isAutoCreating && !loading) {
+    const key = `${filterMonth}-${filterYear}`;
+    if (filterMonth && filterYear && employees.length > 0 && !isAutoCreating && !loading && lastAutoCreateRef.current !== key) {
       // Small delay to ensure data is loaded
       const timer = setTimeout(() => {
+        lastAutoCreateRef.current = key;
         autoCreateSalaries();
-      }, 1000);
+      }, 1500);
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMonth, filterYear, employees.length]);
+  }, [filterMonth, filterYear]);
 
   // Auto-calculate accrued amount when employee, month, or year changes
   useEffect(() => {
@@ -140,16 +151,29 @@ export default function SalariesSection() {
         data.accruedAmount += entry.dailySalary || 0;
       }
       
-      // Get existing salary employee IDs for this month/year
+      // Get existing salary employee IDs for this month/year (check both employeeId and name match)
+      const existingSalaries = salaries.filter(
+        s => s.month === filterMonth && s.year === filterYear
+      );
       const existingSalaryEmployeeIds = new Set(
-        salaries.map(s => s.employeeId).filter(Boolean)
+        existingSalaries.map(s => s.employeeId).filter(Boolean)
+      );
+      const existingSalaryNames = new Set(
+        existingSalaries.map(s => s.employeeName?.toLowerCase().trim()).filter(Boolean)
       );
       
       // Create salaries for employees that have time entries but no salary yet
+      const salariesToCreate: any[] = [];
       for (const [employeeId, data] of employeeDataMap.entries()) {
-        if (!existingSalaryEmployeeIds.has(employeeId) && data.accruedAmount > 0) {
-          const employee = employees.find(emp => emp.id === employeeId);
-          if (!employee) continue;
+        const employee = employees.find(emp => emp.id === employeeId);
+        if (!employee) continue;
+        
+        // Check if salary already exists for this employee (by ID or by name for this month/year)
+        const employeeNameLower = employee.name.toLowerCase().trim();
+        const alreadyExists = existingSalaryEmployeeIds.has(employeeId) || 
+                            existingSalaryNames.has(employeeNameLower);
+        
+        if (!alreadyExists && data.accruedAmount > 0) {
           
           // Split name into first and last name
           const nameParts = employee.name.trim().split(/\s+/);
@@ -176,21 +200,27 @@ export default function SalariesSection() {
             notes: null,
           };
           
-          try {
-            const createResponse = await fetch("/api/admin/salaries", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(salaryData),
-            });
-            
-            if (createResponse.ok) {
-              // Salary created successfully
-            }
-          } catch (err) {
-            console.error(`Error creating salary for employee ${employeeId}:`, err);
+          salariesToCreate.push(salaryData);
+        }
+      }
+      
+      // Create all salaries at once
+      for (const salaryData of salariesToCreate) {
+        try {
+          const createResponse = await fetch("/api/admin/salaries", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(salaryData),
+          });
+          
+          if (!createResponse.ok) {
+            const errorData = await createResponse.json();
+            console.error(`Error creating salary for employee ${salaryData.employeeId}:`, errorData);
           }
+        } catch (err) {
+          console.error(`Error creating salary for employee ${salaryData.employeeId}:`, err);
         }
       }
       
@@ -200,6 +230,31 @@ export default function SalariesSection() {
       console.error("Error auto-creating salaries:", err);
     } finally {
       setIsAutoCreating(false);
+    }
+  };
+
+  const fetchAccruedAmountsFromTable = async () => {
+    try {
+      const monthStr = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
+      const response = await fetch(`/api/admin/employee-time-entries?month=${monthStr}`);
+      if (!response.ok) {
+        return;
+      }
+      const timeEntries = await response.json();
+      
+      // Group by employee and sum dailySalary
+      const amounts: { [key: string]: number } = {};
+      for (const entry of timeEntries) {
+        const employeeId = entry.employeeId;
+        if (!amounts[employeeId]) {
+          amounts[employeeId] = 0;
+        }
+        amounts[employeeId] += entry.dailySalary || 0;
+      }
+      
+      setAccruedAmountsFromTable(amounts);
+    } catch (err) {
+      console.error("Error fetching accrued amounts from table:", err);
     }
   };
 
@@ -400,8 +455,19 @@ export default function SalariesSection() {
     return months[month - 1];
   };
 
-  const totalAmount = salaries.reduce((sum, s) => sum + s.amount, 0);
-  const paidAmount = salaries.filter(s => s.status === "PAID").reduce((sum, s) => sum + s.amount, 0);
+  // Remove duplicates - keep only the first salary for each employee
+  const seenEmployees = new Set<string>();
+  const uniqueSalaries = salaries.filter((salary) => {
+    const key = salary.employeeId || salary.employeeName?.toLowerCase().trim() || salary.id;
+    if (seenEmployees.has(key)) {
+      return false; // Skip duplicate
+    }
+    seenEmployees.add(key);
+    return true; // Keep first occurrence
+  });
+
+  const totalAmount = uniqueSalaries.reduce((sum, s) => sum + s.amount, 0);
+  const paidAmount = uniqueSalaries.filter(s => s.status === "PAID").reduce((sum, s) => sum + s.amount, 0);
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
@@ -452,7 +518,7 @@ export default function SalariesSection() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-blue-50 p-4 rounded-lg">
           <div className="text-sm text-gray-600">სულ ხელფასები</div>
-          <div className="text-2xl font-bold text-black">{salaries.length}</div>
+          <div className="text-2xl font-bold text-black">{uniqueSalaries.length}</div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg">
           <div className="text-sm text-gray-600">სულ თანხა</div>
@@ -704,7 +770,7 @@ export default function SalariesSection() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {salaries.map((salary) => (
+            {uniqueSalaries.map((salary) => (
               <tr key={salary.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {salary.firstName && salary.lastName
@@ -715,7 +781,15 @@ export default function SalariesSection() {
                   {salary.personalId || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {salary.accruedAmount ? `${salary.accruedAmount.toFixed(2)} ₾` : '-'}
+                  {(() => {
+                    // Get accrued amount from table if available, otherwise use stored value
+                    const employeeId = salary.employeeId;
+                    const accruedFromTable = employeeId ? accruedAmountsFromTable[employeeId] : null;
+                    const accruedAmount = accruedFromTable !== undefined && accruedFromTable !== null 
+                      ? accruedFromTable 
+                      : (salary.accruedAmount || 0);
+                    return accruedAmount > 0 ? `${accruedAmount.toFixed(2)} ₾` : '-';
+                  })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   <input
@@ -747,14 +821,17 @@ export default function SalariesSection() {
                   />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {salary.remainingAmount !== null && salary.remainingAmount !== undefined
-                    ? `${salary.remainingAmount.toFixed(2)} ₾`
-                    : (() => {
-                        const accrued = salary.accruedAmount || 0;
-                        const issued = salary.issuedAmount || 0;
-                        const remaining = accrued - issued;
-                        return remaining !== 0 ? `${remaining.toFixed(2)} ₾` : '-';
-                      })()}
+                  {(() => {
+                    // Get accrued amount from table if available, otherwise use stored value
+                    const employeeId = salary.employeeId;
+                    const accruedFromTable = employeeId ? accruedAmountsFromTable[employeeId] : null;
+                    const accruedAmount = accruedFromTable !== undefined && accruedFromTable !== null 
+                      ? accruedFromTable 
+                      : (salary.accruedAmount || 0);
+                    const issuedAmount = salary.issuedAmount || 0;
+                    const remainingAmount = accruedAmount - issuedAmount;
+                    return remainingAmount !== 0 ? `${remainingAmount.toFixed(2)} ₾` : '-';
+                  })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <div className="flex space-x-2">
@@ -778,7 +855,7 @@ export default function SalariesSection() {
         </table>
       </div>
 
-      {salaries.length === 0 && (
+      {uniqueSalaries.length === 0 && (
         <div className="text-center py-8 text-black">
           ხელფასები არ მოიძებნა
         </div>
