@@ -37,6 +37,8 @@ export default function SalariesSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1);
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [isAutoCreating, setIsAutoCreating] = useState(false);
+  const [editingIssuedAmount, setEditingIssuedAmount] = useState<{ [key: string]: string | undefined }>({});
   
   const [formData, setFormData] = useState({
     employeeId: "",
@@ -60,6 +62,23 @@ export default function SalariesSection() {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  // Clear editing state when salaries are updated
+  useEffect(() => {
+    setEditingIssuedAmount({});
+  }, [salaries.length]);
+
+  // Auto-create salaries for all employees with time entries when month/year changes
+  useEffect(() => {
+    if (filterMonth && filterYear && employees.length > 0 && !isAutoCreating && !loading) {
+      // Small delay to ensure data is loaded
+      const timer = setTimeout(() => {
+        autoCreateSalaries();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMonth, filterYear, employees.length]);
 
   // Auto-calculate accrued amount when employee, month, or year changes
   useEffect(() => {
@@ -85,6 +104,102 @@ export default function SalariesSection() {
       setEmployees(data);
     } catch (err) {
       console.error("Error fetching employees:", err);
+    }
+  };
+
+  const autoCreateSalaries = async () => {
+    if (!filterMonth || !filterYear || employees.length === 0 || isAutoCreating) return;
+    
+    setIsAutoCreating(true);
+    try {
+      const monthStr = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
+      const response = await fetch(`/api/admin/employee-time-entries?month=${monthStr}`);
+      if (!response.ok) {
+        setIsAutoCreating(false);
+        return;
+      }
+      const timeEntries = await response.json();
+      
+      if (timeEntries.length === 0) {
+        setIsAutoCreating(false);
+        return;
+      }
+      
+      // Get unique employee IDs from time entries with their data
+      const employeeDataMap = new Map<string, { employee: any; accruedAmount: number }>();
+      
+      for (const entry of timeEntries) {
+        const employeeId = entry.employeeId;
+        if (!employeeDataMap.has(employeeId)) {
+          employeeDataMap.set(employeeId, {
+            employee: entry.employee,
+            accruedAmount: 0
+          });
+        }
+        const data = employeeDataMap.get(employeeId)!;
+        data.accruedAmount += entry.dailySalary || 0;
+      }
+      
+      // Get existing salary employee IDs for this month/year
+      const existingSalaryEmployeeIds = new Set(
+        salaries.map(s => s.employeeId).filter(Boolean)
+      );
+      
+      // Create salaries for employees that have time entries but no salary yet
+      for (const [employeeId, data] of employeeDataMap.entries()) {
+        if (!existingSalaryEmployeeIds.has(employeeId) && data.accruedAmount > 0) {
+          const employee = employees.find(emp => emp.id === employeeId);
+          if (!employee) continue;
+          
+          // Split name into first and last name
+          const nameParts = employee.name.trim().split(/\s+/);
+          const firstName = nameParts[0] || "";
+          const lastName = nameParts.slice(1).join(" ") || "";
+          
+          // Create salary
+          const issuedAmount = 0;
+          const remainingAmount = data.accruedAmount - issuedAmount;
+          
+          const salaryData = {
+            employeeId: employee.id,
+            employeeName: employee.name,
+            firstName: firstName,
+            lastName: lastName,
+            personalId: employee.personalId || null,
+            accruedAmount: data.accruedAmount,
+            issuedAmount: null,
+            remainingAmount: remainingAmount,
+            amount: data.accruedAmount,
+            month: filterMonth,
+            year: filterYear,
+            status: "PENDING",
+            notes: null,
+          };
+          
+          try {
+            const createResponse = await fetch("/api/admin/salaries", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(salaryData),
+            });
+            
+            if (createResponse.ok) {
+              // Salary created successfully
+            }
+          } catch (err) {
+            console.error(`Error creating salary for employee ${employeeId}:`, err);
+          }
+        }
+      }
+      
+      // Refresh salaries list
+      await fetchSalaries();
+    } catch (err) {
+      console.error("Error auto-creating salaries:", err);
+    } finally {
+      setIsAutoCreating(false);
     }
   };
 
@@ -187,6 +302,38 @@ export default function SalariesSection() {
     }
   };
 
+  const handleUpdateIssuedAmount = async (salaryId: string, issuedAmount: number) => {
+    try {
+      const salary = salaries.find(s => s.id === salaryId);
+      if (!salary) return;
+
+      const accruedAmount = salary.accruedAmount || 0;
+      const finalIssuedAmount = issuedAmount > 0 ? issuedAmount : null;
+      const remainingAmount = accruedAmount - (finalIssuedAmount || 0);
+
+      const response = await fetch(`/api/admin/salaries/${salaryId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...salary,
+          issuedAmount: finalIssuedAmount,
+          remainingAmount: remainingAmount,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "განახლება ვერ მოხერხდა");
+      }
+
+      await fetchSalaries();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
@@ -264,15 +411,6 @@ export default function SalariesSection() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-black">ხელფასები</h2>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowAddForm(true);
-          }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          + დამატება
-        </button>
       </div>
 
       {error && (
@@ -335,7 +473,7 @@ export default function SalariesSection() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                თანამშრომელი (შენახული სიიდან)
+                თანამშრომელი (ავტომატურად შეივსება)
               </label>
               <select
                 value={formData.employeeId}
@@ -580,7 +718,33 @@ export default function SalariesSection() {
                   {salary.accruedAmount ? `${salary.accruedAmount.toFixed(2)} ₾` : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {salary.issuedAmount ? `${salary.issuedAmount.toFixed(2)} ₾` : '-'}
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingIssuedAmount[salary.id] !== undefined 
+                      ? editingIssuedAmount[salary.id] 
+                      : (salary.issuedAmount?.toString() || '')}
+                    onChange={(e) => {
+                      setEditingIssuedAmount({
+                        ...editingIssuedAmount,
+                        [salary.id]: e.target.value
+                      });
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                      handleUpdateIssuedAmount(salary.id, value);
+                      const newEditing = { ...editingIssuedAmount };
+                      delete newEditing[salary.id];
+                      setEditingIssuedAmount(newEditing);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className="w-24 px-2 py-1 border border-gray-300 rounded-md text-black"
+                    placeholder="0.00"
+                  />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {salary.remainingAmount !== null && salary.remainingAmount !== undefined
@@ -598,7 +762,7 @@ export default function SalariesSection() {
                       onClick={() => handleEdit(salary)}
                       className="text-blue-600 hover:underline"
                     >
-                      რედაქტირება
+                     უწყისი
                     </button>
                     <button
                       onClick={() => handleDelete(salary.id)}
