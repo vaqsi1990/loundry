@@ -31,12 +31,33 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { employeeName, amount, month, year, status, notes } = body;
+    const { 
+      employeeName, 
+      firstName, 
+      lastName, 
+      workPeriodStart, 
+      workPeriodEnd, 
+      accruedAmount, 
+      issuedAmount, 
+      signature,
+      amount, 
+      month, 
+      year, 
+      status, 
+      notes 
+    } = body;
 
     const salary = await prisma.salary.update({
       where: { id },
       data: {
         employeeName,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        workPeriodStart: workPeriodStart ? new Date(workPeriodStart) : null,
+        workPeriodEnd: workPeriodEnd ? new Date(workPeriodEnd) : null,
+        accruedAmount: accruedAmount ? parseFloat(accruedAmount) : null,
+        issuedAmount: issuedAmount ? parseFloat(issuedAmount) : null,
+        signature: signature || null,
         amount,
         month: parseInt(month),
         year: parseInt(year),

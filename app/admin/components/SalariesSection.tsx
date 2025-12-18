@@ -6,6 +6,13 @@ interface Salary {
   id: string;
   employeeId: string | null;
   employeeName: string;
+  firstName: string | null;
+  lastName: string | null;
+  workPeriodStart: string | null;
+  workPeriodEnd: string | null;
+  accruedAmount: number | null;
+  issuedAmount: number | null;
+  signature: string | null;
   amount: number;
   month: number;
   year: number;
@@ -25,6 +32,13 @@ export default function SalariesSection() {
   
   const [formData, setFormData] = useState({
     employeeName: "",
+    firstName: "",
+    lastName: "",
+    workPeriodStart: "",
+    workPeriodEnd: "",
+    accruedAmount: "",
+    issuedAmount: "",
+    signature: "",
     amount: "",
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
@@ -66,7 +80,9 @@ export default function SalariesSection() {
         },
         body: JSON.stringify({
           ...formData,
-          amount: parseFloat(formData.amount),
+          amount: formData.amount ? parseFloat(formData.amount) : (formData.accruedAmount ? parseFloat(formData.accruedAmount) : 0),
+          accruedAmount: formData.accruedAmount ? parseFloat(formData.accruedAmount) : null,
+          issuedAmount: formData.issuedAmount ? parseFloat(formData.issuedAmount) : null,
         }),
       });
 
@@ -105,6 +121,13 @@ export default function SalariesSection() {
   const resetForm = () => {
     setFormData({
       employeeName: "",
+      firstName: "",
+      lastName: "",
+      workPeriodStart: "",
+      workPeriodEnd: "",
+      accruedAmount: "",
+      issuedAmount: "",
+      signature: "",
       amount: "",
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear(),
@@ -118,6 +141,13 @@ export default function SalariesSection() {
   const handleEdit = (salary: Salary) => {
     setFormData({
       employeeName: salary.employeeName,
+      firstName: salary.firstName || "",
+      lastName: salary.lastName || "",
+      workPeriodStart: salary.workPeriodStart ? new Date(salary.workPeriodStart).toISOString().split('T')[0] : "",
+      workPeriodEnd: salary.workPeriodEnd ? new Date(salary.workPeriodEnd).toISOString().split('T')[0] : "",
+      accruedAmount: salary.accruedAmount?.toString() || "",
+      issuedAmount: salary.issuedAmount?.toString() || "",
+      signature: salary.signature || "",
       amount: salary.amount.toString(),
       month: salary.month,
       year: salary.year,
@@ -216,16 +246,123 @@ export default function SalariesSection() {
             {editingId ? "რედაქტირება" : "ახალი ხელფასი"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  სახელი *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.firstName}
+                  onChange={(e) => {
+                    const firstName = e.target.value;
+                    const employeeName = firstName && formData.lastName 
+                      ? `${firstName} ${formData.lastName}` 
+                      : formData.employeeName;
+                    setFormData({ ...formData, firstName, employeeName });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  გვარი *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.lastName}
+                  onChange={(e) => {
+                    const lastName = e.target.value;
+                    const employeeName = formData.firstName && lastName 
+                      ? `${formData.firstName} ${lastName}` 
+                      : formData.employeeName;
+                    setFormData({ ...formData, lastName, employeeName });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+            </div>
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                თანამშრომლის სახელი *
+                თანამშრომლის სახელი (სრული)
               </label>
               <input
                 type="text"
-                required
-                value={formData.employeeName}
-                onChange={(e) => setFormData({ ...formData, employeeName: e.target.value })}
+                value={formData.employeeName || (formData.firstName && formData.lastName ? `${formData.firstName} ${formData.lastName}` : '')}
+                onChange={(e) => {
+                  const newEmployeeName = e.target.value;
+                  setFormData({ ...formData, employeeName: newEmployeeName });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                placeholder="ავტომატურად შეივსება სახელისა და გვარისგან"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  სამუშაო პერიოდის დასაწყისი *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.workPeriodStart}
+                  onChange={(e) => setFormData({ ...formData, workPeriodStart: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  სამუშაო პერიოდის დასასრული *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.workPeriodEnd}
+                  onChange={(e) => setFormData({ ...formData, workPeriodEnd: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  დარიცხული თანხა *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={formData.accruedAmount}
+                  onChange={(e) => setFormData({ ...formData, accruedAmount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                  გაცემული თანხა *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={formData.issuedAmount}
+                  onChange={(e) => setFormData({ ...formData, issuedAmount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                ხელმოწერა
+              </label>
+              <input
+                type="text"
+                value={formData.signature}
+                onChange={(e) => setFormData({ ...formData, signature: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                placeholder="ხელმოწერა"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -264,15 +401,15 @@ export default function SalariesSection() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  თანხა *
+                  თანხა (უკან თავსებადობისთვის)
                 </label>
                 <input
                   type="number"
                   step="0.01"
-                  required
-                  value={formData.amount}
+                  value={formData.amount || (formData.accruedAmount ? formData.accruedAmount : '')}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  placeholder="ავტომატურად შეივსება დარიცხული თანხიდან"
                 />
               </div>
               <div>
@@ -327,16 +464,19 @@ export default function SalariesSection() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თანამშრომელი
+                სამუშაო პერიოდი (თარიღები)
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თვე/წელი
+                სახელი გვარი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თანხა
+                დარიცხული თანხა
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                სტატუსი
+                გაცემული თანხა
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                ხელმოწერა
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
@@ -347,24 +487,23 @@ export default function SalariesSection() {
             {salaries.map((salary) => (
               <tr key={salary.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {salary.employeeName}
+                  {salary.workPeriodStart && salary.workPeriodEnd
+                    ? `${new Date(salary.workPeriodStart).toLocaleDateString('ka-GE')} - ${new Date(salary.workPeriodEnd).toLocaleDateString('ka-GE')}`
+                    : `${getMonthName(salary.month)} ${salary.year}`}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {getMonthName(salary.month)} {salary.year}
+                  {salary.firstName && salary.lastName
+                    ? `${salary.firstName} ${salary.lastName}`
+                    : salary.employeeName}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                  {salary.amount.toFixed(2)} ₾
+                  {salary.accruedAmount ? `${salary.accruedAmount.toFixed(2)} ₾` : '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                  <span className={`px-2 py-1 rounded text-xs ${
-                    salary.status === "PAID"
-                      ? "bg-green-100 text-green-800"
-                      : salary.status === "CANCELLED"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-yellow-100 text-yellow-800"
-                  }`}>
-                    {salary.status === "PAID" ? "გადახდილი" : salary.status === "CANCELLED" ? "გაუქმებული" : "მოლოდინში"}
-                  </span>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                  {salary.issuedAmount ? `${salary.issuedAmount.toFixed(2)} ₾` : '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                  {salary.signature || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <div className="flex space-x-2">

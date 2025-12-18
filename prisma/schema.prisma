@@ -306,6 +306,13 @@ model Salary {
   id              String        @id @default(cuid())
   employeeId      String?       // Reference to Employee if exists
   employeeName    String        // Employee name (can be from Employee or manual)
+  firstName       String?       // სახელი
+  lastName        String?       // გვარი
+  workPeriodStart DateTime?     @db.Date // სამუშაო პერიოდის დასაწყისი
+  workPeriodEnd   DateTime?     @db.Date // სამუშაო პერიოდის დასასრული
+  accruedAmount   Float?        // დარიცხული თანხა
+  issuedAmount    Float?        // გაცემული თანხა
+  signature       String?       // ხელმოწერა
   amount          Float
   month           Int           // 1-12
   year            Int
