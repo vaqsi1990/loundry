@@ -168,4 +168,67 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const employeeId = searchParams.get("employeeId");
+    const date = searchParams.get("date");
+
+    if (!employeeId || !date) {
+      return NextResponse.json(
+        { error: "თანამშრომელი და თარიღი აუცილებელია" },
+        { status: 400 }
+      );
+    }
+
+    // Find and delete the time entry
+    const deletedEntry = await prisma.employeeTimeEntry.delete({
+      where: {
+        employeeId_date: {
+          employeeId,
+          date: new Date(date),
+        },
+      },
+    });
+
+    return NextResponse.json(
+      { message: "დროის ჩანაწერი წარმატებით წაიშალა", deletedEntry },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Time entry delete error:", error);
+    // If entry doesn't exist, that's okay - return success
+    if ((error as any).code === "P2025") {
+      return NextResponse.json(
+        { message: "დროის ჩანაწერი არ მოიძებნა" },
+        { status: 200 }
+      );
+    }
+    return NextResponse.json(
+      { error: "დროის ჩანაწერის წაშლისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
 

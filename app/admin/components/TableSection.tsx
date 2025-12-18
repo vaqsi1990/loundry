@@ -51,110 +51,36 @@ export default function TableSection() {
   const [popupDayStep, setPopupDayStep] = useState<"date" | "employees" | "table">("date");
   const [popupMonthStep, setPopupMonthStep] = useState<"date" | "employees" | "table">("date");
   const [popupSelectedEmployeeId, setPopupSelectedEmployeeId] = useState<string | null>(null);
+  
+  // Calendar view states
+  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [calendarDate, setCalendarDate] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [calendarTimeEntries, setCalendarTimeEntries] = useState<Map<string, TimeEntry[]>>(new Map());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
 
-  // Load employee rows from Prisma and localStorage on mount
+  // Load initial data on mount
   useEffect(() => {
-    const loadSavedData = async () => {
-      try {
-        // First, try to load from Prisma
-        const response = await fetch("/api/admin/table-configuration");
-        if (response.ok) {
-          const configs = await response.json();
-          if (configs.length > 0) {
-            await fetchAllEmployees();
-            const rows: EmployeeRow[] = configs.map((config: any) => ({
-              employeeId: config.employee.id,
-              employeeName: config.employee.name,
-              arrivalTime: "",
-              departureTime: "",
-              dailySalary: "",
-            }));
-            setEmployeeRows(rows);
-            
-            // Also save to localStorage for backup
-            localStorage.setItem("tableEmployeeRows", JSON.stringify(rows));
-            return; // Exit early if Prisma load succeeded
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load from Prisma, trying localStorage", e);
-      }
-      
-      // Fallback to localStorage
-      const savedEmployeeRows = localStorage.getItem("tableEmployeeRows");
-      if (savedEmployeeRows) {
-        try {
-          const parsed = JSON.parse(savedEmployeeRows);
-          const employees = await fetchAllEmployees();
-          // Update employee names from fetched employees
-          const updatedRows = parsed.map((row: EmployeeRow) => {
-            const employee = employees.find((e) => e.id === row.employeeId);
-            return {
-              ...row,
-              employeeName: employee?.name || row.employeeName,
-            };
-          });
-          setEmployeeRows(updatedRows);
-        } catch (err) {
-          console.error("Failed to parse saved employee rows", err);
-        }
-      }
-      
+    const loadInitialData = async () => {
+      // Load saved date from localStorage
       const savedDate = localStorage.getItem("tableSelectedDate");
       if (savedDate) {
         setSelectedDate(savedDate);
       }
+      
+      // Fetch all employees for the "Add Employees" popup
+      await fetchAllEmployees();
+      
+      // Time entries will be loaded by the useEffect that watches selectedDate
     };
     
-    loadSavedData();
+    loadInitialData();
   }, []);
 
-  // Save employee rows to Prisma and localStorage whenever they change
-  useEffect(() => {
-    const saveToPrisma = async () => {
-      if (employeeRows.length > 0) {
-        try {
-          const employeeIds = employeeRows.map((row) => row.employeeId);
-          await fetch("/api/admin/table-configuration", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ employeeIds }),
-          });
-        } catch (error) {
-          console.error("Failed to save to Prisma:", error);
-        }
-      } else {
-        // Clear Prisma config if no employees
-        try {
-          await fetch("/api/admin/table-configuration", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ employeeIds: [] }),
-          });
-        } catch (error) {
-          console.error("Failed to clear Prisma config:", error);
-        }
-      }
-    };
-
-    // Save to localStorage
-    if (employeeRows.length > 0) {
-      localStorage.setItem("tableEmployeeRows", JSON.stringify(employeeRows));
-    } else {
-      localStorage.removeItem("tableEmployeeRows");
-    }
-
-    // Save to Prisma (with debounce to avoid too many requests)
-    const timeoutId = setTimeout(() => {
-      saveToPrisma();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [employeeRows]);
+  // Note: employeeRows are now date-specific, so we don't save them to Prisma table-configuration
+  // They are loaded from time entries for each date, or can be manually added
 
   // Save selected date to localStorage
   useEffect(() => {
@@ -164,10 +90,17 @@ export default function TableSection() {
   }, [selectedDate]);
 
   useEffect(() => {
-    if (selectedDate && employeeRows.length > 0) {
+    if (selectedDate) {
       fetchTimeEntries();
     }
-  }, [selectedDate, employeeRows.length]);
+  }, [selectedDate]);
+
+  // Fetch calendar entries when view mode changes or calendar date changes
+  useEffect(() => {
+    if (viewMode === "calendar") {
+      fetchCalendarEntries();
+    }
+  }, [viewMode, calendarDate]);
 
   const fetchAllEmployees = async (): Promise<Employee[]> => {
     try {
@@ -188,7 +121,7 @@ export default function TableSection() {
   };
 
   const fetchTimeEntries = async () => {
-    if (!selectedDate || employeeRows.length === 0) return;
+    if (!selectedDate) return;
     
     try {
       const response = await fetch(`/api/admin/employee-time-entries?date=${selectedDate}`);
@@ -198,23 +131,62 @@ export default function TableSection() {
       const data = await response.json();
       setTimeEntries(data);
 
-      // Update existing employee rows with time entry data
-      setEmployeeRows((prevRows) => {
-        const updated = prevRows.map((row) => {
-          const entry = data.find((e: TimeEntry) => e.employeeId === row.employeeId);
-          return {
-            ...row,
-            arrivalTime: entry?.arrivalTime || row.arrivalTime || "",
-            departureTime: entry?.departureTime || row.departureTime || "",
-            dailySalary: entry?.dailySalary?.toString() || row.dailySalary || "",
-          };
-        });
-        // Save updated rows to localStorage
-        localStorage.setItem("tableEmployeeRows", JSON.stringify(updated));
-        return updated;
-      });
+      // If there are time entries for this date, show only those employees
+      // If no time entries, show empty table
+      if (data.length > 0) {
+        const rows: EmployeeRow[] = data.map((entry: TimeEntry) => ({
+          employeeId: entry.employeeId,
+          employeeName: entry.employee.name,
+          arrivalTime: entry.arrivalTime || "",
+          departureTime: entry.departureTime || "",
+          dailySalary: entry.dailySalary?.toString() || "",
+        }));
+        setEmployeeRows(rows);
+      } else {
+        // No time entries for this date - show empty table
+        // This will clear the table when switching to a date with no entries
+        setEmployeeRows([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      setEmployeeRows([]);
+    }
+  };
+
+  const fetchCalendarEntries = async () => {
+    try {
+      setLoading(true);
+      // Get first and last day of the month
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      
+      // Fetch entries for the entire month
+      const startDate = firstDay.toISOString().split("T")[0];
+      const endDate = lastDay.toISOString().split("T")[0];
+      
+      const response = await fetch(`/api/admin/employee-time-entries?startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) {
+        throw new Error("კალენდრის მონაცემების ჩატვირთვა ვერ მოხერხდა");
+      }
+      const data: TimeEntry[] = await response.json();
+      
+      // Group entries by date
+      const entriesByDate = new Map<string, TimeEntry[]>();
+      data.forEach((entry) => {
+        const dateKey = entry.date.split("T")[0];
+        if (!entriesByDate.has(dateKey)) {
+          entriesByDate.set(dateKey, []);
+        }
+        entriesByDate.get(dateKey)!.push(entry);
+      });
+      
+      setCalendarTimeEntries(entriesByDate);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -339,9 +311,8 @@ export default function TableSection() {
   };
 
   const handleAddEmployees = async () => {
-    if (allEmployees.length === 0) {
-      await fetchAllEmployees();
-    }
+    // Always fetch fresh employees to include newly added ones
+    await fetchAllEmployees();
     setSelectedEmployeeIds(new Set());
     setShowAddEmployeesPopup(true);
   };
@@ -373,22 +344,56 @@ export default function TableSection() {
 
     const updatedRows = [...employeeRows, ...newRows];
     setEmployeeRows(updatedRows);
-    // localStorage will be saved by useEffect
-    // Prisma will be saved by useEffect
     
     setSelectedEmployeeIds(new Set());
     setShowAddEmployeesPopup(false);
     
-    // If date is selected, try to load existing time entries
-    if (selectedDate) {
-      fetchTimeEntries();
-    }
+    // Don't call fetchTimeEntries here - we want to keep manually added employees
+    // Time entries will be loaded when date changes
   };
 
-  const handleRemoveEmployeeFromTable = (employeeId: string) => {
-    const newRows = employeeRows.filter((row) => row.employeeId !== employeeId);
-    setEmployeeRows(newRows);
-    // localStorage and Prisma will be saved by useEffect
+  const handleRemoveEmployeeFromTable = async (employeeId: string) => {
+    if (!selectedDate) {
+      setError("თარიღი აუცილებელია");
+      return;
+    }
+
+    // Find employee name for confirmation message
+    const employee = employeeRows.find((row) => row.employeeId === employeeId);
+    const employeeName = employee?.employeeName || "თანამშრომელი";
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `დარწმუნებული ხართ, რომ გსურთ წაშლა ${employeeName}?`
+    );
+
+    if (!confirmed) {
+      return; // User cancelled
+    }
+
+    try {
+      // Delete from Prisma
+      const response = await fetch(
+        `/api/admin/employee-time-entries?employeeId=${employeeId}&date=${selectedDate}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      }
+
+      // Remove from UI
+      const newRows = employeeRows.filter((row) => row.employeeId !== employeeId);
+      setEmployeeRows(newRows);
+      
+      // Refresh time entries to update the table
+      await fetchTimeEntries();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -424,18 +429,7 @@ export default function TableSection() {
           >
             + თანამშრომლების დამატება
           </button>
-          <button
-            onClick={() => {
-              setShowDayPopup(true);
-              setPopupDayStep("date");
-              setPopupSelectedDate("");
-              setPopupSelectedEmployeeId(null);
-              setPopupTimeEntries([]);
-            }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            დღეების მიხედვით
-          </button>
+        
           <button
             onClick={() => {
               setShowMonthPopup(true);
