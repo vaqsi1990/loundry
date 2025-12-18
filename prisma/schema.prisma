@@ -308,11 +308,10 @@ model Salary {
   employeeName    String        // Employee name (can be from Employee or manual)
   firstName       String?       // სახელი
   lastName        String?       // გვარი
-  workPeriodStart DateTime?     @db.Date // სამუშაო პერიოდის დასაწყისი
-  workPeriodEnd   DateTime?     @db.Date // სამუშაო პერიოდის დასასრული
+  personalId      String?       // პირადობის ნომერი (პ/ნ)
   accruedAmount   Float?        // დარიცხული თანხა
   issuedAmount    Float?        // გაცემული თანხა
-  signature       String?       // ხელმოწერა
+  remainingAmount Float?        // დარჩენილი თანხა
   amount          Float
   month           Int           // 1-12
   year            Int

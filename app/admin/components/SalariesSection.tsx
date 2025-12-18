@@ -8,11 +8,10 @@ interface Salary {
   employeeName: string;
   firstName: string | null;
   lastName: string | null;
-  workPeriodStart: string | null;
-  workPeriodEnd: string | null;
+  personalId: string | null;
   accruedAmount: number | null;
   issuedAmount: number | null;
-  signature: string | null;
+  remainingAmount: number | null;
   amount: number;
   month: number;
   year: number;
@@ -21,8 +20,17 @@ interface Salary {
   createdAt: string;
 }
 
+interface Employee {
+  id: string;
+  name: string;
+  personalId: string | null;
+  phone: string;
+  position: string;
+}
+
 export default function SalariesSection() {
   const [salaries, setSalaries] = useState<Salary[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -31,14 +39,13 @@ export default function SalariesSection() {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   
   const [formData, setFormData] = useState({
+    employeeId: "",
     employeeName: "",
     firstName: "",
     lastName: "",
-    workPeriodStart: "",
-    workPeriodEnd: "",
+    personalId: "",
     accruedAmount: "",
     issuedAmount: "",
-    signature: "",
     amount: "",
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
@@ -49,6 +56,81 @@ export default function SalariesSection() {
   useEffect(() => {
     fetchSalaries();
   }, [filterMonth, filterYear]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  // Auto-calculate accrued amount when employee, month, or year changes
+  useEffect(() => {
+    if (formData.employeeId && formData.month && formData.year) {
+      calculateAccruedAmount(formData.employeeId, formData.month, formData.year).then((accrued) => {
+        if (accrued !== null && accrued > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            accruedAmount: accrued.toString(),
+          }));
+        }
+      });
+    }
+  }, [formData.employeeId, formData.month, formData.year]);
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch("/api/admin/employees");
+      if (!response.ok) {
+        throw new Error("თანამშრომლების ჩატვირთვა ვერ მოხერხდა");
+      }
+      const data = await response.json();
+      setEmployees(data);
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+    }
+  };
+
+  const calculateAccruedAmount = async (employeeId: string, month: number, year: number) => {
+    try {
+      const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+      const response = await fetch(`/api/admin/employee-time-entries?month=${monthStr}&employeeId=${employeeId}`);
+      if (!response.ok) {
+        return null;
+      }
+      const timeEntries = await response.json();
+      
+      // Sum dailySalary for all entries (already filtered by employeeId in API)
+      const totalAccrued = timeEntries.reduce((sum: number, entry: any) => {
+        return sum + (entry.dailySalary || 0);
+      }, 0);
+      
+      return totalAccrued > 0 ? totalAccrued : null;
+    } catch (err) {
+      console.error("Error calculating accrued amount:", err);
+      return null;
+    }
+  };
+
+  const handleEmployeeSelect = async (employeeId: string) => {
+    const employee = employees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      // Split name into first and last name (simple approach - take first word as first name, rest as last name)
+      const nameParts = employee.name.trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ") || "";
+      
+      // Calculate accrued amount from table entries
+      const accruedAmount = await calculateAccruedAmount(employeeId, formData.month, formData.year);
+      
+      setFormData({
+        ...formData,
+        employeeId: employee.id,
+        employeeName: employee.name,
+        firstName: firstName,
+        lastName: lastName,
+        personalId: employee.personalId || "",
+        accruedAmount: accruedAmount ? accruedAmount.toString() : formData.accruedAmount,
+      });
+    }
+  };
 
   const fetchSalaries = async () => {
     try {
@@ -80,9 +162,16 @@ export default function SalariesSection() {
         },
         body: JSON.stringify({
           ...formData,
+          employeeId: formData.employeeId || null,
           amount: formData.amount ? parseFloat(formData.amount) : (formData.accruedAmount ? parseFloat(formData.accruedAmount) : 0),
           accruedAmount: formData.accruedAmount ? parseFloat(formData.accruedAmount) : null,
           issuedAmount: formData.issuedAmount ? parseFloat(formData.issuedAmount) : null,
+          remainingAmount: (() => {
+            const accrued = formData.accruedAmount ? parseFloat(formData.accruedAmount) : 0;
+            const issued = formData.issuedAmount ? parseFloat(formData.issuedAmount) : 0;
+            return accrued - issued;
+          })(),
+          personalId: formData.personalId || null,
         }),
       });
 
@@ -120,14 +209,13 @@ export default function SalariesSection() {
 
   const resetForm = () => {
     setFormData({
+      employeeId: "",
       employeeName: "",
       firstName: "",
       lastName: "",
-      workPeriodStart: "",
-      workPeriodEnd: "",
+      personalId: "",
       accruedAmount: "",
       issuedAmount: "",
-      signature: "",
       amount: "",
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear(),
@@ -140,14 +228,13 @@ export default function SalariesSection() {
 
   const handleEdit = (salary: Salary) => {
     setFormData({
+      employeeId: salary.employeeId || "",
       employeeName: salary.employeeName,
       firstName: salary.firstName || "",
       lastName: salary.lastName || "",
-      workPeriodStart: salary.workPeriodStart ? new Date(salary.workPeriodStart).toISOString().split('T')[0] : "",
-      workPeriodEnd: salary.workPeriodEnd ? new Date(salary.workPeriodEnd).toISOString().split('T')[0] : "",
+      personalId: salary.personalId || "",
       accruedAmount: salary.accruedAmount?.toString() || "",
       issuedAmount: salary.issuedAmount?.toString() || "",
-      signature: salary.signature || "",
       amount: salary.amount.toString(),
       month: salary.month,
       year: salary.year,
@@ -246,6 +333,23 @@ export default function SalariesSection() {
             {editingId ? "რედაქტირება" : "ახალი ხელფასი"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                თანამშრომელი (შენახული სიიდან)
+              </label>
+              <select
+                value={formData.employeeId}
+                onChange={(e) => handleEmployeeSelect(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+              >
+                <option value="">-- აირჩიეთ თანამშრომელი --</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} {emp.personalId ? `(${emp.personalId})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
@@ -299,37 +403,41 @@ export default function SalariesSection() {
                 placeholder="ავტომატურად შეივსება სახელისა და გვარისგან"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  სამუშაო პერიოდის დასაწყისი *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.workPeriodStart}
-                  onChange={(e) => setFormData({ ...formData, workPeriodStart: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                />
-              </div>
-              <div>
-                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  სამუშაო პერიოდის დასასრული *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.workPeriodEnd}
-                  onChange={(e) => setFormData({ ...formData, workPeriodEnd: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                />
-              </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                პირადობის ნომერი (პ/ნ)
+              </label>
+              <input
+                type="text"
+                value={formData.personalId}
+                onChange={(e) => setFormData({ ...formData, personalId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                placeholder="პ/ნ"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  დარიცხული თანხა *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[16px] md:text-[18px] font-medium text-black">
+                    დარიცხული თანხა *
+                  </label>
+                  {formData.employeeId && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const accrued = await calculateAccruedAmount(formData.employeeId, formData.month, formData.year);
+                        if (accrued !== null) {
+                          setFormData({ ...formData, accruedAmount: accrued.toString() });
+                        } else {
+                          alert("ამ თვისთვის ტაბელში ჩანაწერები არ მოიძებნა");
+                        }
+                      }}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      ტაბელიდან გამოთვლა
+                    </button>
+                  )}
+                </div>
                 <input
                   type="number"
                   step="0.01"
@@ -337,6 +445,7 @@ export default function SalariesSection() {
                   value={formData.accruedAmount}
                   onChange={(e) => setFormData({ ...formData, accruedAmount: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  placeholder="ავტომატურად შეივსება ტაბელიდან"
                 />
               </div>
               <div>
@@ -352,18 +461,6 @@ export default function SalariesSection() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                 />
               </div>
-            </div>
-            <div>
-              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                ხელმოწერა
-              </label>
-              <input
-                type="text"
-                value={formData.signature}
-                onChange={(e) => setFormData({ ...formData, signature: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                placeholder="ხელმოწერა"
-              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -464,10 +561,10 @@ export default function SalariesSection() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                სამუშაო პერიოდი (თარიღები)
+                სახელი გვარი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                სახელი გვარი
+                პ/ნ
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 დარიცხული თანხა
@@ -476,7 +573,7 @@ export default function SalariesSection() {
                 გაცემული თანხა
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ხელმოწერა
+                დარჩენილი თანხა
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
@@ -487,14 +584,12 @@ export default function SalariesSection() {
             {salaries.map((salary) => (
               <tr key={salary.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {salary.workPeriodStart && salary.workPeriodEnd
-                    ? `${new Date(salary.workPeriodStart).toLocaleDateString('ka-GE')} - ${new Date(salary.workPeriodEnd).toLocaleDateString('ka-GE')}`
-                    : `${getMonthName(salary.month)} ${salary.year}`}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {salary.firstName && salary.lastName
                     ? `${salary.firstName} ${salary.lastName}`
                     : salary.employeeName}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                  {salary.personalId || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {salary.accruedAmount ? `${salary.accruedAmount.toFixed(2)} ₾` : '-'}
@@ -502,8 +597,15 @@ export default function SalariesSection() {
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {salary.issuedAmount ? `${salary.issuedAmount.toFixed(2)} ₾` : '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {salary.signature || '-'}
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                  {salary.remainingAmount !== null && salary.remainingAmount !== undefined
+                    ? `${salary.remainingAmount.toFixed(2)} ₾`
+                    : (() => {
+                        const accrued = salary.accruedAmount || 0;
+                        const issued = salary.issuedAmount || 0;
+                        const remaining = accrued - issued;
+                        return remaining !== 0 ? `${remaining.toFixed(2)} ₾` : '-';
+                      })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <div className="flex space-x-2">

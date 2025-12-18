@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
     const month = searchParams.get("month"); // Format: YYYY-MM
+    const employeeId = searchParams.get("employeeId");
 
     let whereClause: any = {};
     if (date) {
@@ -42,6 +43,10 @@ export async function GET(request: NextRequest) {
         gte: firstDay,
         lte: lastDay,
       };
+    }
+    
+    if (employeeId) {
+      whereClause.employeeId = employeeId;
     }
 
     const timeEntries = await prisma.employeeTimeEntry.findMany({
