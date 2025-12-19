@@ -41,6 +41,7 @@ export default function SalariesSection() {
   const [editingIssuedAmount, setEditingIssuedAmount] = useState<{ [key: string]: string | undefined }>({});
   const lastAutoCreateRef = useRef<string>("");
   const [accruedAmountsFromTable, setAccruedAmountsFromTable] = useState<{ [key: string]: number }>({});
+  const [loadingAccruedAmounts, setLoadingAccruedAmounts] = useState(false);
   const [expandedSalaryId, setExpandedSalaryId] = useState<string | null>(null);
   const [timeEntriesDetails, setTimeEntriesDetails] = useState<{ [key: string]: any[] }>({});
   const [loadingDetails, setLoadingDetails] = useState<{ [key: string]: boolean }>({});
@@ -64,12 +65,12 @@ export default function SalariesSection() {
     fetchSalaries();
   }, [filterMonth, filterYear]);
 
-  // Fetch accrued amounts from table for all employees
+  // Fetch accrued amounts from table for all employees - fetch immediately when month/year changes
   useEffect(() => {
-    if (filterMonth && filterYear && employees.length > 0) {
+    if (filterMonth && filterYear) {
       fetchAccruedAmountsFromTable();
     }
-  }, [filterMonth, filterYear, employees.length]);
+  }, [filterMonth, filterYear]);
 
   useEffect(() => {
     fetchEmployees();
@@ -237,10 +238,12 @@ export default function SalariesSection() {
   };
 
   const fetchAccruedAmountsFromTable = async () => {
+    setLoadingAccruedAmounts(true);
     try {
       const monthStr = `${filterYear}-${String(filterMonth).padStart(2, '0')}`;
       const response = await fetch(`/api/admin/employee-time-entries?month=${monthStr}`);
       if (!response.ok) {
+        setLoadingAccruedAmounts(false);
         return;
       }
       const timeEntries = await response.json();
@@ -249,15 +252,22 @@ export default function SalariesSection() {
       const amounts: { [key: string]: number } = {};
       for (const entry of timeEntries) {
         const employeeId = entry.employeeId;
-        if (!amounts[employeeId]) {
-          amounts[employeeId] = 0;
+        if (employeeId) {
+          if (!amounts[employeeId]) {
+            amounts[employeeId] = 0;
+          }
+          amounts[employeeId] += entry.dailySalary || 0;
         }
-        amounts[employeeId] += entry.dailySalary || 0;
       }
       
+      console.log("დარიცხული თანხა ტაბელიდან:", amounts);
       setAccruedAmountsFromTable(amounts);
     } catch (err) {
       console.error("Error fetching accrued amounts from table:", err);
+      // Set empty object on error so we don't show stale data
+      setAccruedAmountsFromTable({});
+    } finally {
+      setLoadingAccruedAmounts(false);
     }
   };
 
@@ -501,6 +511,38 @@ export default function SalariesSection() {
     });
     setEditingId(salary.id);
     setShowAddForm(true);
+  };
+
+  const handleDownloadPDF = async (salaryId: string) => {
+    try {
+      const response = await fetch(`/api/admin/salaries/${salaryId}/pdf`);
+      if (!response.ok) {
+        throw new Error("PDF-ის გადმოწერა ვერ მოხერხდა");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "ხელფასის_უწყისი.pdf";
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "PDF-ის გადმოწერისას მოხდა შეცდომა");
+    }
   };
 
   const getMonthName = (month: number) => {
@@ -849,13 +891,42 @@ export default function SalariesSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {(() => {
-                    // Get accrued amount from table if available, otherwise use stored value
+                    // Wait for table data to load before showing any value
                     const employeeId = salary.employeeId;
-                    const accruedFromTable = employeeId ? accruedAmountsFromTable[employeeId] : null;
-                    const accruedAmount = accruedFromTable !== undefined && accruedFromTable !== null 
-                      ? accruedFromTable 
-                      : (salary.accruedAmount || 0);
-                    return accruedAmount > 0 ? `${accruedAmount.toFixed(2)} ₾` : '-';
+                    const employeeName = salary.employeeName || (salary.firstName && salary.lastName ? `${salary.firstName} ${salary.lastName}` : 'Unknown');
+                    
+                    // If still loading, show loading or wait
+                    if (loadingAccruedAmounts && employeeId && accruedAmountsFromTable[employeeId] === undefined) {
+                      return 'იტვირთება...';
+                    }
+                    
+                    // If employee has ID, prioritize table value
+                    if (employeeId && accruedAmountsFromTable[employeeId] !== undefined) {
+                      // Table data is available for this employee
+                      const accruedFromTable = accruedAmountsFromTable[employeeId];
+                      console.log(`დარიცხული თანხა (${employeeName}):`, {
+                        employeeId,
+                        fromTable: accruedFromTable,
+                        stored: salary.accruedAmount,
+                        using: 'table'
+                      });
+                      return accruedFromTable > 0 ? `${accruedFromTable.toFixed(2)} ₾` : '-';
+                    }
+                    
+                    // If no employeeId or table data not available yet, show stored value only if loading is complete
+                    if (!loadingAccruedAmounts) {
+                      const accruedAmount = salary.accruedAmount || 0;
+                      const fromTableValue = employeeId ? accruedAmountsFromTable[employeeId] : undefined;
+                      console.log(`დარიცხული თანხა (${employeeName}):`, {
+                        employeeId,
+                        fromTable: fromTableValue,
+                        stored: salary.accruedAmount,
+                        using: 'stored (no table data)'
+                      });
+                      return accruedAmount > 0 ? `${accruedAmount.toFixed(2)} ₾` : '-';
+                    }
+                    
+                    return 'იტვირთება...';
                   })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
@@ -889,12 +960,16 @@ export default function SalariesSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {(() => {
-                    // Get accrued amount from table if available, otherwise use stored value
+                    // Always prioritize table value if available, only use stored value if no table data
                     const employeeId = salary.employeeId;
-                    const accruedFromTable = employeeId ? accruedAmountsFromTable[employeeId] : null;
-                    const accruedAmount = accruedFromTable !== undefined && accruedFromTable !== null 
-                      ? accruedFromTable 
-                      : (salary.accruedAmount || 0);
+                    let accruedAmount = 0;
+                    if (employeeId && accruedAmountsFromTable[employeeId] !== undefined) {
+                      // Table data is available for this employee
+                      accruedAmount = accruedAmountsFromTable[employeeId];
+                    } else {
+                      // Fallback to stored value only if no table data exists
+                      accruedAmount = salary.accruedAmount || 0;
+                    }
                     const issuedAmount = salary.issuedAmount || 0;
                     const remainingAmount = accruedAmount - issuedAmount;
                     return remainingAmount !== 0 ? `${remainingAmount.toFixed(2)} ₾` : '-';
@@ -903,8 +978,9 @@ export default function SalariesSection() {
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => handleEdit(salary)}
+                      onClick={() => handleDownloadPDF(salary.id)}
                       className="text-blue-600 hover:underline"
+                      title="PDF უწყისის გადმოწერა"
                     >
                      უწყისი
                     </button>
