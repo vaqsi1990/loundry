@@ -564,8 +564,34 @@ export default function SalariesSection() {
     return true; // Keep first occurrence
   });
 
-  const totalAmount = uniqueSalaries.reduce((sum, s) => sum + s.amount, 0);
-  const paidAmount = uniqueSalaries.filter(s => s.status === "PAID").reduce((sum, s) => sum + s.amount, 0);
+  // Calculate total amount using the same logic as displayed in the table
+  // Prioritize accruedAmountsFromTable when available, otherwise use accruedAmount or amount
+  const totalAmount = uniqueSalaries.reduce((sum, s) => {
+    let accruedAmount = 0;
+    if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
+      // Use table value if available (from time entries)
+      accruedAmount = accruedAmountsFromTable[s.employeeId];
+    } else if (!loadingAccruedAmounts) {
+      // Use stored accruedAmount if loading is complete and no table data
+      accruedAmount = s.accruedAmount || s.amount || 0;
+    } else {
+      // Still loading, use stored value as fallback
+      accruedAmount = s.accruedAmount || s.amount || 0;
+    }
+    return sum + accruedAmount;
+  }, 0);
+  
+  const paidAmount = uniqueSalaries.filter(s => s.status === "PAID").reduce((sum, s) => {
+    let accruedAmount = 0;
+    if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
+      accruedAmount = accruedAmountsFromTable[s.employeeId];
+    } else if (!loadingAccruedAmounts) {
+      accruedAmount = s.accruedAmount || s.amount || 0;
+    } else {
+      accruedAmount = s.accruedAmount || s.amount || 0;
+    }
+    return sum + accruedAmount;
+  }, 0);
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
