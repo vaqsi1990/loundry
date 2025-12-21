@@ -21,14 +21,13 @@ export default function CalculatorSection() {
   // State for expense/weight calculator
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
-  const [selectedExpenseId, setSelectedExpenseId] = useState<string>("");
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<Set<string>>(new Set());
   const [totalWeight, setTotalWeight] = useState<number>(0);
-  const [costPerKg, setCostPerKg] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [calculatedExpenseIds, setCalculatedExpenseIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 6;
   const [availableMonths, setAvailableMonths] = useState<Array<{ month: string; count: number }>>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
@@ -96,40 +95,28 @@ export default function CalculatorSection() {
   };
 
   const handleExpenseSelect = (expenseId: string) => {
-    // If selecting a different expense, clear previous calculations
-    if (selectedExpenseId && selectedExpenseId !== expenseId) {
-      setCalculatedExpenseIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(selectedExpenseId);
-        return newSet;
-      });
-    }
-    
-    setSelectedExpenseId(expenseId);
-    if (expenseId && totalWeight > 0) {
-      const expense = expenses.find((e) => e.id === expenseId);
-      if (expense) {
-        const result = expense.amount / totalWeight;
-        setCostPerKg(result);
-        // Add to calculated expenses set
-        setCalculatedExpenseIds((prev) => new Set(prev).add(expenseId));
+    setSelectedExpenseIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(expenseId)) {
+        // If already selected, remove it
+        newSet.delete(expenseId);
+        // Also remove from calculated expenses
+        setCalculatedExpenseIds((calcPrev) => {
+          const calcNewSet = new Set(calcPrev);
+          calcNewSet.delete(expenseId);
+          return calcNewSet;
+        });
+      } else {
+        // If not selected, add it
+        newSet.add(expenseId);
+        // Calculate and add to calculated expenses if totalWeight is available
+        if (totalWeight > 0) {
+          setCalculatedExpenseIds((calcPrev) => new Set(calcPrev).add(expenseId));
+        }
       }
-    } else {
-      setCostPerKg(null);
-    }
+      return newSet;
+    });
   };
-
-  const handleCalculateCostPerKg = () => {
-    if (selectedExpenseId && totalWeight > 0) {
-      const expense = expenses.find((e) => e.id === selectedExpenseId);
-      if (expense) {
-        const result = expense.amount / totalWeight;
-        setCostPerKg(result);
-      }
-    }
-  };
-
-  const selectedExpense = expenses.find((e) => e.id === selectedExpenseId);
 
   // Filter expenses by search query
   const filteredExpenses = expenses.filter((expense) =>
@@ -242,6 +229,36 @@ export default function CalculatorSection() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
+                    {/* Total Row */}
+                    <tr className="bg-gray-100 font-bold">
+                      <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
+                        {totalWeight > 0 && selectedExpenseIds.size > 0
+                          ? (filteredExpenses
+                              .filter((exp) => selectedExpenseIds.has(exp.id))
+                              .reduce((sum, exp) => sum + exp.amount, 0) / totalWeight)
+                              .toFixed(4) + " ₾/კგ"
+                          : "0.0000 ₾/კგ"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                        სულ (არჩეული)
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                        {selectedExpenseIds.size > 0
+                          ? `${selectedExpenseIds.size} არჩეული ხარჯი`
+                          : `${filteredExpenses.length} ხარჯი`}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
+                        {selectedExpenseIds.size > 0
+                          ? filteredExpenses
+                              .filter((exp) => selectedExpenseIds.has(exp.id))
+                              .reduce((sum, exp) => sum + exp.amount, 0)
+                              .toFixed(2) + " ₾"
+                          : filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0).toFixed(2) + " ₾"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px]">
+                        -
+                      </td>
+                    </tr>
                     {paginatedExpenses.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-6 py-4 text-center text-black">
@@ -252,12 +269,14 @@ export default function CalculatorSection() {
                       <>
                         {paginatedExpenses.map((expense) => {
                           const calculatedAmount = totalWeight > 0 ? expense.amount / totalWeight : 0;
+                          const isSelected = selectedExpenseIds.has(expense.id);
                           const isCalculated = calculatedExpenseIds.has(expense.id);
+                          
                           return (
                             <tr
                               key={expense.id}
                               className={`hover:bg-gray-50 cursor-pointer ${
-                                selectedExpenseId === expense.id ? "bg-blue-100" : ""
+                                isSelected ? "bg-blue-100" : ""
                               }`}
                               onClick={() => handleExpenseSelect(expense.id)}
                             >
@@ -278,45 +297,22 @@ export default function CalculatorSection() {
                                     handleExpenseSelect(expense.id);
                                   }}
                                   className={`w-full md:w-auto bg-gray-200 text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition hover:bg-gray-300 ${
-                                    selectedExpenseId === expense.id
+                                    isSelected
                                       ? "bg-green-200 hover:bg-green-300"
                                       : ""
                                   }`}
                                 >
-                                  {selectedExpenseId === expense.id ? "არჩეული" : "გამოთვლა"}
+                                  {isSelected ? "არჩეული" : "გამოთვლა"}
                                 </button>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
                                 {isCalculated && totalWeight > 0
                                   ? calculatedAmount.toFixed(4) + " ₾/კგ"
-                                  : "0 ₾/კგ"}
+                                  : "0.0000 ₾/კგ"}
                               </td>
                             </tr>
                           );
                         })}
-                        {/* Total Row */}
-                        <tr className="bg-gray-100 font-bold">
-                          <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
-                            {totalWeight > 0 && calculatedExpenseIds.size > 0
-                              ? filteredExpenses
-                                  .filter((exp) => calculatedExpenseIds.has(exp.id))
-                                  .reduce((sum, exp) => sum + (exp.amount / totalWeight), 0)
-                                  .toFixed(4) + " ₾/კგ"
-                              : "0.0000 ₾/კგ"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                            სულ
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                            {filteredExpenses.length} ხარჯი
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
-                            {filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0).toFixed(2)} ₾
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[14px] md:text-[16px]">
-                            -
-                          </td>
-                        </tr>
                       </>
                     )}
                   </tbody>
@@ -364,7 +360,7 @@ export default function CalculatorSection() {
 
           </div>
 
-          {selectedExpenseId && totalWeight === 0 && !loading && (
+          {selectedExpenseIds.size > 0 && totalWeight === 0 && !loading && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               წონა არ არის ხელმისაწვდომი. შეამოწმეთ ინვოისები.
             </div>
