@@ -42,26 +42,29 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get("date");
     const monthsOnly = searchParams.get("months") === "true";
     const searchQuery = searchParams.get("search");
+    const emailSendsMonthParam = searchParams.get("emailSendsMonth"); // For filtering email sends by month
 
-    // If months=true, return all available months with invoice counts
+    // If months=true, return all available months with email send counts (from DailySheetEmailSend)
     if (monthsOnly) {
-      const invoices = await prisma.invoice.findMany({
+      const emailSends = await prisma.dailySheetEmailSend.findMany({
         select: {
-          createdAt: true,
+          sentAt: true,
         },
         orderBy: {
-          createdAt: "desc",
+          sentAt: "desc",
         },
       });
 
-      // Group by month (YYYY-MM)
+      // Group by month (YYYY-MM) based on sentAt
       const monthMap = new Map<string, number>();
-      invoices.forEach((inv) => {
-        const date = new Date(inv.createdAt);
-        const year = date.getUTCFullYear();
-        const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-        const monthKey = `${year}-${month}`;
-        monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + 1);
+      emailSends.forEach((emailSend) => {
+        if (emailSend.sentAt) {
+          const date = new Date(emailSend.sentAt);
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+          const monthKey = `${year}-${month}`;
+          monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + 1);
+        }
       });
 
       const months = Array.from(monthMap.entries())
@@ -189,7 +192,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all email sends from sheets that have been emailed
+    // Filter by month if emailSendsMonth parameter is provided (YYYY-MM format)
+    let emailSendsWhere: any = {};
+    if (emailSendsMonthParam) {
+      const [y, m] = emailSendsMonthParam.split("-").map(Number);
+      if (y && m && m >= 1 && m <= 12) {
+        const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+        const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1, 0, 0, 0, 0));
+        emailSendsWhere = {
+          sentAt: {
+            gte: start,
+            lt: end,
+          },
+        };
+      }
+    }
+
     const emailSends = await prisma.dailySheetEmailSend.findMany({
+      where: emailSendsWhere,
       include: {
         dailySheet: {
           include: {

@@ -28,6 +28,11 @@ interface InvoiceDaySummary {
   dateDetails?: DateDetail[];
 }
 
+interface MonthOption {
+  month: string; // YYYY-MM format
+  count: number;
+}
+
 export default function InvoicesSection() {
   const [summaries, setSummaries] = useState<InvoiceDaySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,11 +47,17 @@ export default function InvoicesSection() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState(false);
+  const [availableMonths, setAvailableMonths] = useState<MonthOption[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(""); // Empty = all months
+
+  useEffect(() => {
+    fetchAvailableMonths();
+    fetchHotels();
+  }, []);
 
   useEffect(() => {
     fetchInvoices();
-    fetchHotels();
-  }, []);
+  }, [selectedMonth]);
 
   // Debug: log dispatched counts to verify totals
   useEffect(() => {
@@ -60,9 +71,26 @@ export default function InvoicesSection() {
     }
   }, [summaries]);
 
-  const fetchInvoices = async () => {
+  const fetchAvailableMonths = async () => {
     try {
-      const response = await fetch("/api/admin/invoices");
+      const response = await fetch("/api/admin/invoices?months=true");
+      if (!response.ok) {
+        throw new Error("თვეების ჩატვირთვა ვერ მოხერხდა");
+      }
+      const data = await response.json();
+      setAvailableMonths(data.months || []);
+    } catch (err) {
+      console.error("Months fetch error:", err);
+    }
+  };
+
+  const fetchInvoices = async () => {
+    setLoading(true);
+    try {
+      const url = selectedMonth 
+        ? `/api/admin/invoices?emailSendsMonth=${selectedMonth}`
+        : "/api/admin/invoices";
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("ინვოისების ჩატვირთვა ვერ მოხერხდა");
       }
@@ -175,6 +203,25 @@ export default function InvoicesSection() {
     return `${day} ${months[month]}, ${year}`;
   };
 
+  const formatMonth = (monthKey: string) => {
+    const [year, month] = monthKey.split("-").map(Number);
+    const months = [
+      "იანვარი",
+      "თებერვალი",
+      "მარტი",
+      "აპრილი",
+      "მაისი",
+      "ივნისი",
+      "ივლისი",
+      "აგვისტო",
+      "სექტემბერი",
+      "ოქტომბერი",
+      "ნოემბერი",
+      "დეკემბერი",
+    ];
+    return `${months[month - 1]} ${year}`;
+  };
+
   const openPdfModal = (hotelName: string | null) => {
     setSuccessMessage("");
     setPdfModal({ open: true, hotelName });
@@ -247,13 +294,27 @@ export default function InvoicesSection() {
             ყველა გაგზავნილი დღის ფურცლის ჯამური მონაცემები თარიღის მიხედვით.
           </p>
         </div>
-        <button
-          onClick={deleteAll}
-          disabled={busy || summaries.length === 0}
-          className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          ყველა წაშლა
-        </button>
+        <div className="flex gap-3 items-center">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">ყველა თვე</option>
+            {availableMonths.map((month) => (
+              <option key={month.month} value={month.month}>
+                {formatMonth(month.month)} ({month.count})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={deleteAll}
+            disabled={busy || summaries.length === 0}
+            className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            ყველა წაშლა
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -264,6 +325,36 @@ export default function InvoicesSection() {
       {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
           {successMessage}
+        </div>
+      )}
+
+      {selectedMonth && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <h3 className="text-lg font-bold text-black mb-2">
+            {formatMonth(selectedMonth)} - ჯამური მონაცემები
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div>
+              <div className="text-gray-600 text-sm">სასტუმროები</div>
+              <div className="text-xl font-bold text-black">{summaries.length}</div>
+            </div>
+            <div>
+              <div className="text-gray-600 text-sm">ფურცლები</div>
+              <div className="text-xl font-bold text-black">{totalSheets}</div>
+            </div>
+            <div>
+              <div className="text-gray-600 text-sm">გაგზავნა (ჯამი)</div>
+              <div className="text-xl font-bold text-black">{totalEmailSendCount}</div>
+            </div>
+            <div>
+              <div className="text-gray-600 text-sm">წონა (კგ)</div>
+              <div className="text-xl font-bold text-black">{totalWeight.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-gray-600 text-sm">სულ თანხა</div>
+              <div className="text-xl font-bold text-black">{totalAmount.toFixed(2)} ₾</div>
+            </div>
+          </div>
         </div>
       )}
 
