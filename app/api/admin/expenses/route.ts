@@ -30,6 +30,38 @@ export async function GET(request: NextRequest) {
     const view = searchParams.get("view");
     const date = searchParams.get("date");
     const month = searchParams.get("month");
+    const monthsOnly = searchParams.get("months") === "true";
+
+    // If months=true, return all available months with expense counts
+    if (monthsOnly) {
+      const expenses = await prisma.expense.findMany({
+        select: {
+          date: true,
+        },
+        orderBy: {
+          date: "desc",
+        },
+      });
+
+      // Group by month (YYYY-MM)
+      const monthMap = new Map<string, number>();
+      expenses.forEach((exp) => {
+        const date = new Date(exp.date);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const monthKey = `${year}-${month}`;
+        monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + 1);
+      });
+
+      const months = Array.from(monthMap.entries())
+        .map(([month, count]) => ({
+          month,
+          count,
+        }))
+        .sort((a, b) => b.month.localeCompare(a.month)); // Most recent first
+
+      return NextResponse.json({ months });
+    }
 
     let where: any = {};
 
