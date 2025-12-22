@@ -645,10 +645,13 @@ export default function InventorySection() {
                   კატეგორია
                 </th>
                 <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
-                  რაოდენობა
+                  სულ შემოსული
                 </th>
                 <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
                   გატანილი რაოდენობა
+                </th>
+                <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
+                  დარჩენილი რაოდენობა
                 </th>
                 <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
                   მიღების თარიღი
@@ -682,7 +685,13 @@ export default function InventorySection() {
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div className="text-[16px] md:text-[18px] text-gray-900 font-medium">
-                      {item.quantity} <span className="text-gray-500">{item.unit}</span>
+                      {(() => {
+                        const totalRemoved = item.movements
+                          .filter(m => m.type === "REMOVAL")
+                          .reduce((sum, m) => sum + m.quantity, 0);
+                        const totalReceived = item.quantity + totalRemoved;
+                        return totalReceived;
+                      })()} <span className="text-gray-500">{item.unit}</span>
                     </div>
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
@@ -690,6 +699,11 @@ export default function InventorySection() {
                       {item.movements
                         .filter(m => m.type === "REMOVAL")
                         .reduce((sum, m) => sum + m.quantity, 0)} <span className="text-gray-500">{item.unit}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                    <div className="text-[16px] md:text-[18px] text-green-600 font-medium">
+                      {item.quantity} <span className="text-gray-500">{item.unit}</span>
                     </div>
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
@@ -707,6 +721,9 @@ export default function InventorySection() {
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div className="text-[16px] md:text-[18px] font-bold text-gray-900">
                       {item.unitPrice ? `${(item.quantity * item.unitPrice).toFixed(2)} ₾` : <span className="text-gray-400">-</span>}
+                      <div className="text-xs text-gray-500 font-normal mt-1">
+                        (დარჩენილი რაოდენობის ჯამი)
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
