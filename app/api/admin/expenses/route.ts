@@ -88,6 +88,17 @@ export async function GET(request: NextRequest) {
 
     const expenses = await prisma.expense.findMany({
       where,
+      include: {
+        inventory: {
+          select: {
+            id: true,
+            itemName: true,
+            category: true,
+            unit: true,
+            unitPrice: true,
+          },
+        },
+      },
       orderBy: {
         date: "desc",
       },
@@ -127,7 +138,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { category, description, amount, date, isRecurring } = body;
+    const { category, description, amount, date, isRecurring, inventoryId } = body;
 
     const expense = await prisma.expense.create({
       data: {
@@ -136,6 +147,7 @@ export async function POST(request: NextRequest) {
         amount,
         date: new Date(date),
         isRecurring: isRecurring || false,
+        inventoryId: inventoryId || null,
       },
     });
 

@@ -277,6 +277,7 @@ model Inventory {
   updatedAt       DateTime          @updatedAt
 
   movements       InventoryMovement[]
+  expenses        Expense[]
 
   @@index([category])
 }
@@ -304,11 +305,14 @@ model Expense {
   amount          Float
   date            DateTime      @db.Date
   isRecurring     Boolean       @default(false)
+  inventoryId     String?       // Reference to Inventory if expense is from inventory removal
+  inventory       Inventory?    @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   @@index([date])
   @@index([category])
+  @@index([inventoryId])
 }
 
 model Salary {

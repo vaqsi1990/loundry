@@ -10,14 +10,52 @@ interface Expense {
   date: string;
   isRecurring: boolean;
   createdAt: string;
+  inventoryId?: string | null;
+  inventory?: {
+    id: string;
+    itemName: string;
+    category: string | null;
+    unit: string;
+    unitPrice: number | null;
+  } | null;
 }
+
+interface InventoryItem {
+  id: string;
+  itemName: string;
+  category: string | null;
+  quantity: number;
+  unit: string;
+  unitPrice: number | null;
+  supplier: string | null;
+  receiptDate: string | null;
+}
+
+const CATEGORY_LABELS: { [key: string]: string } = {
+  UTILITIES: "კომუნალური",
+  RENT: "ქირა",
+  SALARIES: "ხელფასები",
+  SUPPLIES: "მარაგი",
+  TRANSPORT: "ტრანსპორტი",
+  OTHER: "სხვა",
+  // Inventory categories
+  KALMEBI: "კალმები",
+  SKOCHI: "სკოჩი",
+  PKHVNILI: "ფხვნილი",
+  KLORI: "ქლორი",
+  PERADI_STIKERI: "ფერადი სტიკერი",
+  TETRI_STIKERI: "თეთრი სტიკერი",
+};
 
 export default function ExpensesSection() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
+  const [showInventorySection, setShowInventorySection] = useState(true);
+  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "all">("all");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [calculatorTotal, setCalculatorTotal] = useState(0);
@@ -33,13 +71,19 @@ export default function ExpensesSection() {
 
   useEffect(() => {
     fetchExpenses();
+    fetchInventoryItems();
   }, [viewMode, selectedDate, selectedMonth]);
 
   const fetchExpenses = async () => {
     try {
-      const params = viewMode === "daily" 
-        ? `?view=daily&date=${selectedDate}`
-        : `?view=monthly&month=${selectedMonth}`;
+      setLoading(true);
+      let params = "";
+      if (viewMode === "daily") {
+        params = `?view=daily&date=${selectedDate}`;
+      } else if (viewMode === "monthly") {
+        params = `?view=monthly&month=${selectedMonth}`;
+      }
+      // If viewMode is "all", no params needed - will fetch all expenses
       
       const response = await fetch(`/api/admin/expenses${params}`);
       if (!response.ok) {
@@ -51,6 +95,22 @@ export default function ExpensesSection() {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInventoryItems = async () => {
+    try {
+      setInventoryLoading(true);
+      const response = await fetch("/api/admin/inventory");
+      if (!response.ok) {
+        throw new Error("ინვენტარის ჩატვირთვა ვერ მოხერხდა");
+      }
+      const data = await response.json();
+      setInventoryItems(data);
+    } catch (err) {
+      console.error("Inventory fetch error:", err);
+    } finally {
+      setInventoryLoading(false);
     }
   };
 
@@ -135,6 +195,48 @@ export default function ExpensesSection() {
     setCalculatorTotal(total);
   };
 
+  const createExpenseFromInventory = async (item: InventoryItem, quantity: number) => {
+    if (!item.unitPrice || item.unitPrice <= 0) {
+      setError("პროდუქტს არ აქვს ფასი");
+      return;
+    }
+
+    if (quantity <= 0 || quantity > item.quantity) {
+      setError("არასწორი რაოდენობა");
+      return;
+    }
+
+    try {
+      const totalAmount = quantity * item.unitPrice;
+      const description = `${item.itemName} - ${quantity} ${item.unit}`;
+      
+      const response = await fetch("/api/admin/expenses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          category: "SUPPLIES",
+          description: description,
+          amount: totalAmount,
+          date: new Date().toISOString().split("T")[0],
+          isRecurring: false,
+          inventoryId: item.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "ოპერაცია ვერ მოხერხდა");
+      }
+
+      await fetchExpenses();
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
   const filteredExpenses = expenses;
   const totalAmount = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
@@ -146,12 +248,6 @@ export default function ExpensesSection() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-black">ხარჯები</h2>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          + დამატება
-        </button>
       </div>
 
       {error && (
@@ -162,6 +258,14 @@ export default function ExpensesSection() {
 
       {/* View Mode Toggle */}
       <div className="mb-4 flex space-x-4">
+        <button
+          onClick={() => setViewMode("all")}
+          className={`px-4 py-2 rounded-lg ${
+            viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+          }`}
+        >
+          ყველა
+        </button>
         <button
           onClick={() => setViewMode("daily")}
           className={`px-4 py-2 rounded-lg ${
@@ -181,23 +285,25 @@ export default function ExpensesSection() {
       </div>
 
       {/* Date/Month Selector */}
-      <div className="mb-4">
-        {viewMode === "daily" ? (
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-black"
-          />
-        ) : (
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-black"
-          />
-        )}
-      </div>
+      {viewMode !== "all" && (
+        <div className="mb-4">
+          {viewMode === "daily" ? (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-black"
+            />
+          ) : (
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-black"
+            />
+          )}
+        </div>
+      )}
 
       {/* Calculator */}
       <div className="bg-gray-50 p-6 rounded-lg mb-6">
@@ -227,109 +333,19 @@ export default function ExpensesSection() {
               </button>
             </div>
           ))}
-          <div className="flex justify-between items-center">
-            <button
-              onClick={addCalculatorItem}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-            >
-              + დამატება
-            </button>
-            <div className="text-lg font-bold text-black">
-              სულ: {calculatorTotal.toFixed(2)} ₾
-            </div>
-          </div>
+        
         </div>
       </div>
 
-      {/* Add Form */}
-      {showAddForm && (
-        <div className="bg-gray-50 p-6 rounded-lg mb-6">
-          <h3 className="text-lg font-semibold text-black mb-4">ახალი ხარჯი</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                კატეგორია *
-              </label>
-              <select
-                required
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-              >
-                <option value="">აირჩიეთ</option>
-                <option value="UTILITIES">კომუნალური</option>
-                <option value="RENT">ქირა</option>
-                <option value="SALARIES">ხელფასები</option>
-                <option value="SUPPLIES">მარაგი</option>
-                <option value="TRANSPORT">ტრანსპორტი</option>
-                <option value="OTHER">სხვა</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                აღწერა *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-              />
-            </div>
-            <div>
-              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                თანხა *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-              />
-            </div>
-            <div>
-              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                თარიღი *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-              />
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="isRecurring"
-                checked={formData.isRecurring}
-                onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
-                className="mr-2"
-              />
-              <label htmlFor="isRecurring" className="text-[16px] md:text-[18px] text-black">
-                განმეორებადი ხარჯი
-              </label>
-            </div>
-            <div className="flex space-x-2">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                დამატება
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
-              >
-                გაუქმება
-              </button>
-            </div>
-          </form>
+
+      {!showInventorySection && (
+        <div className="mb-4">
+          <button
+            onClick={() => setShowInventorySection(true)}
+            className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300 text-sm"
+          >
+            ინვენტარის ჩვენება
+          </button>
         </div>
       )}
 
@@ -361,6 +377,9 @@ export default function ExpensesSection() {
                 განმეორებადი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                ინვენტარი
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
               </th>
             </tr>
@@ -372,7 +391,7 @@ export default function ExpensesSection() {
                   {new Date(expense.date).toLocaleDateString("ka-GE")}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {expense.category}
+                  {CATEGORY_LABELS[expense.category] || expense.category}
                 </td>
                 <td className="px-6 py-4 text-[16px] md:text-[18px] text-black">
                   {expense.description}
@@ -382,6 +401,20 @@ export default function ExpensesSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {expense.isRecurring ? "✓" : "✗"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                  {expense.inventory ? (
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{expense.inventory.itemName}</span>
+                      {expense.inventory.category && (
+                        <span className="text-sm text-gray-600">
+                          {CATEGORY_LABELS[expense.inventory.category] || expense.inventory.category}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <button
