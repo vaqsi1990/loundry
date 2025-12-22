@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { category, description, amount, date, isRecurring, inventoryId } = body;
+    const { category, description, amount, date, isRecurring, excludeFromCalculator, inventoryId } = body;
 
     const expense = await prisma.expense.create({
       data: {
@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
         amount,
         date: new Date(date),
         isRecurring: isRecurring || false,
+        excludeFromCalculator: excludeFromCalculator || false,
         inventoryId: inventoryId || null,
       },
     });

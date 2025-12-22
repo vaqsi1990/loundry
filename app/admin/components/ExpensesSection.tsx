@@ -9,6 +9,7 @@ interface Expense {
   amount: number;
   date: string;
   isRecurring: boolean;
+  excludeFromCalculator: boolean;
   createdAt: string;
   inventoryId?: string | null;
   inventory?: {
@@ -33,18 +34,20 @@ interface InventoryItem {
 
 const CATEGORY_LABELS: { [key: string]: string } = {
   UTILITIES: "კომუნალური",
-  RENT: "ქირა",
-  SALARIES: "ხელფასები",
-  SUPPLIES: "მარაგი",
-  TRANSPORT: "ტრანსპორტი",
-  OTHER: "სხვა",
-  // Inventory categories
+  ONE_TIME: "ერთჯერადი",
+  // Inventory categories (for display purposes)
   KALMEBI: "კალმები",
   SKOCHI: "სკოჩი",
   PKHVNILI: "ფხვნილი",
   KLORI: "ქლორი",
   PERADI_STIKERI: "ფერადი სტიკერი",
   TETRI_STIKERI: "თეთრი სტიკერი",
+  // Legacy categories (for backward compatibility)
+  RENT: "ქირა",
+  SALARIES: "ხელფასები",
+  SUPPLIES: "მარაგი",
+  TRANSPORT: "ტრანსპორტი",
+  OTHER: "სხვა",
 };
 
 export default function ExpensesSection() {
@@ -58,6 +61,7 @@ export default function ExpensesSection() {
   const [viewMode, setViewMode] = useState<"daily" | "monthly" | "all">("all");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [calculatorFilter, setCalculatorFilter] = useState<"all" | "included" | "excluded">("all");
   const [calculatorTotal, setCalculatorTotal] = useState(0);
   const [calculatorItems, setCalculatorItems] = useState<Array<{ description: string; amount: number }>>([]);
   
@@ -67,6 +71,7 @@ export default function ExpensesSection() {
     amount: "",
     date: new Date().toISOString().split("T")[0],
     isRecurring: false,
+    excludeFromCalculator: false,
   });
 
   useEffect(() => {
@@ -127,6 +132,8 @@ export default function ExpensesSection() {
         body: JSON.stringify({
           ...formData,
           amount: parseFloat(formData.amount),
+          // კომუნალური და ერთჯერადი ხარჯები ყოველთვის გამორიცხულია კალკულატორიდან
+          excludeFromCalculator: formData.category === "UTILITIES" || formData.category === "ONE_TIME" ? true : (formData.excludeFromCalculator || false),
         }),
       });
 
@@ -169,8 +176,31 @@ export default function ExpensesSection() {
       amount: "",
       date: new Date().toISOString().split("T")[0],
       isRecurring: false,
+      excludeFromCalculator: false,
     });
     setShowAddForm(false);
+  };
+
+  const handleToggleExcludeFromCalculator = async (id: string, currentValue: boolean) => {
+    try {
+      const response = await fetch(`/api/admin/expenses/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          excludeFromCalculator: !currentValue,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("განახლება ვერ მოხერხდა");
+      }
+
+      await fetchExpenses();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
   };
 
   const addCalculatorItem = () => {
@@ -221,6 +251,7 @@ export default function ExpensesSection() {
           amount: totalAmount,
           date: new Date().toISOString().split("T")[0],
           isRecurring: false,
+          excludeFromCalculator: false, // ინვენტარიდან დამატებული ხარჯები შედის კალკულატორში
           inventoryId: item.id,
         }),
       });
@@ -237,7 +268,16 @@ export default function ExpensesSection() {
     }
   };
 
-  const filteredExpenses = expenses;
+  // Filter expenses by calculator filter
+  const filteredExpenses = expenses.filter((expense) => {
+    if (calculatorFilter === "included") {
+      return !expense.excludeFromCalculator;
+    } else if (calculatorFilter === "excluded") {
+      return expense.excludeFromCalculator;
+    }
+    return true; // "all" - show all expenses
+  });
+  
   const totalAmount = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
   if (loading) {
@@ -248,6 +288,12 @@ export default function ExpensesSection() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-black">ხარჯები</h2>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+        >
+          {showAddForm ? "გაუქმება" : "ხარჯის დამატება"}
+        </button>
       </div>
 
       {error && (
@@ -256,32 +302,152 @@ export default function ExpensesSection() {
         </div>
       )}
 
+      {/* Add Expense Form */}
+      {showAddForm && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h3 className="text-lg font-semibold text-black mb-4">ახალი ხარჯის დამატება</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">
+                  კატეგორია *
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => {
+                    const newCategory = e.target.value;
+                    setFormData({ 
+                      ...formData, 
+                      category: newCategory,
+                      // კომუნალური და ერთჯერადი ხარჯები ავტომატურად გამორიცხულია კალკულატორიდან
+                      excludeFromCalculator: newCategory === "UTILITIES" || newCategory === "ONE_TIME"
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  required
+                >
+                  <option value="">აირჩიეთ კატეგორია</option>
+                  <option value="UTILITIES">კომუნალური</option>
+                  <option value="ONE_TIME">ერთჯერადი</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">
+                  თარიღი *
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">
+                  აღწერა *
+                </label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  placeholder="ხარჯის აღწერა"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">
+                  თანხა (₾) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={formData.excludeFromCalculator}
+                  onChange={(e) => setFormData({ ...formData, excludeFromCalculator: e.target.checked })}
+                  disabled={formData.category === "UTILITIES" || formData.category === "ONE_TIME"}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <span className={`text-sm ${formData.category === "UTILITIES" || formData.category === "ONE_TIME" ? "text-gray-500" : "text-black"}`}>
+                  კალკულატორიდან გამორიცხვა {(formData.category === "UTILITIES" || formData.category === "ONE_TIME") && "(ავტომატური)"}
+                </span>
+              </label>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
+              >
+                გაუქმება
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                დამატება
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* View Mode Toggle */}
-      <div className="mb-4 flex space-x-4">
-        <button
-          onClick={() => setViewMode("all")}
-          className={`px-4 py-2 rounded-lg ${
-            viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-          }`}
-        >
-          ყველა
-        </button>
-        <button
-          onClick={() => setViewMode("daily")}
-          className={`px-4 py-2 rounded-lg ${
-            viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-          }`}
-        >
-          ყოველდღიური
-        </button>
-        <button
-          onClick={() => setViewMode("monthly")}
-          className={`px-4 py-2 rounded-lg ${
-            viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-          }`}
-        >
-          ყოველთვიური
-        </button>
+      <div className="mb-4 flex flex-col md:flex-row gap-4">
+        <div className="flex space-x-4">
+          <button
+            onClick={() => setViewMode("all")}
+            className={`px-4 py-2 rounded-lg ${
+              viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+            }`}
+          >
+            ყველა
+          </button>
+          <button
+            onClick={() => setViewMode("daily")}
+            className={`px-4 py-2 rounded-lg ${
+              viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+            }`}
+          >
+            ყოველდღიური
+          </button>
+          <button
+            onClick={() => setViewMode("monthly")}
+            className={`px-4 py-2 rounded-lg ${
+              viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+            }`}
+          >
+            ყოველთვიური
+          </button>
+        </div>
+        
+        {/* Calculator Filter */}
+        <div className="flex items-center space-x-2">
+          <label className="text-sm font-medium text-black whitespace-nowrap">
+            კალკულატორის ფილტრი:
+          </label>
+          <select
+            value={calculatorFilter}
+            onChange={(e) => setCalculatorFilter(e.target.value as "all" | "included" | "excluded")}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">ყველა</option>
+            <option value="included">კალკულატორში შემავალი</option>
+            <option value="excluded">კალკულატორიდან გამორიცხული</option>
+          </select>
+        </div>
       </div>
 
       {/* Date/Month Selector */}
@@ -352,8 +518,14 @@ export default function ExpensesSection() {
       {/* Summary */}
       <div className="bg-blue-50 p-4 rounded-lg mb-4">
         <div className="text-lg font-bold text-black">
-          სულ: {totalAmount.toFixed(2)} ₾ ({filteredExpenses.length} ხარჯი)
+          სულ: {totalAmount.toFixed(2)} ₾ ({filteredExpenses.length} ხარჯი
+          {calculatorFilter !== "all" && ` - ${calculatorFilter === "included" ? "კალკულატორში შემავალი" : "კალკულატორიდან გამორიცხული"}`})
         </div>
+        {calculatorFilter !== "all" && (
+          <div className="text-sm text-gray-600 mt-1">
+            სულ ხარჯები: {expenses.length} (ნაჩვენები: {filteredExpenses.length})
+          </div>
+        )}
       </div>
 
       {/* Expenses List */}
@@ -376,8 +548,9 @@ export default function ExpensesSection() {
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 განმეორებადი
               </th>
+             
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                ინვენტარი
+                კალკულატორიდან გამორიცხული
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
@@ -402,19 +575,21 @@ export default function ExpensesSection() {
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {expense.isRecurring ? "✓" : "✗"}
                 </td>
+             
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {expense.inventory ? (
-                    <div className="flex flex-col">
-                      <span className="font-semibold">{expense.inventory.itemName}</span>
-                      {expense.inventory.category && (
-                        <span className="text-sm text-gray-600">
-                          {CATEGORY_LABELS[expense.inventory.category] || expense.inventory.category}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleExcludeFromCalculator(expense.id, expense.excludeFromCalculator);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-sm ${
+                      expense.excludeFromCalculator
+                        ? "bg-red-100 text-red-700 hover:bg-red-200"
+                        : "bg-green-100 text-green-700 hover:bg-green-200"
+                    }`}
+                  >
+                    {expense.excludeFromCalculator ? "გამორიცხული" : "ჩართული"}
+                  </button>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <button

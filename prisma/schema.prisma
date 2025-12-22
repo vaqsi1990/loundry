@@ -299,16 +299,17 @@ model InventoryMovement {
 }
 
 model Expense {
-  id              String        @id @default(cuid())
-  category        String        // Utilities, Rent, Salaries, Supplies, etc.
-  description     String
-  amount          Float
-  date            DateTime      @db.Date
-  isRecurring     Boolean       @default(false)
-  inventoryId     String?       // Reference to Inventory if expense is from inventory removal
-  inventory       Inventory?    @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  category            String        // Utilities, Rent, Salaries, Supplies, etc.
+  description         String
+  amount              Float
+  date                DateTime      @db.Date
+  isRecurring         Boolean       @default(false)
+  excludeFromCalculator Boolean     @default(false) // Exclude from calculator calculations
+  inventoryId         String?       // Reference to Inventory if expense is from inventory removal
+  inventory           Inventory?    @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([date])
   @@index([category])
