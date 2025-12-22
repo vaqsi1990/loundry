@@ -34,6 +34,15 @@ enum EmployeeRole {
   OTHER
 }
 
+enum InventoryCategory {
+  KALMEBI        // კალმები
+  SKOCHI         // სკოჩი
+  PKHVNILI       // ფხვნილი
+  KLORI          // ქლორი
+  PERADI_STIKERI // ფერადი სტიკერი
+  TETRI_STIKERI  // თეთრი სტიკერი
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -255,17 +264,17 @@ model DailySheetItem {
 }
 
 model Inventory {
-  id              String        @id @default(cuid())
+  id              String            @id @default(cuid())
   itemName        String
-  category        String?
+  category        InventoryCategory?
   quantity        Int
-  unit            String        // kg, piece, liter, etc.
+  unit            String            // kg, piece, liter, etc.
   unitPrice       Float?
   supplier        String?
   lastRestocked   DateTime?
-  receiptDate     DateTime?     // მიღების თარიღი
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  receiptDate     DateTime?         // მიღების თარიღი
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   movements       InventoryMovement[]
 

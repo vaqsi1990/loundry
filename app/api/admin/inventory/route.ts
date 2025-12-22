@@ -26,7 +26,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get month filter from query parameters
+    const { searchParams } = new URL(request.url);
+    const month = searchParams.get("month"); // Format: "YYYY-MM"
+
+    let whereClause: any = {};
+
+    // Filter by month if provided
+    if (month) {
+      const [year, monthNum] = month.split("-").map(Number);
+      const startDate = new Date(year, monthNum - 1, 1);
+      const endDate = new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+      whereClause.receiptDate = {
+        gte: startDate,
+        lte: endDate,
+      };
+    }
+
     const items = await prisma.inventory.findMany({
+      where: whereClause,
       include: {
         movements: {
           orderBy: {

@@ -24,6 +24,15 @@ interface InventoryItem {
   movements: InventoryMovement[];
 }
 
+const CATEGORY_OPTIONS = [
+  { value: "KALMEBI", label: "კალმები" },
+  { value: "SKOCHI", label: "სკოჩი" },
+  { value: "PKHVNILI", label: "ფხვნილი" },
+  { value: "KLORI", label: "ქლორი" },
+  { value: "PERADI_STIKERI", label: "ფერადი სტიკერი" },
+  { value: "TETRI_STIKERI", label: "თეთრი სტიკერი" },
+];
+
 export default function InventorySection() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +40,7 @@ export default function InventorySection() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   
   const [formData, setFormData] = useState({
     itemName: "",
@@ -50,11 +60,15 @@ export default function InventorySection() {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [selectedMonth]);
 
   const fetchItems = async () => {
     try {
-      const response = await fetch("/api/admin/inventory");
+      setLoading(true);
+      const url = selectedMonth 
+        ? `/api/admin/inventory?month=${selectedMonth}`
+        : "/api/admin/inventory";
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("საწყობის ჩატვირთვა ვერ მოხერხდა");
       }
@@ -220,17 +234,38 @@ export default function InventorySection() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
         <h2 className="text-xl font-bold text-black">საწყობი</h2>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowAddForm(true);
-          }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          + დამატება
-        </button>
+        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+          <div className="flex items-center gap-2">
+            <label className="text-[16px] md:text-[18px] font-medium text-black whitespace-nowrap">
+              თვე:
+            </label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-black"
+            />
+            {selectedMonth && (
+              <button
+                onClick={() => setSelectedMonth("")}
+                className="px-3 py-2 bg-gray-200 text-black rounded-md hover:bg-gray-300 text-sm"
+              >
+                ყველა თვე
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowAddForm(true);
+            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 whitespace-nowrap"
+          >
+            + დამატება
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -239,26 +274,13 @@ export default function InventorySection() {
         </div>
       )}
 
-      {/* Balance Block - ნაშთის ბლოკი */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-        <h3 className="text-lg font-bold text-black mb-4">ნაშთი</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm">
-              <div className="font-semibold text-black text-[16px] md:text-[18px] mb-2">
-                {item.itemName}
-              </div>
-              <div className="text-[14px] md:text-[16px] text-gray-700">
-                <div>დარჩენილი: <span className="font-bold text-blue-600">{item.quantity} {item.unit}</span></div>
-                {item.category && <div>კატეგორია: {item.category}</div>}
-              </div>
-            </div>
-          ))}
+      {selectedMonth && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded mb-4">
+          ნაჩვენებია: {new Date(selectedMonth + "-01").toLocaleDateString("ka-GE", { year: "numeric", month: "long" })}
         </div>
-        {items.length === 0 && (
-          <div className="text-center py-4 text-gray-600">ნაშთი ცარიელია</div>
-        )}
-      </div>
+      )}
+
+     
 
       {/* Add/Edit Form */}
       {showAddForm && (
@@ -283,12 +305,18 @@ export default function InventorySection() {
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 კატეგორია
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-              />
+              >
+                <option value="">აირჩიეთ კატეგორია</option>
+                {CATEGORY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -466,6 +494,9 @@ export default function InventorySection() {
                 ერთეულის ფასი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                ჯამი
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მომწოდებელი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
@@ -480,7 +511,9 @@ export default function InventorySection() {
                   {item.itemName}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {item.category || "-"}
+                  {item.category 
+                    ? (CATEGORY_OPTIONS.find(opt => opt.value === item.category)?.label || item.category)
+                    : "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {item.quantity} {item.unit}
@@ -492,6 +525,9 @@ export default function InventorySection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {item.unitPrice ? `${item.unitPrice.toFixed(2)} ₾` : "-"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                  {item.unitPrice ? `${(item.quantity * item.unitPrice).toFixed(2)} ₾` : "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   {item.supplier || "-"}
@@ -580,7 +616,9 @@ export default function InventorySection() {
                       {removed.itemName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                      {removed.category || "-"}
+                      {removed.category 
+                        ? (CATEGORY_OPTIONS.find(opt => opt.value === removed.category)?.label || removed.category)
+                        : "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                       {removed.quantity} {removed.unit}
