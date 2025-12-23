@@ -315,105 +315,125 @@ export default function ExpensesSection() {
         </div>
       )}
 
-      {/* Add Expense Form */}
+      {/* Add Expense Form Modal */}
       {showAddForm && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold text-black mb-4">ახალი ხარჯის დამატება</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  კატეგორია *
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => {
-                    const newCategory = e.target.value;
-                    setFormData({ 
-                      ...formData, 
-                      category: newCategory,
-                      // კომუნალური შედის კალკულატორში, ერთჯერადი გამორიცხულია
-                      excludeFromCalculator: newCategory === "ONE_TIME"
-                    });
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  required
-                >
-                  <option value="">აირჩიეთ კატეგორია</option>
-                  <option value="UTILITIES">კომუნალური</option>
-                  <option value="ONE_TIME">ერთჯერადი</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  თარიღი *
-                </label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[16px] font-medium text-black mb-1">
-                  სახელი *
-                </label>
-                <input
-                  type="text"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  placeholder="ხარჯის სახელი"
-                  required
-                />
-              </div>
-              <div>
-                  <label className="block text-[16px] font-medium text-black mb-1">
-                  თანხა (₾) *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={formData.excludeFromCalculator}
-                  onChange={(e) => setFormData({ ...formData, excludeFromCalculator: e.target.checked })}
-                  disabled={formData.category === "ONE_TIME"}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <span className={`text-[16px] ${formData.category === "ONE_TIME" ? "text-gray-500" : "text-black"}`}>
-                  კალკულაციიდან გამორიცხვა {formData.category === "ONE_TIME" && "(ავტომატური)"}
-                </span>
-              </label>
-            </div>
-            <div className="flex justify-end space-x-3">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              resetForm();
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-xl font-semibold text-black">ახალი ხარჯის დამატება</h3>
               <button
-                type="button"
                 onClick={resetForm}
-                className="px-4 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
+                className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                aria-label="დახურვა"
               >
-                გაუქმება
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                დამატება
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-          </form>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    კატეგორია *
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => {
+                      const newCategory = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        category: newCategory,
+                        // კომუნალური შედის კალკულატორში, ერთჯერადი გამორიცხულია
+                        excludeFromCalculator: newCategory === "ONE_TIME"
+                      });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    required
+                  >
+                    <option value="">აირჩიეთ კატეგორია</option>
+                    <option value="UTILITIES">კომუნალური</option>
+                    <option value="ONE_TIME">ერთჯერადი</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    თარიღი *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    სახელი *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    placeholder="ხარჯის სახელი"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    თანხა (₾) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col md:flex-row gap-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.excludeFromCalculator}
+                    onChange={(e) => setFormData({ ...formData, excludeFromCalculator: e.target.checked })}
+                    disabled={formData.category === "ONE_TIME"}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className={`text-[16px] ${formData.category === "ONE_TIME" ? "text-gray-500" : "text-black"}`}>
+                    კალკულაციიდან გამორიცხვა {formData.category === "ONE_TIME" && "(ავტომატური)"}
+                  </span>
+                </label>
+              </div>
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-4 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
+                >
+                  გაუქმება
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  დამატება
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
