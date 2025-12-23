@@ -45,7 +45,7 @@ const CATEGORY_LABELS: { [key: string]: string } = {
   // Legacy categories (for backward compatibility)
   RENT: "ქირა",
   SALARIES: "ხელფასები",
-  SUPPLIES: "მარაგი",
+  SUPPLIES: "საწყობი",
   TRANSPORT: "ტრანსპორტი",
   OTHER: "სხვა",
 };
@@ -65,6 +65,11 @@ export default function ExpensesSection() {
   const [calculatorTotal, setCalculatorTotal] = useState(0);
   const [calculatorItems, setCalculatorItems] = useState<Array<{ description: string; amount: number }>>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const ALLOWED_CATEGORIES = ["ONE_TIME", "UTILITIES", "SUPPLIES"] as const;
+  const categoryOptions = ALLOWED_CATEGORIES.map((value) => ({
+    value,
+    label: CATEGORY_LABELS[value] || value,
+  }));
   
   const [formData, setFormData] = useState({
     category: "",
@@ -204,6 +209,38 @@ export default function ExpensesSection() {
     }
   };
 
+  const handleChangeCategory = async (id: string, newCategory: string) => {
+    if (!ALLOWED_CATEGORIES.includes(newCategory as typeof ALLOWED_CATEGORIES[number])) {
+      setError("დაუშვებელი კატეგორია");
+      return;
+    }
+    try {
+      const payload: Record<string, unknown> = { category: newCategory };
+      // Keep calculator flag in sync with special categories
+      if (newCategory === "ONE_TIME") {
+        payload.excludeFromCalculator = true;
+      } else if (newCategory === "UTILITIES") {
+        payload.excludeFromCalculator = false;
+      }
+
+      const response = await fetch(`/api/admin/expenses/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("კატეგორიის განახლება ვერ მოხერხდა");
+      }
+
+      await fetchExpenses();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -294,14 +331,14 @@ export default function ExpensesSection() {
   // Group expenses into key buckets for display
   const groupedExpenses = [
     {
-      key: "utilities",
-      title: "კომუნალური",
-      items: filteredExpenses.filter((expense) => expense.category === "UTILITIES"),
-    },
-    {
       key: "one_time",
       title: "ერთჯერადი",
       items: filteredExpenses.filter((expense) => expense.category === "ONE_TIME"),
+    },
+    {
+      key: "utilities",
+      title: "კომუნალური",
+      items: filteredExpenses.filter((expense) => expense.category === "UTILITIES"),
     },
     {
       key: "inventory",
@@ -395,6 +432,7 @@ export default function ExpensesSection() {
                     <option value="">აირჩიეთ კატეგორია</option>
                     <option value="UTILITIES">კომუნალური</option>
                     <option value="ONE_TIME">ერთჯერადი</option>
+                    <option value="SUPPLIES">საწყობი</option>
                   </select>
                 </div>
                 <div>
@@ -662,7 +700,17 @@ export default function ExpensesSection() {
                       {new Date(expense.date).toLocaleDateString("ka-GE")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                      {CATEGORY_LABELS[expense.category] || expense.category}
+                      <select
+                        value={ALLOWED_CATEGORIES.includes(expense.category as typeof ALLOWED_CATEGORIES[number]) ? expense.category : "ONE_TIME"}
+                        onChange={(e) => handleChangeCategory(expense.id, e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-md bg-white text-black"
+                      >
+                        {categoryOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-6 py-4 text-[16px] md:text-[18px] text-black">
                       {expense.description}
@@ -671,15 +719,16 @@ export default function ExpensesSection() {
                       {expense.amount.toFixed(2)} ₾
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      <button
+                        onClick={() => handleToggleExcludeFromCalculator(expense.id, expense.excludeFromCalculator)}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold ${
                           expense.excludeFromCalculator
-                            ? "bg-red-100 text-red-700"
-                            : "bg-green-100 text-green-700"
+                            ? "bg-red-100 text-red-700 hover:bg-red-200"
+                            : "bg-green-100 text-green-700 hover:bg-green-200"
                         }`}
                       >
-                        {expense.excludeFromCalculator ? "არა" : "კი"}
-                      </span>
+                        {expense.excludeFromCalculator ? "გამორთულია" : "ჩართულია"}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                       <div className="flex items-center space-x-3">
