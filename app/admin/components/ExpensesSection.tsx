@@ -681,6 +681,8 @@ export default function ExpensesSection() {
                                     ერთეულის ფასი: {expense.inventory.unitPrice.toFixed(2)} ₾ / {expense.inventory.unit}
                                   </div>
                                 )}
+
+                                
                               </div>
                             </div>
                           )}
@@ -695,6 +697,21 @@ export default function ExpensesSection() {
                                 minute: "2-digit"
                               })}
                             </span>
+                          </div>
+                          <div className="pt-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleExcludeFromCalculator(expense.id, expense.excludeFromCalculator);
+                              }}
+                              className={`px-4 py-2 rounded-lg text-[16px] font-medium ${
+                                expense.excludeFromCalculator
+                                  ? "bg-green-600 text-white hover:bg-green-700"
+                                  : "bg-red-600 text-white hover:bg-red-700"
+                              }`}
+                            >
+                              {expense.excludeFromCalculator ? "კალკულაციაში შეტანა" : "კალკულაციიდან გამოკლება"}
+                            </button>
                           </div>
                         </div>
                       </div>
