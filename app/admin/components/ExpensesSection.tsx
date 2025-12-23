@@ -64,7 +64,7 @@ export default function ExpensesSection() {
   const [calculatorFilter, setCalculatorFilter] = useState<"all" | "included" | "excluded">("all");
   const [calculatorTotal, setCalculatorTotal] = useState(0);
   const [calculatorItems, setCalculatorItems] = useState<Array<{ description: string; amount: number }>>([]);
-  const [expandedExpenses, setExpandedExpenses] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   const [formData, setFormData] = useState({
     category: "",
@@ -204,15 +204,15 @@ export default function ExpensesSection() {
     }
   };
 
-  const toggleExpenseDetails = (id: string) => {
-    setExpandedExpenses((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        newSet.add(id);
+        next.add(key);
       }
-      return newSet;
+      return next;
     });
   };
 
@@ -291,6 +291,40 @@ export default function ExpensesSection() {
     return true; // "all" - show all expenses
   });
   
+  // Group expenses into key buckets for display
+  const groupedExpenses = [
+    {
+      key: "utilities",
+      title: "კომუნალური",
+      items: filteredExpenses.filter((expense) => expense.category === "UTILITIES"),
+    },
+    {
+      key: "one_time",
+      title: "ერთჯერადი",
+      items: filteredExpenses.filter((expense) => expense.category === "ONE_TIME"),
+    },
+    {
+      key: "inventory",
+      title: "საწყობი",
+      items: filteredExpenses.filter(
+        (expense) => expense.category === "SUPPLIES" || expense.inventoryId
+      ),
+    },
+  ];
+
+  // Capture remaining categories to avoid hiding data
+  const groupedIds = new Set(
+    groupedExpenses.flatMap((group) => group.items.map((item) => item.id))
+  );
+  const otherExpenses = filteredExpenses.filter((expense) => !groupedIds.has(expense.id));
+  if (otherExpenses.length) {
+    groupedExpenses.push({
+      key: "other",
+      title: "სხვა",
+      items: otherExpenses,
+    });
+  }
+
   const totalAmount = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
   if (loading) {
@@ -564,53 +598,91 @@ export default function ExpensesSection() {
       {/* Expenses List */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          {/* Hidden table head to keep structure for screen readers */}
+          <thead className="hidden">
             <tr>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider w-12">
-                
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                თარიღი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                პროდუქტის სახელი
-              </th>
-              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                მოქმედებები
-              </th>
+              <th></th>
+              <th>თარიღი</th>
+              <th>კატეგორია</th>
+              <th>პროდუქტის სახელი</th>
+              <th>თანხა</th>
+              <th>კალკულატორში</th>
+              <th>მოქმედებები</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredExpenses.map((expense) => {
-              const isExpanded = expandedExpenses.has(expense.id);
-              return (
-                <Fragment key={expense.id}>
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
-                      <button
-                        onClick={() => toggleExpenseDetails(expense.id)}
-                        className="text-gray-600 hover:text-gray-900 focus:outline-none transition-transform"
-                        aria-label={isExpanded ? "დეტალების დამალვა" : "დეტალების ჩვენება"}
-                      >
+            {groupedExpenses.map((group) => (
+              <Fragment key={group.key}>
+                <tr className="bg-gray-100">
+                  <td colSpan={7} className="px-6 py-3 text-[16px] md:text-[18px] font-semibold text-black">
+                    <button
+                      onClick={() => toggleGroup(group.key)}
+                      className="flex items-center justify-between text-black w-full text-left"
+                      aria-label={expandedGroups.has(group.key) ? "დახურვა" : "გახსნა"}
+                    >
+                      <span className="flex items-center space-x-2">
                         <svg
-                          className={`w-5 h-5 transform transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                          className={`w-5 h-5 transform transition-transform ${expandedGroups.has(group.key) ? "rotate-90" : ""}`}
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
-                      </button>
+                        <span>{group.title} ({group.items.length})</span>
+                      </span>
+                      <span className="text-[16px] font-semibold text-gray-800">
+                        {group.items.reduce((sum, exp) => sum + exp.amount, 0).toFixed(2)} ₾
+                      </span>
+                    </button>
+                  </td>
+                </tr>
+                {expandedGroups.has(group.key) && group.items.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-3 text-[16px] text-gray-600">
+                      არ არის მონაცემი
                     </td>
+                  </tr>
+                )}
+                {expandedGroups.has(group.key) && group.items.length > 0 && (
+                  <tr className="bg-gray-50">
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700"></td>
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700">თარიღი</td>
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700">კატეგორია</td>
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700">პროდუქტის სახელი</td>
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700">თანხა</td>
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700">კალკულატორში</td>
+                    <td className="px-6 py-2 text-[14px] font-semibold text-gray-700">მოქმედებები</td>
+                  </tr>
+                )}
+                {expandedGroups.has(group.key) && group.items.map((expense) => (
+                  <tr key={expense.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]"></td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                       {new Date(expense.date).toLocaleDateString("ka-GE")}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {CATEGORY_LABELS[expense.category] || expense.category}
                     </td>
                     <td className="px-6 py-4 text-[16px] md:text-[18px] text-black">
                       {expense.description}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                      {expense.amount.toFixed(2)} ₾
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          expense.excludeFromCalculator
+                            ? "bg-red-100 text-red-700"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
+                        {expense.excludeFromCalculator ? "არა" : "კი"}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                       <div className="flex items-center space-x-3">
-                       
                         <button
                           onClick={() => handleDelete(expense.id)}
                           className="text-red-600 hover:underline"
@@ -619,109 +691,10 @@ export default function ExpensesSection() {
                         </button>
                       </div>
                     </td>
-              </tr>
-              {isExpanded && (
-                <tr className="bg-gray-50">
-                  <td colSpan={4} className="px-6 py-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[16px]">
-                      <div>
-                        <h4 className="font-semibold text-black mb-2">დეტალური ინფორმაცია</h4>
-                        <div className="space-y-2">
-                          <div>
-                            <span className="font-medium text-gray-700">ID:</span>
-                            <span className="ml-2 text-black">{expense.id}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">კატეგორია:</span>
-                            <span className="ml-2 text-black">{CATEGORY_LABELS[expense.category] || expense.category}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">თარიღი:</span>
-                            <span className="ml-2 text-black">{new Date(expense.date).toLocaleDateString("ka-GE", { 
-                              year: "numeric", 
-                              month: "long", 
-                              day: "numeric" 
-                            })}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">თანხა:</span>
-                            <span className="ml-2 text-black font-semibold">{expense.amount.toFixed(2)} ₾</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">განმეორებადი:</span>
-                            <span className="ml-2 text-black">{expense.isRecurring ? "კი" : "არა"}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">კალკულაციიდან გამორიცხული:</span>
-                            <span className={`ml-2 font-semibold ${expense.excludeFromCalculator ? "text-red-600" : "text-green-600"}`}>
-                              {expense.excludeFromCalculator ? "კი" : "არა"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-black mb-2">დამატებითი ინფორმაცია</h4>
-                        <div className="space-y-2">
-                          <div>
-                            <span className="font-medium text-gray-700">აღწერა:</span>
-                            <p className="mt-1 text-black">{expense.description}</p>
-                          </div>
-                          {expense.inventory && (
-                            <div>
-                              <span className="font-medium text-gray-700">ინვენტარი:</span>
-                              <div className="mt-1 text-black">
-                                <div className="font-semibold">{expense.inventory.itemName}</div>
-                                {expense.inventory.category && (
-                                  <div className="text-[16px] text-gray-600">
-                                    {CATEGORY_LABELS[expense.inventory.category] || expense.inventory.category}
-                                  </div>
-                                )}
-                                {expense.inventory.unitPrice && (
-                                  <div className="text-[16px] text-gray-600">
-                                    ერთეულის ფასი: {expense.inventory.unitPrice.toFixed(2)} ₾ / {expense.inventory.unit}
-                                  </div>
-                                )}
-
-                                
-                              </div>
-                            </div>
-                          )}
-                          <div>
-                            <span className="font-medium text-gray-700">შექმნის თარიღი:</span>
-                            <span className="ml-2 text-black">
-                              {new Date(expense.createdAt).toLocaleDateString("ka-GE", { 
-                                year: "numeric", 
-                                month: "long", 
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit"
-                              })}
-                            </span>
-                          </div>
-                          <div className="pt-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleExcludeFromCalculator(expense.id, expense.excludeFromCalculator);
-                              }}
-                              className={`px-4 py-2 rounded-lg text-[16px] font-medium ${
-                                expense.excludeFromCalculator
-                                  ? "bg-green-600 text-white hover:bg-green-700"
-                                  : "bg-red-600 text-white hover:bg-red-700"
-                              }`}
-                            >
-                              {expense.excludeFromCalculator ? "კალკულაციაში შეტანა" : "კალკულაციიდან გამოკლება"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </Fragment>
-            );
-            })}
+                  </tr>
+                ))}
+              </Fragment>
+            ))}
           </tbody>
         </table>
       </div>
