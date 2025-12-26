@@ -42,6 +42,18 @@ const CATEGORY_OPTIONS = [
   { value: "TETRI_STIKERI", label: "თეთრი სტიკერი" },
 ];
 
+// Helper function to translate unit to Georgian
+const translateUnit = (unit: string): string => {
+  const unitMap: Record<string, string> = {
+    "piece": "ცალი",
+    "kg": "კილოგრამი",
+    "liter": "ლიტრი",
+    "box": "ყუთი",
+    "pack": "პაკეტი",
+  };
+  return unitMap[unit] || unit;
+};
+
 export default function InventorySection() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -691,19 +703,19 @@ export default function InventorySection() {
                           .reduce((sum, m) => sum + m.quantity, 0);
                         const totalReceived = item.quantity + totalRemoved;
                         return totalReceived;
-                      })()} <span className="text-gray-500">{item.unit}</span>
+                      })()} <span className="text-gray-500">{translateUnit(item.unit)}</span>
                     </div>
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div className="text-[16px] md:text-[18px] text-orange-600 font-medium">
                       {item.movements
                         .filter(m => m.type === "REMOVAL")
-                        .reduce((sum, m) => sum + m.quantity, 0)} <span className="text-gray-500">{item.unit}</span>
+                        .reduce((sum, m) => sum + m.quantity, 0)} <span className="text-gray-500">{translateUnit(item.unit)}</span>
                     </div>
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div className="text-[16px] md:text-[18px] text-green-600 font-medium">
-                      {item.quantity} <span className="text-gray-500">{item.unit}</span>
+                      {item.quantity} <span className="text-gray-500">{translateUnit(item.unit)}</span>
                     </div>
                   </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
