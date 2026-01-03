@@ -9,6 +9,7 @@ interface Expense {
   amount: number;
   date: string;
   isRecurring: boolean;
+  excludeFromCalculator: boolean;
 }
 
 interface InvoiceSummary {
@@ -118,9 +119,10 @@ export default function CalculatorSection() {
     });
   };
 
-  // Filter expenses by search query
+  // Filter expenses by search query and exclude from calculator
   const filteredExpenses = expenses.filter((expense) =>
-    expense.description.toLowerCase().includes(searchQuery.toLowerCase())
+    expense.description.toLowerCase().includes(searchQuery.toLowerCase()) &&
+    !expense.excludeFromCalculator
   );
 
   const formatMonth = (monthKey: string) => {

@@ -40,24 +40,34 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <Link
-              href="/admin"
-              className="text-blue-600 hover:underline text-[18px] mb-2 font-bold inline-block"
-            >
-              ← უკან
-            </Link>
-            <h1 className="text-[18px] md:text-[24px] font-bold text-black">
-              საწყობი
-            </h1>
+    <div className="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto">
+        {/* Header Section */}
+        <div className="mb-8">
+          <Link
+            href="/admin"
+            className="inline-flex items-center text-blue-600 hover:text-blue-700 text-base md:text-lg font-medium mb-4 transition-colors duration-200 group"
+          >
+            <span className="mr-2 group-hover:-translate-x-1 transition-transform duration-200">←</span>
+            უკან
+          </Link>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                საწყობის მართვა
+              </h1>
+              <p className="text-gray-600 text-sm md:text-base">
+                პროდუქტების მართვა და კონტროლი
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white shadow rounded-lg p-6">
-          <InventorySection />
+        {/* Main Content Card */}
+        <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
+          <div className="p-6 md:p-8">
+            <InventorySection />
+          </div>
         </div>
       </div>
     </div>

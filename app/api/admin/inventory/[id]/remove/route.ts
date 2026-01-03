@@ -66,16 +66,35 @@ export async function POST(
       },
     });
 
+    const removalDate = date ? new Date(date) : new Date();
+
     // Create removal movement record
     await prisma.inventoryMovement.create({
       data: {
         inventoryId: id,
         type: "REMOVAL",
         quantity: quantity,
-        date: date ? new Date(date) : new Date(),
+        date: removalDate,
         notes: notes || null,
       },
     });
+
+    // Automatically create expense entry for removed inventory item
+    if (item.unitPrice && item.unitPrice > 0) {
+      const totalAmount = quantity * item.unitPrice;
+      const description = `${item.itemName} - ${quantity} ${item.unit}${notes ? ` (${notes})` : ""}`;
+      
+      await prisma.expense.create({
+        data: {
+          category: "SUPPLIES",
+          description: description,
+          amount: totalAmount,
+          date: removalDate,
+          isRecurring: false,
+          inventoryId: id, // Link expense to inventory item
+        },
+      });
+    }
 
     return NextResponse.json(updatedItem);
   } catch (error) {

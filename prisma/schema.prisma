@@ -34,6 +34,15 @@ enum EmployeeRole {
   OTHER
 }
 
+enum InventoryCategory {
+  KALMEBI        // კალმები
+  SKOCHI         // სკოჩი
+  PKHVNILI       // ფხვნილი
+  KLORI          // ქლორი
+  PERADI_STIKERI // ფერადი სტიკერი
+  TETRI_STIKERI  // თეთრი სტიკერი
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -255,19 +264,20 @@ model DailySheetItem {
 }
 
 model Inventory {
-  id              String        @id @default(cuid())
+  id              String            @id @default(cuid())
   itemName        String
-  category        String?
+  category        InventoryCategory?
   quantity        Int
-  unit            String        // kg, piece, liter, etc.
+  unit            String            // kg, piece, liter, etc.
   unitPrice       Float?
   supplier        String?
   lastRestocked   DateTime?
-  receiptDate     DateTime?     // მიღების თარიღი
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  receiptDate     DateTime?         // მიღების თარიღი
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   movements       InventoryMovement[]
+  expenses        Expense[]
 
   @@index([category])
 }
@@ -289,17 +299,21 @@ model InventoryMovement {
 }
 
 model Expense {
-  id              String        @id @default(cuid())
-  category        String        // Utilities, Rent, Salaries, Supplies, etc.
-  description     String
-  amount          Float
-  date            DateTime      @db.Date
-  isRecurring     Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  category            String        // Utilities, Rent, Salaries, Supplies, etc.
+  description         String
+  amount              Float
+  date                DateTime      @db.Date
+  isRecurring         Boolean       @default(false)
+  excludeFromCalculator Boolean     @default(false) // Exclude from calculator calculations
+  inventoryId         String?       // Reference to Inventory if expense is from inventory removal
+  inventory           Inventory?    @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([date])
   @@index([category])
+  @@index([inventoryId])
 }
 
 model Salary {
