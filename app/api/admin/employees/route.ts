@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,6 +75,48 @@ export async function POST(request: NextRequest) {
     const position = formData.get("position") as string;
     const canLogin = formData.get("canLogin") === "true";
     const contractFile = formData.get("contractFile") as File | null;
+    const email = formData.get("email") as string | null;
+    const password = formData.get("password") as string | null;
+
+    // Validate email and password if canLogin is true
+    if (canLogin) {
+      if (!email || !email.trim()) {
+        return NextResponse.json(
+          { error: "ელფოსტა სავალდებულოა, როცა შესვლა ჩართულია" },
+          { status: 400 }
+        );
+      }
+      if (!password || password.length < 6) {
+        return NextResponse.json(
+          { error: "პაროლი სავალდებულოა და უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან" },
+          { status: 400 }
+        );
+      }
+
+      // Check if email already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: email.trim() },
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "ეს ელფოსტა უკვე გამოყენებულია" },
+          { status: 400 }
+        );
+      }
+
+      // Check if employee with this email already exists
+      const existingEmployee = await prisma.employee.findUnique({
+        where: { email: email.trim() },
+      });
+
+      if (existingEmployee) {
+        return NextResponse.json(
+          { error: "ეს ელფოსტა უკვე გამოყენებულია" },
+          { status: 400 }
+        );
+      }
+    }
 
     let contractFilePath: string | null = null;
 
@@ -91,18 +134,49 @@ export async function POST(request: NextRequest) {
       await writeFile(filePath, buffer);
     }
 
-    const employee = await prisma.employee.create({
-      data: {
-        name,
-        personalId: personalId || null,
-        phone,
-        position: position as any,
-        canLogin,
-        contractFile: contractFilePath,
-      },
+    // Determine user role based on position
+    let userRole: "MANAGER" | "MANAGER_ASSISTANT" | "COURIER" = "COURIER";
+    if (position === "MANAGER") {
+      userRole = "MANAGER";
+    } else if (position === "MANAGER_ASSISTANT") {
+      userRole = "MANAGER_ASSISTANT";
+    } else if (position === "COURIER") {
+      userRole = "COURIER";
+    }
+
+    // Create employee and optionally user in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create employee
+      const employee = await tx.employee.create({
+        data: {
+          name,
+          personalId: personalId || null,
+          phone,
+          position: position as any,
+          canLogin,
+          contractFile: contractFilePath,
+          email: canLogin && email ? email.trim() : null,
+        },
+      });
+
+      // Create user if canLogin is true
+      if (canLogin && email && password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await tx.user.create({
+          data: {
+            name: employee.name,
+            email: email.trim(),
+            password: hashedPassword,
+            mobileNumber: phone,
+            role: userRole,
+          },
+        });
+      }
+
+      return employee;
     });
 
-    return NextResponse.json(employee, { status: 201 });
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Employee create error:", error);
     return NextResponse.json(

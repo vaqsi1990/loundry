@@ -28,6 +28,8 @@ export default function EmployeesSection() {
     position: "OTHER" as "MANAGER" | "MANAGER_ASSISTANT" | "COURIER" | "OTHER",
     canLogin: false,
     contractFile: null as File | null,
+    email: "",
+    password: "",
   });
 
   useEffect(() => {
@@ -58,11 +60,15 @@ export default function EmployeesSection() {
     formDataToSend.append("phone", formData.phone);
     formDataToSend.append("position", formData.position);
     formDataToSend.append("canLogin", formData.canLogin.toString());
-    if (formData.personalId) {
-      formDataToSend.append("personalId", formData.personalId);
-    }
+    formDataToSend.append("personalId", formData.personalId);
     if (formData.contractFile) {
       formDataToSend.append("contractFile", formData.contractFile);
+    }
+    if (formData.email) {
+      formDataToSend.append("email", formData.email);
+    }
+    if (formData.password) {
+      formDataToSend.append("password", formData.password);
     }
 
     try {
@@ -114,6 +120,8 @@ export default function EmployeesSection() {
       position: "OTHER",
       canLogin: false,
       contractFile: null,
+      email: "",
+      password: "",
     });
     setShowAddForm(false);
     setEditingId(null);
@@ -127,6 +135,8 @@ export default function EmployeesSection() {
       position: employee.position as any,
       canLogin: employee.canLogin,
       contractFile: null,
+      email: employee.email || "",
+      password: "",
     });
     setEditingId(employee.id);
     setShowAddForm(true);
@@ -171,11 +181,21 @@ export default function EmployeesSection() {
       )}
 
       {showAddForm && (
-        <div className="bg-gray-50 p-6 rounded-lg mb-6">
-          <h3 className="text-lg font-semibold text-black mb-4">
-            {editingId ? "რედაქტირება" : "ახალი თანამშრომელი"}
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-black">
+                {editingId ? "რედაქტირება" : "ახალი თანამშრომელი"}
+              </h3>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 სახელი *
@@ -190,13 +210,15 @@ export default function EmployeesSection() {
             </div>
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                პ/ნ (პირადობის ნომერი)
+                პ/ნ (პირადობის ნომერი) *
               </label>
               <input
                 type="text"
+                required
                 value={formData.personalId}
                 onChange={(e) => setFormData({ ...formData, personalId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                placeholder="მაგ: 01001012345"
               />
             </div>
             <div>
@@ -258,6 +280,35 @@ export default function EmployeesSection() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
               />
             </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                ელფოსტა {formData.canLogin ? "*" : ""}
+              </label>
+              <input
+                type="email"
+                required={formData.canLogin}
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                placeholder="example@email.com"
+                disabled={!formData.canLogin}
+              />
+            </div>
+            <div>
+              <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+                პაროლი {formData.canLogin && !editingId ? "*" : editingId ? "(დატოვეთ ცარიელი, თუ არ გსურთ შეცვლა)" : ""}
+              </label>
+              <input
+                type="password"
+                required={!editingId && formData.canLogin}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                placeholder={editingId ? "დატოვეთ ცარიელი, თუ არ გსურთ შეცვლა" : formData.canLogin ? "მინიმუმ 6 სიმბოლო" : "ჩართეთ 'შეუძლია სისტემაში შესვლა'"}
+                minLength={editingId ? 0 : 6}
+                disabled={!formData.canLogin}
+              />
+            </div>
             <div className="flex space-x-2">
               <button
                 type="submit"
@@ -274,6 +325,7 @@ export default function EmployeesSection() {
               </button>
             </div>
           </form>
+          </div>
         </div>
       )}
 

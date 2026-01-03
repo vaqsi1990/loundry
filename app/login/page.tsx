@@ -90,15 +90,7 @@ function LoginForm() {
           <h2 className="mt-6 text-center text-[24px] md:text-[28px] font-extrabold text-black">
             შესვლა
           </h2>
-          <p className="mt-2 text-center text-[16px] md:text-[18px] text-black">
-            ან{" "}
-            <Link
-              href="/register"
-              className="font-medium text-[16px] md:text-[18px] text-blue-600 hover:text-blue-500"
-            >
-              შექმენით ახალი ანგარიში
-            </Link>
-          </p>
+  
         </div>
         <form className="mt-14 space-y-6" onSubmit={handleSubmit}>
           {success && (
