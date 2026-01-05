@@ -8,13 +8,42 @@ import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+// Create transporter with proper Gmail configuration
+const getTransporter = () => {
+  // If custom SMTP settings are provided, use them
+  if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: process.env.SMTP_PORT === "465", // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER || process.env.EMAIL_USER,
+        pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD,
+      },
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certificates
+      },
+    });
+  }
+
+  // Default to Gmail with TLS (port 587) as fallback
+  // Don't use service: "gmail" as it defaults to port 465
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // false for 587 (TLS), true for 465 (SSL)
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+    tls: {
+      rejectUnauthorized: false,
+      ciphers: "SSLv3",
+    },
+  });
+};
+
+const transporter = getTransporter();
 
 // Seller information
 const SELLER_INFO = {
@@ -628,9 +657,26 @@ export async function POST(request: NextRequest) {
       totalAmount
     );
 
+    // Verify transporter configuration
+    console.log("Verifying SMTP connection...");
+    try {
+      await transporter.verify();
+      console.log("SMTP connection verified successfully");
+    } catch (verifyError: any) {
+      console.error("SMTP verification failed:", verifyError);
+      throw new Error(`SMTP კონფიგურაცია არასწორია: ${verifyError?.message || verifyError}`);
+    }
+
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
+    console.log("Sending invoice email:", {
+      from: fromEmail,
+      to: recipientEmail,
+      subject: `ინვოისი - ${hotel.hotelName}`,
+    });
+
     // Send email with PDF attachment
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: fromEmail,
       to: recipientEmail,
       subject: `ინვოისი - ${hotel.hotelName}`,
       text: `გთხოვთ იხილოთ მიმაგრებული ინვოისი ${hotel.hotelName}-ისთვის.`,
@@ -643,9 +689,32 @@ export async function POST(request: NextRequest) {
       ],
     });
 
+    console.log("Invoice email sent successfully to:", recipientEmail);
     return NextResponse.json({ message: "PDF ინვოისი წარმატებით გაიგზავნა" });
-  } catch (error) {
-    console.error("PDF invoice send error:", error);
-    return NextResponse.json({ error: "PDF-ის გაგზავნისას მოხდა შეცდომა" }, { status: 500 });
+  } catch (error: any) {
+    console.error("=== PDF invoice send error ===");
+    console.error("Error message:", error?.message);
+    console.error("Error code:", error?.code);
+    console.error("Error response:", error?.response);
+    console.error("Error responseCode:", error?.responseCode);
+    console.error("Error command:", error?.command);
+    console.error("Error syscall:", error?.syscall);
+    console.error("Error address:", error?.address);
+    console.error("Error port:", error?.port);
+    console.error("Full error:", JSON.stringify(error, null, 2));
+    console.error("Error stack:", error?.stack);
+    console.error("================================");
+    
+    // More detailed error message for user
+    let errorMessage = "PDF-ის გაგზავნისას მოხდა შეცდომა";
+    if (error?.code === "ECONNREFUSED") {
+      errorMessage = `SMTP სერვერთან დაკავშირება ვერ მოხერხდა. შეამოწმეთ SMTP კონფიგურაცია (${error?.address}:${error?.port})`;
+    } else if (error?.code === "EAUTH") {
+      errorMessage = "SMTP ავტორიზაცია ვერ მოხერხდა. შეამოწმეთ EMAIL_USER და EMAIL_PASSWORD";
+    } else if (error?.message) {
+      errorMessage = `შეცდომა: ${error.message}`;
+    }
+    
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

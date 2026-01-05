@@ -152,15 +152,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all hotels that are registered (have userId)
+    // Get all hotels (both registered and unregistered)
     const hotels = await prisma.hotel.findMany({
-      where: {
-        userId: {
-          not: null,
-        },
-      },
       orderBy: {
-        createdAt: "desc",
+        hotelName: "asc",
       },
       include: {
         user: {
