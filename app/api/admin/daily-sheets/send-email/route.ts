@@ -6,43 +6,16 @@ import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
 
-// Create transporter with proper Gmail configuration
-const getTransporter = () => {
-  // If custom SMTP settings are provided, use them
-  if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT),
-      secure: process.env.SMTP_PORT === "465", // true for 465, false for other ports
-      auth: {
-        user: process.env.SMTP_USER || process.env.EMAIL_USER,
-        pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD,
-      },
-      tls: {
-        rejectUnauthorized: false, // Allow self-signed certificates
-      },
-    });
-  }
 
-  // Default to Gmail with TLS (port 587) as fallback
-  // Don't use service: "gmail" as it defaults to port 465
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // false for 587 (TLS), true for 465 (SSL)
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-    tls: {
-      rejectUnauthorized: false,
-      ciphers: "SSLv3",
-    },
-  });
-};
-
-const transporter = getTransporter();
-
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
 function renderSection(
   title: string,
   items: any[],
@@ -151,15 +124,23 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const totalPrice = linenTowelsPrice + protectorsTotal;
 
   return `
-    <div style="font-family:Arial,sans-serif;color:#222;">
-      <div style="display:flex;align-items:center;gap:30px;margin-bottom:16px;">
-        <img src="cid:logo" alt="Logo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;" />
-        <div style="text-align:center;">
-          <h2 style="margin:0 0 8px 0;">დღის ფურცელი</h2>
-          <p style="margin:0 0 4px 0;"><strong>თარიღი:</strong> ${date}</p>
-          <p style="margin:0 0 4px 0;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
+    <!DOCTYPE html>
+    <html lang="ka">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>დღის ფურცელი</title>
+    </head>
+    <body style="margin:0;padding:20px;font-family:Arial,sans-serif;color:#222;background-color:#f5f5f5;">
+      <div style="max-width:800px;margin:0 auto;background-color:#ffffff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display:flex;align-items:center;gap:30px;margin-bottom:16px;border-bottom:2px solid #fde9d9;padding-bottom:16px;">
+          <img src="cid:logo" alt="Logo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;" />
+          <div style="text-align:left;">
+            <h2 style="margin:0 0 8px 0;color:#333;">დღის ფურცელი</h2>
+            <p style="margin:0 0 4px 0;color:#666;"><strong>თარიღი:</strong> ${date}</p>
+            <p style="margin:0 0 4px 0;color:#666;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
+          </div>
         </div>
-      </div>
      
       ${sheet.roomNumber ? `<p style="margin:0 0 8px 0;"><strong>ოთახი:</strong> ${sheet.roomNumber}</p>` : ""}
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
@@ -265,8 +246,31 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           }
         </tfoot>
       </table>
-    </div>
+      </div>
+    </body>
+    </html>
   `;
+}
+
+function renderText(sheet: any) {
+  const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  let text = `დღის ფურცელი\n`;
+  text += `თარიღი: ${date}\n`;
+  text += `სასტუმრო: ${sheet.hotelName || "-"}\n\n`;
+  
+  if (sheet.roomNumber) text += `ოთახი: ${sheet.roomNumber}\n`;
+  if (sheet.description) text += `აღწერა: ${sheet.description}\n`;
+  if (sheet.notes) text += `შენიშვნები: ${sheet.notes}\n`;
+  
+  text += `\nდეტალური ინფორმაცია HTML ვერსიაში.\n`;
+  
+  return text;
 }
 
 export async function POST(req: NextRequest) {
@@ -282,7 +286,7 @@ export async function POST(req: NextRequest) {
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
 
@@ -369,18 +373,36 @@ export async function POST(req: NextRequest) {
       throw new Error(`SMTP კონფიგურაცია არასწორია: ${verifyError?.message || verifyError}`);
     }
 
-    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
+    const fromEmail = process.env.EMAIL_USER;
+    if (!fromEmail) {
+      throw new Error("EMAIL_USER არ არის მითითებული environment variables-ში");
+    }
+    const fromName = process.env.EMAIL_FROM_NAME || "ქინგ ლონდრი";
+    const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+    
+    const subject = `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`;
+    
     console.log("Sending email:", {
-      from: fromEmail,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
-      subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+      subject: subject,
     });
 
     await transporter.sendMail({
-      from: fromEmail,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
-      subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+      replyTo: replyTo,
+      subject: subject,
+      text: renderText(sheet),
       html: renderHtml(sheet, companyName),
+      headers: {
+        "Message-ID": `<${Date.now()}-${Math.random().toString(36)}@${fromEmail.split("@")[1]}>`,
+        "X-Mailer": "NodeMailer",
+        "X-Priority": "3",
+        "Importance": "normal",
+        "MIME-Version": "1.0",
+      },
+      date: new Date(),
       attachments: logoExists
         ? [
             {

@@ -414,7 +414,7 @@ export async function POST(request: NextRequest) {
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
 
@@ -667,20 +667,39 @@ export async function POST(request: NextRequest) {
       throw new Error(`SMTP კონფიგურაცია არასწორია: ${verifyError?.message || verifyError}`);
     }
 
-    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
+    const fromEmail = process.env.EMAIL_USER;
+    if (!fromEmail) {
+      throw new Error("EMAIL_USER არ არის მითითებული environment variables-ში");
+    }
+    const fromName = process.env.EMAIL_FROM_NAME || "ქინგ ლონდრი";
+    const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+    const subject = `ინვოისი - ${hotel.hotelName}`;
+    
     console.log("Sending invoice email:", {
-      from: fromEmail,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
-      subject: `ინვოისი - ${hotel.hotelName}`,
+      subject: subject,
     });
 
     // Send email with PDF attachment
     await transporter.sendMail({
-      from: fromEmail,
+      from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
-      subject: `ინვოისი - ${hotel.hotelName}`,
+      replyTo: replyTo,
+      subject: subject,
       text: `გთხოვთ იხილოთ მიმაგრებული ინვოისი ${hotel.hotelName}-ისთვის.`,
-      html: `<p>გთხოვთ იხილოთ მიმაგრებული ინვოისი <strong>${hotel.hotelName}</strong>-ისთვის.</p>`,
+      html: `<div style="font-family:Arial,sans-serif;padding:20px;">
+        <p>გთხოვთ იხილოთ მიმაგრებული ინვოისი <strong>${hotel.hotelName}</strong>-ისთვის.</p>
+        <p>თუ გაქვთ შეკითხვები, გთხოვთ დაგვიკავშირდეთ.</p>
+      </div>`,
+      headers: {
+        "Message-ID": `<${Date.now()}-${Math.random().toString(36)}@${fromEmail.split("@")[1]}>`,
+        "X-Mailer": "NodeMailer",
+        "X-Priority": "3",
+        "Importance": "normal",
+        "MIME-Version": "1.0",
+      },
+      date: new Date(),
       attachments: [
         {
           filename: `ინვოისი_${hotel.hotelName}_${new Date().toISOString().split("T")[0]}.pdf`,

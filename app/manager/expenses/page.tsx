@@ -4,9 +4,9 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import DailySheetsSection from "../components/DailySheetsSection";
+import ExpensesSection from "../../admin/components/ExpensesSection";
 
-export default function DailySheetsPage() {
+export default function ManagerExpensesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -18,7 +18,7 @@ export default function DailySheetsPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
+      if (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -36,7 +36,7 @@ export default function DailySheetsPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  if (!session || (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
+  if (!session || (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
     return null;
   }
 
@@ -46,19 +46,19 @@ export default function DailySheetsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Link
-              href="/admin"
+              href="/manager"
               className="text-blue-600 hover:underline text-[18px] mb-2 font-bold inline-block"
             >
               ← უკან
             </Link>
             <h1 className="text-[18px] md:text-[24px] font-bold text-black">
-              დღის ფურცელი
+              ხარჯები
             </h1>
           </div>
         </div>
 
         <div className="bg-white shadow rounded-lg p-6">
-          <DailySheetsSection />
+          <ExpensesSection />
         </div>
       </div>
     </div>

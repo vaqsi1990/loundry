@@ -4,9 +4,9 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import InventorySection from "../components/InventorySection";
+import InventorySection from "../../admin/components/InventorySection";
 
-export default function InventoryPage() {
+export default function ManagerInventoryPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -18,7 +18,7 @@ export default function InventoryPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
+      if (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -36,17 +36,16 @@ export default function InventoryPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  if (!session || (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
+  if (!session || (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
     return null;
   }
 
   return (
     <div className="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto">
-        {/* Header Section */}
         <div className="mb-8">
           <Link
-            href="/admin"
+            href="/manager"
             className="inline-flex items-center text-blue-600 hover:text-blue-700 text-base md:text-lg font-medium mb-4 transition-colors duration-200 group"
           >
             <span className="mr-2 group-hover:-translate-x-1 transition-transform duration-200">←</span>
@@ -64,7 +63,6 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* Main Content Card */}
         <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
           <div className="p-6 md:p-8">
             <InventorySection />

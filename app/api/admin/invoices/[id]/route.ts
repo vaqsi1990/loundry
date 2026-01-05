@@ -22,7 +22,7 @@ export async function GET(
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json(
         { error: "დაუშვებელია" },
         { status: 403 }
@@ -68,7 +68,7 @@ export async function PATCH(
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json(
         { error: "დაუშვებელია" },
         { status: 403 }
@@ -136,7 +136,7 @@ export async function DELETE(
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json(
         { error: "დაუშვებელია" },
         { status: 403 }

@@ -18,7 +18,7 @@ export default function OurHotelsPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "ADMIN") {
+      if (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -35,7 +35,8 @@ export default function OurHotelsPage() {
     );
   }
 
-  if (!session || (session.user as any)?.role !== "ADMIN") {
+  const userRole = session ? (session.user as any)?.role : null;
+  if (!session || (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
     return null;
   }
 

@@ -22,7 +22,7 @@ export async function POST(
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json(
         { error: "დაუშვებელია" },
         { status: 403 }

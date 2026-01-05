@@ -46,6 +46,12 @@ export default function Header() {
                     ადმინის პანელი
                   </Link>
                 )}
+                {((session.user as any)?.role === "MANAGER" || 
+                  (session.user as any)?.role === "MANAGER_ASSISTANT") && (
+                  <Link href="/manager" className="text-black md:text-[18px] text-[16px] transition">
+                    მენეჯერის პანელი
+                  </Link>
+                )}
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
                   className="w-full md:w-auto bg-gray-200 text-black md:text-[18px] text-[16px] px-6 py-2 rounded-lg cursor-pointer transition hover:bg-gray-300"
@@ -140,6 +146,16 @@ export default function Header() {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     ადმინის პანელი
+                  </Link>
+                )}
+                {((session.user as any)?.role === "MANAGER" || 
+                  (session.user as any)?.role === "MANAGER_ASSISTANT") && (
+                  <Link
+                    href="/manager"
+                    className="block text-black text-[16px] transition"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    მენეჯერის პანელი
                   </Link>
                 )}
                 <button

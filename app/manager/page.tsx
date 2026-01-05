@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
 
-export default function AdminPage() {
+export default function ManagerPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -17,12 +17,8 @@ export default function AdminPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "ADMIN") {
-        if (userRole === "MANAGER" || userRole === "MANAGER_ASSISTANT") {
-          router.push("/manager");
-        } else {
-          router.push("/");
-        }
+      if (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
+        router.push("/");
         return;
       }
     }
@@ -39,119 +35,80 @@ export default function AdminPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  const isAdmin = userRole === "ADMIN";
+  const isManager = userRole === "MANAGER" || userRole === "MANAGER_ASSISTANT";
 
-  if (!session || !isAdmin) {
+  if (!session || !isManager) {
     return null;
   }
 
-  // All sections for admin
-  const allSections = [
-    { 
-      id: "users",
-      label: "მომხმარებლები",
-      description: "მართეთ სისტემაში არსებული მომხმარებლები და მათი ნებართვები",
-      path: "/admin/users",
-      adminOnly: true
-    },
+  const sections = [
     { 
       id: "employees",
       label: "თანამშრომლები",
       description: "მართეთ თანამშრომლების სია და ხელშეკრულებები",
-      path: "/admin/employees"
+      path: "/manager/employees"
     },
     { 
       id: "invoices",
       label: "ინვოისები",
       description: "მართეთ ყველა ინვოისი, სტატუსები და გადახდები",
-      path: "/admin/invoices"
+      path: "/manager/invoices"
     },
     { 
       id: "invoicesArchive",
       label: "ინვოისების არქივი",
       description: "ინვოისების თვიური არქივი და მოძიება",
-      path: "/admin/invoices/archive"
+      path: "/manager/invoices/archive"
     },
     { 
       id: "dailySheets",
       label: "დღის ფურცელი",
       description: "შექმენით და მართეთ დღის ფურცლები",
-      path: "/admin/daily-sheets"
+      path: "/manager/daily-sheets"
     },
     { 
       id: "inventory",
       label: "საწყობი",
       description: "მართეთ საწყობის პროდუქტები",
-      path: "/admin/inventory"
+      path: "/manager/inventory"
     },
     { 
       id: "expenses",
       label: "ხარჯები",
       description: "მართეთ ყველა ხარჯი და კალკულატორი",
-      path: "/admin/expenses"
+      path: "/manager/expenses"
     },
     { 
       id: "salaries",
       label: "ხელფასები",
       description: "მართეთ თანამშრომლების ხელფასები",
-      path: "/admin/salaries"
-    },
-    { 
-      id: "revenues",
-      label: "შემოსავლები",
-      description: "ნახეთ შემოსავლები დღის და თვის მიხედვით",
-      path: "/admin/revenues",
-      adminOnly: true
-    },
-    { 
-      id: "statistics",
-      label: "სტატისტიკა",
-      description: "შედარება თვეების და წლის მიხედვით",
-      path: "/admin/statistics",
-      adminOnly: true
+      path: "/manager/salaries"
     },
     { 
       id: "hotels",
       label: "სასტუმროების ბაზა",
       description: "მართეთ სასტუმროების ბაზა და კონტაქტები",
-      path: "/admin/hotels"
+      path: "/manager/hotels"
     },
     { 
       id: "table",
       label: "ტაბელი",
       description: "გამოიყენეთ ტაბელი მონაცემების შესანახად",
-      path: "/admin/table"
-    },
-    { 
-      id: "calculator",
-      label: "კალკულატორი",
-      description: "გამოიყენეთ კალკულატორი გამოთვლებისთვის",
-      path: "/admin/calculator",
-      adminOnly: true
+      path: "/manager/table"
     },
     { 
       id: "ourHotels",
       label: "ჩვენი სასტუმროები",
       description: "ნახეთ და მართეთ რეგისტრირებული სასტუმროები",
-      path: "/admin/our-hotels"
-    },
-    { 
-      id: "blacklist",
-      label: "შავი სია",
-      description: "მართეთ შავი სია - ბლოკირებული სასტუმროები",
-      path: "/admin/blacklist",
-      adminOnly: true
+      path: "/manager/our-hotels"
     },
   ];
-
-  // Admin sees all sections
-  const sections = allSections;
 
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-[18px] md:text-[24px] font-bold text-black mb-6">
-          ადმინისტრატორის პანელი
+          მენეჯერის პანელი
         </h1>
 
         {/* Sections Grid */}
@@ -168,9 +125,7 @@ export default function AdminPage() {
                 {section.description}
               </p>
               <Link className="w-full bg-white text-black px-4 cursor-pointer py-2 rounded-lg hover:bg-gray-100 font-medium text-[16px] md:text-[18px] transition-colors text-center" href={section.path}>
-          
                 {section.label}
-             
               </Link>
             </div>
           ))}
@@ -179,3 +134,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
