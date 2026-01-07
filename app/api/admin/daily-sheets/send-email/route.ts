@@ -74,7 +74,7 @@ function renderSection(
   `;
 }
 
-function renderHtml(sheet: any, hotelCompanyName?: string | null) {
+function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: string | null) {
   const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
     weekday: "long",
     year: "numeric",
@@ -139,6 +139,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
             <h2 style="margin:0 0 8px 0;color:#333;">დღის ფურცელი</h2>
             <p style="margin:0 0 4px 0;color:#666;"><strong>თარიღი:</strong> ${date}</p>
             <p style="margin:0 0 4px 0;color:#666;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
+            ${managerName ? `<p style="margin:0 0 4px 0;color:#666;"><strong>მენეჯერი:</strong> ${managerName}</p>` : ""}
           </div>
         </div>
      
@@ -157,13 +158,13 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">რეცხვის რაოდენობა (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დატოვებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">სულ წონა (კგ)</th>
                 `
                 : `
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დატოვებული (ც.)</th>
                 `
             }
             ${showPriceColumn ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">1 ც-ის ფასი (₾) *</th>' : ""}
@@ -252,7 +253,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   `;
 }
 
-function renderText(sheet: any) {
+function renderText(sheet: any, managerName?: string | null) {
   const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
     weekday: "long",
     year: "numeric",
@@ -262,7 +263,9 @@ function renderText(sheet: any) {
 
   let text = `დღის ფურცელი\n`;
   text += `თარიღი: ${date}\n`;
-  text += `სასტუმრო: ${sheet.hotelName || "-"}\n\n`;
+  text += `სასტუმრო: ${sheet.hotelName || "-"}\n`;
+  if (managerName) text += `მენეჯერი: ${managerName}\n`;
+  text += `\n`;
   
   if (sheet.roomNumber) text += `ოთახი: ${sheet.roomNumber}\n`;
   if (sheet.description) text += `აღწერა: ${sheet.description}\n`;
@@ -283,7 +286,7 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { role: true, name: true },
     });
 
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
@@ -382,6 +385,9 @@ export async function POST(req: NextRequest) {
     
     const subject = `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`;
     
+    // Get manager name if user is MANAGER or MANAGER_ASSISTANT
+    const managerName = (user.role === "MANAGER" || user.role === "MANAGER_ASSISTANT") ? user.name : null;
+    
     console.log("Sending email:", {
       from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
@@ -393,8 +399,8 @@ export async function POST(req: NextRequest) {
       to: recipientEmail,
       replyTo: replyTo,
       subject: subject,
-      text: renderText(sheet),
-      html: renderHtml(sheet, companyName),
+      text: renderText(sheet, managerName),
+      html: renderHtml(sheet, companyName, managerName),
       headers: {
         "Message-ID": `<${Date.now()}-${Math.random().toString(36)}@${fromEmail.split("@")[1]}>`,
         "X-Mailer": "NodeMailer",

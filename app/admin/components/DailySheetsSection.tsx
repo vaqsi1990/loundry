@@ -151,6 +151,13 @@ export default function DailySheetsSection() {
     fetchHotels();
   }, []);
 
+  useEffect(() => {
+    console.log("Hotels state updated:", hotels.length, "hotels");
+    if (hotels.length > 0) {
+      console.log("Sample hotel:", hotels[0]);
+    }
+  }, [hotels]);
+
   const fetchHotels = async () => {
     try {
       const response = await fetch("/api/admin/our-hotels");
@@ -158,19 +165,35 @@ export default function DailySheetsSection() {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
       }
       const data = await response.json();
+      console.log("Fetched hotels from API:", data?.length || 0, "hotels");
       // Normalize shape from our-hotels API and sort by hotelName alphabetically
       const normalizedHotels = Array.isArray(data)
-        ? data.map((hotel: any) => ({
-            id: hotel.id,
-            hotelName: hotel.hotelName,
-            contactPhone: hotel.mobileNumber,
-            email: hotel.email,
-            pricePerKg: hotel.pricePerKg,
-          }))
+        ? data
+            .filter((hotel: any) => {
+              // Only filter out hotels that are null/undefined or have no hotelName
+              const isValid = hotel && hotel.hotelName && hotel.hotelName.trim() !== "";
+              if (!isValid) {
+                console.warn("Filtered out invalid hotel:", hotel);
+              }
+              return isValid;
+            })
+            .map((hotel: any) => ({
+              id: hotel.id,
+              hotelName: hotel.hotelName.trim(),
+              contactPhone: hotel.mobileNumber || "",
+              email: hotel.email || "",
+              pricePerKg: hotel.pricePerKg || 0,
+            }))
         : [];
+      console.log("Normalized hotels:", normalizedHotels.length, "hotels");
       // Sort hotels alphabetically by hotelName
-      normalizedHotels.sort((a, b) => a.hotelName.localeCompare(b.hotelName, 'ka', { sensitivity: 'base' }));
+      normalizedHotels.sort((a, b) => {
+        if (!a.hotelName) return 1;
+        if (!b.hotelName) return -1;
+        return a.hotelName.localeCompare(b.hotelName, 'ka', { sensitivity: 'base' });
+      });
       setHotels(normalizedHotels);
+      console.log("Set hotels state:", normalizedHotels.length, "hotels");
     } catch (err) {
       console.error("Hotels fetch error:", err);
       setError("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
@@ -547,15 +570,15 @@ export default function DailySheetsSection() {
         <table className="w-full border-collapse border border-gray-300 md:text-[18px] text-[16px]">
           <thead>
             <tr className="bg-orange-100">
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-left font-semibold">დასახელება</th>
+              <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-left font-semibold">დასახელება</th>
               {sheet.sheetType === "INDIVIDUAL" && (
                 <>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">წონა (კგ)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">წონა (კგ)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">დატოვებული (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">სულ წონა (კგ)</th>
                   {showPriceColumn && (
                     <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                   )}
@@ -563,15 +586,15 @@ export default function DailySheetsSection() {
               )}
               {sheet.sheetType === "STANDARD" && (
                 <>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
-                  <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">დეფიციტი (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">მიღებული (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">გაგზავნილი (ც.)</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">დატოვებული (ც.)</th>
                   {showPriceColumn && (
-                    <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
+                    <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                   )}
                 </>
               )}
-              <th className="border border-gray-300 px-2 py-1  md:text-[18px] text-[16px] text-center font-semibold">შენიშვნა</th>
+              <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-center font-semibold">შენიშვნა</th>
             </tr>
           </thead>
           <tbody>
@@ -593,17 +616,17 @@ export default function DailySheetsSection() {
           </tbody>
           <tfoot>
             <tr className="bg-gray-50 font-semibold">
-              <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
+              <td className="border border-gray-300 px-2 py-1 text-left text-black">ჯამი</td>
               {sheet.sheetType === "INDIVIDUAL" && (
                 <>
-                  <td className="border border-gray-300 px-2 py-1 text-center">-</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.washCount}</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.totalWeight.toFixed(2)}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black  ">-</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.received}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.washCount}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.dispatched}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.shortage}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.totalWeight.toFixed(2)}</td>
                   {showPriceColumn && (
-                    <td className="border border-gray-300 px-2 py-1 text-center">
+                    <td className="border border-gray-300 px-2 py-1 text-center text-black ">
                       {protectorsPrice > 0 ? protectorsPrice.toFixed(2) : "-"}
                     </td>
                   )}
@@ -611,9 +634,9 @@ export default function DailySheetsSection() {
               )}
               {sheet.sheetType === "STANDARD" && (
                 <>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.received}</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.dispatched}</td>
-                  <td className="border border-gray-300 px-2 py-1 text-center">{totals.shortage}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.received}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.dispatched}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center text-black ">{totals.shortage}</td>
                   {showPriceColumn && (
                     <td className="border border-gray-300 px-2 py-1 text-center">
                       {protectorsPrice > 0 ? protectorsPrice.toFixed(2) : "-"}
@@ -766,7 +789,7 @@ export default function DailySheetsSection() {
                 </div>
                 <div>
                   <label className="block text-[16px] font-medium text-black mb-1">
-                    სასტუმრო *
+                    სასტუმრო * ({hotels.length} სასტუმრო)
                   </label>
                   <select
                     required
@@ -781,14 +804,23 @@ export default function DailySheetsSection() {
                           : null
                       });
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white"
+                    style={{ 
+                      appearance: 'auto',
+                      WebkitAppearance: 'menulist',
+                      MozAppearance: 'menulist'
+                    }}
                   >
                     <option value="">აირჩიეთ სასტუმრო</option>
-                    {hotels.map((hotel) => (
-                      <option key={hotel.id} value={hotel.hotelName}>
-                        {hotel.hotelName}
-                      </option>
-                    ))}
+                    {hotels.length > 0 ? (
+                      hotels.map((hotel) => (
+                        <option key={hotel.id} value={hotel.hotelName}>
+                          {hotel.hotelName}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>სასტუმროები იტვირთება...</option>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -976,7 +1008,7 @@ export default function DailySheetsSection() {
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">რეცხვის რაოდენობა (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
-                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დატოვებული (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">სულ წონა (კგ)</th>
                                 {showPriceColumn && (
                                   <th className="border border-gray-300 px-2 py-1 text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
@@ -987,7 +1019,7 @@ export default function DailySheetsSection() {
                               <>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">მიღებული (ც.)</th>
                                 <th className="border border-gray-300 px-2 py-1 text-center font-semibold">გაგზავნილი (ც.)</th>
-                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დეფიციტი (ც.)</th>
+                                <th className="border border-gray-300 px-2 py-1 text-center font-semibold">დატოვებული (ც.)</th>
                                 {showPriceColumn && (
                                   <th className="border border-gray-300 px-2 py-1 text-center font-semibold"> 1 ც-ის ფასი (₾) *</th>
                                 )}
