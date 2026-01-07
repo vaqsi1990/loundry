@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import EmployeesSection from "../../admin/components/EmployeesSection";
 
-export default function ManagerEmployeesPage() {
+export default function AssistantEmployeesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -18,7 +18,7 @@ export default function ManagerEmployeesPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "MANAGER") {
+      if (userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -36,7 +36,7 @@ export default function ManagerEmployeesPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  if (!session || userRole !== "MANAGER") {
+  if (!session || userRole !== "MANAGER_ASSISTANT") {
     return null;
   }
 
@@ -46,7 +46,7 @@ export default function ManagerEmployeesPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Link
-              href="/manager"
+              href="/assistant"
               className="text-blue-600 hover:underline text-[18px] mb-2 font-bold inline-block"
             >
               ← უკან

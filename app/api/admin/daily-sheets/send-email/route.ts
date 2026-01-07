@@ -74,7 +74,7 @@ function renderSection(
   `;
 }
 
-function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: string | null) {
+function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: string | null, userRole?: string | null) {
   const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
     weekday: "long",
     year: "numeric",
@@ -139,7 +139,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: 
             <h2 style="margin:0 0 8px 0;color:#333;">დღის ფურცელი</h2>
             <p style="margin:0 0 4px 0;color:#666;"><strong>თარიღი:</strong> ${date}</p>
             <p style="margin:0 0 4px 0;color:#666;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
-            ${managerName ? `<p style="margin:0 0 4px 0;color:#666;"><strong>მენეჯერი:</strong> ${managerName}</p>` : ""}
+            ${managerName ? `<p style="margin:0 0 4px 0;color:#666;"><strong>${userRole === "MANAGER_ASSISTANT" ? "ასისტანტი" : "მენეჯერი"}:</strong> ${managerName}</p>` : ""}
           </div>
         </div>
      
@@ -253,7 +253,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: 
   `;
 }
 
-function renderText(sheet: any, managerName?: string | null) {
+function renderText(sheet: any, managerName?: string | null, userRole?: string | null) {
   const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
     weekday: "long",
     year: "numeric",
@@ -264,7 +264,7 @@ function renderText(sheet: any, managerName?: string | null) {
   let text = `დღის ფურცელი\n`;
   text += `თარიღი: ${date}\n`;
   text += `სასტუმრო: ${sheet.hotelName || "-"}\n`;
-  if (managerName) text += `მენეჯერი: ${managerName}\n`;
+  if (managerName) text += `${userRole === "MANAGER_ASSISTANT" ? "ასისტანტი" : "მენეჯერი"}: ${managerName}\n`;
   text += `\n`;
   
   if (sheet.roomNumber) text += `ოთახი: ${sheet.roomNumber}\n`;
@@ -399,8 +399,8 @@ export async function POST(req: NextRequest) {
       to: recipientEmail,
       replyTo: replyTo,
       subject: subject,
-      text: renderText(sheet, managerName),
-      html: renderHtml(sheet, companyName, managerName),
+      text: renderText(sheet, managerName, user.role),
+      html: renderHtml(sheet, companyName, managerName, user.role),
       headers: {
         "Message-ID": `<${Date.now()}-${Math.random().toString(36)}@${fromEmail.split("@")[1]}>`,
         "X-Mailer": "NodeMailer",

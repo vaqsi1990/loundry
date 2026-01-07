@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import InventorySection from "../../admin/components/InventorySection";
 
-export default function ManagerInventoryPage() {
+export default function AssistantInventoryPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -18,7 +18,7 @@ export default function ManagerInventoryPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "MANAGER") {
+      if (userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -36,7 +36,7 @@ export default function ManagerInventoryPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  if (!session || userRole !== "MANAGER") {
+  if (!session || userRole !== "MANAGER_ASSISTANT") {
     return null;
   }
 
@@ -45,7 +45,7 @@ export default function ManagerInventoryPage() {
       <div className="mx-auto">
         <div className="mb-8">
           <Link
-            href="/manager"
+            href="/assistant"
             className="inline-flex items-center text-blue-600 hover:text-blue-700 text-base md:text-lg font-medium mb-4 transition-colors duration-200 group"
           >
             <span className="mr-2 group-hover:-translate-x-1 transition-transform duration-200">←</span>

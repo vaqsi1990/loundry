@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
 
-export default function ManagerPage() {
+export default function AssistantPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -17,7 +17,7 @@ export default function ManagerPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "MANAGER") {
+      if (userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -35,72 +35,24 @@ export default function ManagerPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  const isManager = userRole === "MANAGER";
+  const isAssistant = userRole === "MANAGER_ASSISTANT";
 
-  if (!session || !isManager) {
+  if (!session || !isAssistant) {
     return null;
   }
 
   const sections = [
     { 
-      id: "employees",
-      label: "თანამშრომლები",
-      description: "მართეთ თანამშრომლების სია და ხელშეკრულებები",
-      path: "/manager/employees"
-    },
-    { 
-      id: "invoices",
-      label: "ინვოისები",
-      description: "მართეთ ყველა ინვოისი, სტატუსები და გადახდები",
-      path: "/manager/invoices"
-    },
-    { 
-      id: "invoicesArchive",
-      label: "ინვოისების არქივი",
-      description: "ინვოისების თვიური არქივი და მოძიება",
-      path: "/manager/invoices/archive"
-    },
-    { 
       id: "dailySheets",
       label: "დღის ფურცელი",
       description: "შექმენით და მართეთ დღის ფურცლები",
-      path: "/manager/daily-sheets"
+      path: "/assistant/daily-sheets"
     },
     { 
       id: "inventory",
       label: "საწყობი",
       description: "მართეთ საწყობის პროდუქტები",
-      path: "/manager/inventory"
-    },
-    { 
-      id: "expenses",
-      label: "ხარჯები",
-      description: "მართეთ ყველა ხარჯი და კალკულატორი",
-      path: "/manager/expenses"
-    },
-    { 
-      id: "salaries",
-      label: "ხელფასები",
-      description: "მართეთ თანამშრომლების ხელფასები",
-      path: "/manager/salaries"
-    },
-    { 
-      id: "hotels",
-      label: "სასტუმროების ბაზა",
-      description: "მართეთ სასტუმროების ბაზა და კონტაქტები",
-      path: "/manager/hotels"
-    },
-    { 
-      id: "table",
-      label: "ტაბელი",
-      description: "გამოიყენეთ ტაბელი მონაცემების შესანახად",
-      path: "/manager/table"
-    },
-    { 
-      id: "ourHotels",
-      label: "ჩვენი სასტუმროები",
-      description: "ნახეთ და მართეთ რეგისტრირებული სასტუმროები",
-      path: "/manager/our-hotels"
+      path: "/assistant/inventory"
     },
   ];
 
@@ -108,7 +60,7 @@ export default function ManagerPage() {
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-[18px] md:text-[24px] font-bold text-black mb-6">
-          მენეჯერის პანელი
+          მენეჯერის ასისტენტის პანელი
         </h1>
 
         {/* Sections Grid */}

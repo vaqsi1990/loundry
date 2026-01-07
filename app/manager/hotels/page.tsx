@@ -18,7 +18,7 @@ export default function ManagerHotelsPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
+      if (userRole !== "MANAGER") {
         router.push("/");
         return;
       }
@@ -36,7 +36,7 @@ export default function ManagerHotelsPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  if (!session || (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
+  if (!session || userRole !== "MANAGER") {
     return null;
   }
 
