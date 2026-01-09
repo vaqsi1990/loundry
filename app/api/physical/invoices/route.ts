@@ -118,9 +118,6 @@ export async function GET(request: NextRequest) {
       const weightKg = emailSend.totalWeight || 0;
       const protectorsAmount = emailSend.protectorsAmount || 0;
       
-      // Count each email send separately for totalAmount (if same sheet was sent multiple times, count each time)
-      monthData.totalAmount += amount;
-      
       // Track unique invoices per month to avoid duplicates in details
       // Create unique key: date + amount + weight + protectors (within the same month)
       const detailKey = `${dateKey}-${amount.toFixed(2)}-${weightKg.toFixed(2)}-${protectorsAmount.toFixed(2)}`;
@@ -135,14 +132,16 @@ export async function GET(request: NextRequest) {
       });
       
       if (existingDetail) {
-        // If duplicate found, increment emailSendCount but keep other values
+        // If duplicate found, increment emailSendCount but DO NOT add to totalAmount
+        // The same invoice (same date, amount, weight, protectors) should only be counted once
         existingDetail.emailSendCount += 1;
         // Keep the most recent sentAt if available
         if (emailSend.sentAt && (!existingDetail.sentAt || new Date(emailSend.sentAt) > new Date(existingDetail.sentAt))) {
           existingDetail.sentAt = emailSend.sentAt.toISOString();
         }
       } else {
-        // Add new unique invoice detail
+        // Add new unique invoice detail and add to totalAmount only once
+        monthData.totalAmount += amount;
         monthData.invoices.push({
           date: dateKey,
           amount,

@@ -482,12 +482,27 @@ export async function GET(request: NextRequest) {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
 
-    // Build items array
+    // Build items array - deduplicate same invoices (same date, amount, weight, protectors)
     const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
     const pricePerKg = hotel.pricePerKg || 1.8;
 
-    emailSends.forEach((emailSend) => {
+    // Track unique invoices to avoid duplicates
+    const uniqueInvoiceMap = new Map<string, {
+      description: string;
+      quantity: string;
+      unitPrice: number;
+      total: number;
+    }>();
+
+    // Sort email sends by date
+    const sortedEmailSends = [...emailSends].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    // Create items for each unique invoice (deduplicate same date, amount, weight, protectors)
+    sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
+      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
       const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
 
       let sentLabel = dateStr;
@@ -521,41 +536,84 @@ export async function GET(request: NextRequest) {
             0
           );
           
+          // Add regular linen item (deduplicate)
           if (regularWeight > 0) {
-            items.push({
-              description: sentLabel,
-              quantity: `${regularWeight.toFixed(1)} კგ`,
-              unitPrice: pricePerKg,
-              total: regularWeight * pricePerKg,
-            });
+            const regularTotal = regularWeight * pricePerKg;
+            const regularKey = `${dateKey}-regular-${regularWeight.toFixed(2)}-${regularTotal.toFixed(2)}`;
+            if (!uniqueInvoiceMap.has(regularKey)) {
+              uniqueInvoiceMap.set(regularKey, {
+                description: sentLabel,
+                quantity: `${regularWeight.toFixed(1)} კგ`,
+                unitPrice: pricePerKg,
+                total: regularTotal,
+              });
+            }
           }
           
+          // Add tablecloths item (deduplicate)
           if (tableclothsWeight > 0) {
-            items.push({
-              description: `${sentLabel} (სუფრები)`,
-              quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-              unitPrice: pricePerKg,
-              total: tableclothsWeight * pricePerKg,
-            });
+            const tableclothsTotal = tableclothsWeight * pricePerKg;
+            const tableclothsKey = `${dateKey}-tablecloths-${tableclothsWeight.toFixed(2)}-${tableclothsTotal.toFixed(2)}`;
+            if (!uniqueInvoiceMap.has(tableclothsKey)) {
+              uniqueInvoiceMap.set(tableclothsKey, {
+                description: `${sentLabel} (სუფრები)`,
+                quantity: `${tableclothsWeight.toFixed(1)} კგ`,
+                unitPrice: pricePerKg,
+                total: tableclothsTotal,
+              });
+            }
           }
         } else {
-          items.push({
-            description: sentLabel,
-            quantity: `${weight.toFixed(1)} კგ`,
-            unitPrice: pricePerKg,
-            total: weight * pricePerKg,
-          });
+          // Regular linen item (no tablecloths) - deduplicate
+          const regularTotal = weight * pricePerKg;
+          const regularKey = `${dateKey}-regular-${weight.toFixed(2)}-${regularTotal.toFixed(2)}`;
+          if (!uniqueInvoiceMap.has(regularKey)) {
+            uniqueInvoiceMap.set(regularKey, {
+              description: sentLabel,
+              quantity: `${weight.toFixed(1)} კგ`,
+              unitPrice: pricePerKg,
+              total: regularTotal,
+            });
+          }
         }
       }
+    });
 
+    // Add protectors if any (as separate item, deduplicate by amount)
+    // First, collect all unique protector amounts per date
+    const protectorsMap = new Map<string, number>();
+    sortedEmailSends.forEach((emailSend) => {
+      const protectorsAmount = emailSend.protectorsAmount ?? 0;
       if (protectorsAmount > 0) {
-        items.push({
-          description: "დამცავები",
-          quantity: "1",
-          unitPrice: protectorsAmount,
-          total: protectorsAmount,
-        });
+        const date = new Date(emailSend.date);
+        const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
+        const protectorsKey = `${dateKey}-protectors-${protectorsAmount.toFixed(2)}`;
+        // Only add if we haven't seen this exact protector amount for this date
+        if (!protectorsMap.has(protectorsKey)) {
+          protectorsMap.set(protectorsKey, protectorsAmount);
+        }
       }
+    });
+    
+    // Add unique protectors to items
+    protectorsMap.forEach((protectorsAmount) => {
+      items.push({
+        description: "დამცავები",
+        quantity: "1",
+        unitPrice: protectorsAmount,
+        total: protectorsAmount,
+      });
+    });
+    
+    // Convert map values to array (add regular items)
+    items.push(...Array.from(uniqueInvoiceMap.values()));
+    
+    // Sort items by description (date) to maintain order
+    items.sort((a, b) => {
+      // Extract date from description for sorting
+      const dateA = a.description.match(/(\d{2}\.\d{2}\.\d{2})/)?.[1] || "";
+      const dateB = b.description.match(/(\d{2}\.\d{2}\.\d{2})/)?.[1] || "";
+      return dateA.localeCompare(dateB);
     });
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);

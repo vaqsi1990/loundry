@@ -307,26 +307,50 @@ export async function GET(request: NextRequest) {
       const day = String(dateObj.getUTCDate()).padStart(2, '0');
       const dateKey = `${year}-${month}-${day}`;
       
-      // Add each email send as a separate detail entry
-      const dateDetail = {
-        date: dateKey,
-        emailSendCount: 1, // Each entry represents one email send
-        weightKg: emailWeight,
-        protectorsAmount: emailProtectorsAmount,
-        totalAmount: emailTotalAmount,
-        sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
-      };
-      current.dateDetails.push(dateDetail);
+      // Create unique key for this invoice: date + amount + weight + protectors
+      const invoiceKey = `${dateKey}-${emailTotalAmount.toFixed(2)}-${emailWeight.toFixed(2)}-${emailProtectorsAmount.toFixed(2)}`;
+      
+      // Check if this exact invoice (same date, amount, weight, protectors) already exists in dateDetails
+      const existingDetail = current.dateDetails.find(detail => {
+        const detailKey = `${detail.date}-${detail.totalAmount.toFixed(2)}-${detail.weightKg.toFixed(2)}-${detail.protectorsAmount.toFixed(2)}`;
+        return detailKey === invoiceKey;
+      });
+      
+      if (existingDetail) {
+        // If duplicate invoice found, increment emailSendCount but DO NOT add to totals
+        // The same invoice (same date, amount, weight, protectors) should only be counted once
+        existingDetail.emailSendCount += 1;
+        // Keep the most recent sentAt if available
+        if (emailSend.sentAt && (!existingDetail.sentAt || new Date(emailSend.sentAt) > new Date(existingDetail.sentAt))) {
+          existingDetail.sentAt = emailSend.sentAt.toISOString();
+        }
+      } else {
+        // Add new unique invoice detail and add to totals only once
+        const dateDetail = {
+          date: dateKey,
+          emailSendCount: 1, // Each entry represents one email send
+          weightKg: emailWeight,
+          protectorsAmount: emailProtectorsAmount,
+          totalAmount: emailTotalAmount,
+          sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
+        };
+        current.dateDetails.push(dateDetail);
+        
+        // Add to totals only for unique invoices
+        current.totalWeightKg += emailWeight;
+        current.protectorsAmount += emailProtectorsAmount;
+        current.totalAmount += emailTotalAmount;
+      }
 
       aggregateMap.set(hotelKey, {
         hotelName: hotelKey === "-" ? null : hotelKey,
         displayHotelName: current.displayHotelName || emailSend.hotelName?.trim() || null,
         sheetCount: current.sheetIds.size,
         totalDispatched: Array.from(current.sheetDispatched.values()).reduce((sum, val) => sum + val, 0),
-        // Use weight, protectors amount, and total amount from DailySheetEmailSend
-        totalWeightKg: current.totalWeightKg + emailWeight,
-        protectorsAmount: current.protectorsAmount + emailProtectorsAmount,
-        totalAmount: current.totalAmount + emailTotalAmount,
+        // Use weight, protectors amount, and total amount from DailySheetEmailSend (only for unique invoices)
+        totalWeightKg: current.totalWeightKg,
+        protectorsAmount: current.protectorsAmount,
+        totalAmount: current.totalAmount,
         totalEmailSendCount: current.totalEmailSendCount + 1,
         sheetIds: current.sheetIds,
         sheetDispatched: current.sheetDispatched,

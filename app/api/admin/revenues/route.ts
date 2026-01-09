@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
     const allInvoices = await prisma.invoice.findMany({
       where: invoiceWhere,
       orderBy: {
-        createdAt: "desc", // Order by newest first
+        createdAt: "asc", // Order by oldest first, so we keep the first (oldest) invoice when deduplicating
       },
       select: {
         id: true,
@@ -125,33 +125,61 @@ export async function GET(request: NextRequest) {
         customerName: true,
         totalAmount: true,
         amount: true,
+        totalWeightKg: true,
+        protectorsAmount: true,
         paidAmount: true,
         status: true,
         createdAt: true,
+        dueDate: true,
         customerEmail: true, // Include for debugging
       },
     });
 
-    // Remove duplicates: group by customerName, date (same day), and totalAmount
+    // Remove duplicates: group by customerName, date (same day), totalAmount, weight, and protectors
     // Keep only the most recent invoice for each unique combination
+    // This ensures that if the same invoice (same date, amount, weight, protectors) was sent multiple times,
+    // it will only be counted once in the total
     const invoiceMap = new Map<string, typeof allInvoices[0]>();
+    
+    // Normalize hotel name for case-insensitive matching
+    const normalizeHotel = (name: string | null) => {
+      if (!name) return "";
+      return name.trim().replace(/\s+/g, " ").toLowerCase();
+    };
     
     allInvoices.forEach((invoice) => {
       const totalAmount = invoice.totalAmount ?? invoice.amount ?? 0;
-      // Create a key based on customerName, date (same day), and totalAmount
-      const dateKey = new Date(invoice.createdAt).toISOString().split("T")[0]; // YYYY-MM-DD
-      const uniqueKey = `${invoice.customerName}-${dateKey}-${totalAmount.toFixed(2)}`;
+      const weightKg = invoice.totalWeightKg ?? 0;
+      const protectorsAmount = invoice.protectorsAmount ?? 0;
+      // Normalize customerName for case-insensitive matching
+      const normalizedCustomerName = normalizeHotel(invoice.customerName);
+      // Create unique key based on customerName, totalAmount, weight, and protectors (without date)
+      // This ensures that if the same invoice (same amount, weight, protectors) was sent multiple times,
+      // it will only be counted once, regardless of when it was created
+      const uniqueKey = `${normalizedCustomerName}-${totalAmount.toFixed(2)}-${weightKg.toFixed(2)}-${protectorsAmount.toFixed(2)}`;
       
-      // If we haven't seen this combination, or if this invoice is newer, keep it
+      // Debug logging
+      console.log("Revenues API - Processing invoice:", {
+        id: invoice.id,
+        customerName: invoice.customerName,
+        normalizedCustomerName,
+        totalAmount,
+        weightKg,
+        protectorsAmount,
+        uniqueKey,
+        alreadyExists: invoiceMap.has(uniqueKey),
+      });
+      
+      // If we haven't seen this exact combination, add it (keep the first one)
+      // This ensures that if the same invoice was sent multiple times, only the first one is shown
       if (!invoiceMap.has(uniqueKey)) {
         invoiceMap.set(uniqueKey, invoice);
+        console.log("Revenues API - Added invoice to map:", uniqueKey);
       } else {
-        const existing = invoiceMap.get(uniqueKey)!;
-        // Keep the one with the most recent createdAt
-        if (new Date(invoice.createdAt) > new Date(existing.createdAt)) {
-          invoiceMap.set(uniqueKey, invoice);
-        }
+        console.log("Revenues API - Skipping duplicate invoice:", uniqueKey);
       }
+      // If we've seen this combination, ignore it (don't add to the map again)
+      // This ensures deduplication - same invoice sent multiple times is only shown once
     });
 
     const sentInvoices = Array.from(invoiceMap.values());

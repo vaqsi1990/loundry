@@ -532,7 +532,7 @@ export default function PhysicalDailySheetsPage() {
                       {!sheet.confirmedAt && (
                         <button
                           onClick={() => confirmDailySheet(sheet.id)}
-                          className="bg-green-600 text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-green-700"
+                          className="bg-green-600 font-bold text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-green-700"
                         >
                           დადასტურება
                         </button>
