@@ -60,6 +60,7 @@ model User {
   hotels        Hotel[]
   pickupDeliveryRequests PickupDeliveryRequest[]
   physicalInvoicePayments PhysicalInvoicePayment[]
+  legalInvoicePayments LegalInvoicePayment[]
 }
 
 model Account {
@@ -409,6 +410,21 @@ model PickupDeliveryRequest {
 }
 
 model PhysicalInvoicePayment {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           String        // YYYY-MM format
+  paidAmount      Float         @default(0)
+  isPaid          Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([userId, month])
+  @@index([userId])
+  @@index([month])
+}
+
+model LegalInvoicePayment {
   id              String        @id @default(cuid())
   userId          String
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
