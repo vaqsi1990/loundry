@@ -131,9 +131,9 @@ export default function PhysicalPickupDeliveryPage() {
                             setRequestType(requestType === "BOTH" ? "DELIVERY" : "");
                           }
                         }}
-                        className="mr-2"
+                        className="mr-2 w-5 h-5"
                       />
-                      <span className="text-[16px]">წასაღები</span>
+                      <span className="text-[20px]">წასაღები</span>
                     </label>
                     <label className="flex items-center">
                       <input
@@ -146,9 +146,9 @@ export default function PhysicalPickupDeliveryPage() {
                             setRequestType(requestType === "BOTH" ? "PICKUP" : "");
                           }
                         }}
-                        className="mr-2"
+                        className="mr-2 w-5 h-5"
                       />
-                      <span className="text-[16px]">მოსატანი</span>
+                      <span className="text-[20px]">მოსატანი</span>
                     </label>
                   </div>
                 </div>
