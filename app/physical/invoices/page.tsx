@@ -346,9 +346,12 @@ export default function PhysicalInvoicesPage() {
                   const remainingAmount = invoice.remainingAmount || (invoice.totalAmount - paidAmount);
                   const isFullyPaid = remainingAmount <= 0 && paidAmount > 0 && invoice.totalAmount > 0;
                   const displayStatus = invoice.status || (isFullyPaid ? "PAID" : "PENDING");
-                  // Create unique key: month + totalAmount + first invoice date (if available) + index
-                  const firstInvoiceDate = invoice.invoices && invoice.invoices.length > 0 ? invoice.invoices[0].date : '';
-                  const uniqueKey = `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${firstInvoiceDate}-${invoiceIdx}`;
+                  // Create unique key using emailSendIds to ensure each invoice is unique
+                  // Each invoice should have at least one emailSendId in its invoices array
+                  const firstEmailSendId = invoice.invoices && invoice.invoices.length > 0 && invoice.invoices[0].emailSendIds && invoice.invoices[0].emailSendIds.length > 0
+                    ? invoice.invoices[0].emailSendIds[0]
+                    : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}-${Date.now()}`;
+                  const uniqueKey = firstEmailSendId;
                   const isExpanded = expandedRows.has(uniqueKey);
                   const hasDetails = invoice.invoices && invoice.invoices.length > 0;
                   

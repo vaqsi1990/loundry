@@ -151,7 +151,9 @@ export async function GET(request: NextRequest) {
     const invoicePaidAmounts = new Map<string, number>(); // Map emailSend.id -> paidAmount
     
     // Get all invoices for this hotel with more details for matching
+    // Include id to properly track which invoices have been used
     type InvoiceSelect = {
+      id: string;
       customerName: string;
       totalAmount: number | null;
       amount: number;
@@ -163,6 +165,7 @@ export async function GET(request: NextRequest) {
     
     const allInvoices: InvoiceSelect[] = await prisma.invoice.findMany({
       select: {
+        id: true,
         customerName: true,
         totalAmount: true,
         amount: true,
@@ -170,6 +173,9 @@ export async function GET(request: NextRequest) {
         protectorsAmount: true,
         paidAmount: true,
         createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc", // Newer invoices first
       },
     });
 
@@ -186,40 +192,34 @@ export async function GET(request: NextRequest) {
       const emailSendWeight = parseFloat((emailSend.totalWeight || 0).toFixed(2));
       const emailSendProtectors = parseFloat((emailSend.protectorsAmount || 0).toFixed(2));
       
-      // First, filter by hotel name and exclude already used invoices
+      // First, filter by hotel name
       const hotelInvoices = allInvoices.filter(
         (invoice) => {
-          if (normalizeHotel(invoice.customerName) !== normalizedHotelName) {
-            return false;
-          }
-          // We'll track usage by a combination of fields since we don't have invoice ID in the select
-          // For now, allow all invoices to be considered, but prioritize better matches
-          return true;
+          return normalizeHotel(invoice.customerName) === normalizedHotelName;
         }
       );
       
       // Find best matching invoice - prioritize exact matches, then partial matches
       // Score each potential match and pick the best one
-      let bestMatchInvoice: InvoiceSelect | null = null as InvoiceSelect | null;
+      let bestMatchInvoice: InvoiceSelect | null = null;
       let bestScore = 0;
       
       hotelInvoices.forEach((invoice) => {
-        // Skip if this invoice was already matched to another emailSend with same amount
-        const invoiceKey = `${invoice.customerName}-${invoice.totalAmount ?? invoice.amount}-${invoice.createdAt}`;
-        if (usedInvoiceIds.has(invoiceKey)) {
+        // Skip if this invoice was already matched to another emailSend
+        if (usedInvoiceIds.has(invoice.id)) {
           return;
         }
         
         const invoiceAmount = parseFloat((invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2));
         let score = 0;
         
-        // Must match amount exactly (required)
+        // Must match amount exactly (required) - this is the primary matching criteria
         if (Math.abs(invoiceAmount - emailSendAmount) >= 0.01) {
           return;
         }
         score += 100; // Base score for amount match
         
-        // Check date (closer dates score higher)
+        // Check date (closer dates score higher, but allow up to 30 days for flexibility)
         const invoiceDate = new Date(invoice.createdAt);
         const dateDiff = Math.abs((invoiceDate.getTime() - emailSendDate.getTime()) / (1000 * 60 * 60 * 24));
         if (dateDiff <= 1) {
@@ -227,26 +227,33 @@ export async function GET(request: NextRequest) {
         } else if (dateDiff <= 3) {
           score += 30; // Within 3 days
         } else if (dateDiff <= 7) {
-          score += 10; // Within 7 days
+          score += 20; // Within 7 days
+        } else if (dateDiff <= 30) {
+          score += 10; // Within 30 days (more flexible)
         } else {
-          return; // Too far apart
+          // Still allow matching if amount matches, but with lower priority
+          score += 5;
         }
         
-        // Check weight (if both are available and > 0)
+        // Check weight (if both are available and > 0) - bonus points, not required
         if (invoice.totalWeightKg !== null && invoice.totalWeightKg !== undefined && 
             emailSendWeight > 0 && invoice.totalWeightKg > 0) {
           const invoiceWeight = parseFloat((invoice.totalWeightKg || 0).toFixed(2));
           if (Math.abs(invoiceWeight - emailSendWeight) < 0.01) {
             score += 20; // Weight matches
+          } else if (Math.abs(invoiceWeight - emailSendWeight) < 1.0) {
+            score += 10; // Weight close (within 1kg)
           }
         }
         
-        // Check protectors (if both are available and > 0)
+        // Check protectors (if both are available and > 0) - bonus points, not required
         if (invoice.protectorsAmount !== null && invoice.protectorsAmount !== undefined &&
             emailSendProtectors > 0 && invoice.protectorsAmount > 0) {
           const invoiceProtectors = parseFloat((invoice.protectorsAmount || 0).toFixed(2));
           if (Math.abs(invoiceProtectors - emailSendProtectors) < 0.01) {
             score += 20; // Protectors match
+          } else if (Math.abs(invoiceProtectors - emailSendProtectors) < 1.0) {
+            score += 10; // Protectors close (within 1 GEL)
           }
         }
         
@@ -257,15 +264,25 @@ export async function GET(request: NextRequest) {
         }
       });
       
-      if (bestMatchInvoice !== null) {
-        const match = bestMatchInvoice;
-        if (match.paidAmount !== null && match.paidAmount !== undefined) {
-          const invoiceKey = `${match.customerName}-${match.totalAmount ?? match.amount}-${match.createdAt}`;
-          usedInvoiceIds.add(invoiceKey);
-          invoicePaidAmounts.set(emailSend.id, match.paidAmount);
-        }
+      // If we found a match with amount matching (score >= 100), use it
+      if (bestMatchInvoice !== null && bestScore >= 100 && bestMatchInvoice) {
+        // TypeScript type narrowing - bestMatchInvoice is guaranteed to be InvoiceSelect here
+        const match: InvoiceSelect = bestMatchInvoice;
+        // Mark this invoice as used
+        usedInvoiceIds.add(match.id);
+        // Set paid amount (use 0 if null/undefined)
+        const paidAmount = match.paidAmount ?? 0;
+        invoicePaidAmounts.set(emailSend.id, paidAmount);
+        
+        // Debug logging
+        console.log(`Matched emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾) to Invoice ${match.id} (paid: ${paidAmount}₾, score: ${bestScore})`);
+      } else {
+        // Debug logging for unmatched email sends
+        console.log(`No match found for emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾, hotel: ${normalizedHotelName})`);
       }
     });
+    
+    console.log(`Total email sends: ${emailSends.length}, Matched invoices: ${invoicePaidAmounts.size}, Total invoices in DB: ${allInvoices.length}`);
 
     // Update paid amounts for each invoice detail
     monthlyData.forEach((monthData, uniqueKey) => {
@@ -275,10 +292,13 @@ export async function GET(request: NextRequest) {
           const paidAmount = invoicePaidAmounts.get(emailSendId)!;
           invoiceDetail.paidAmount = paidAmount;
           invoiceDetail.remainingAmount = invoiceDetail.amount - paidAmount;
+          // Update status based on paid amount
+          invoiceDetail.status = invoiceDetail.remainingAmount <= 0 && invoiceDetail.amount > 0 ? "PAID" : "PENDING";
         } else {
           // No matching invoice found, keep defaults
           invoiceDetail.paidAmount = 0;
           invoiceDetail.remainingAmount = invoiceDetail.amount;
+          invoiceDetail.status = "PENDING";
         }
       });
       

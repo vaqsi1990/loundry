@@ -232,11 +232,40 @@ export default function RevenuesSection() {
   };
 
   const handleConfirmInvoice = async (invoiceId: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ ინვოისი სრულად ჩაირიცხა? ამის შემდეგ ფასის შეცვლა ვეღარ შეიძლება.")) {
+    // Find the specific invoice by ID to ensure we're working with the correct one
+    const invoice = sentInvoices.find(inv => inv.id === invoiceId);
+    if (!invoice) {
+      setError("ინვოისი ვერ მოიძებნა");
+      return;
+    }
+
+    // Ensure we have numbers, not strings or null
+    const totalAmount = Number(invoice.totalAmount ?? invoice.amount ?? 0);
+    const paidAmount = Number(invoice.paidAmount ?? 0);
+    const remaining = totalAmount - paidAmount;
+    // Use the same logic as in render: allow small epsilon for floating point comparison
+    // Also check if remaining is <= 0 as an additional check
+    const isFullyPaid = totalAmount > 0 && (paidAmount >= totalAmount || Math.abs(paidAmount - totalAmount) < 0.01 || remaining <= 0);
+    
+    // Only allow confirmation if invoice is fully paid
+    if (!isFullyPaid) {
+      setError(`ინვოისის დადასტურება შეუძლებელია. გადახდილი: ${paidAmount.toFixed(2)} ₾, სულ: ${totalAmount.toFixed(2)} ₾, დარჩენილი: ${remaining.toFixed(2)} ₾`);
+      return;
+    }
+    
+    // Show detailed confirmation message with invoice details
+    const invoiceDate = new Date(invoice.createdAt).toLocaleDateString("ka-GE");
+    const invoiceNumber = invoice.invoiceNumber || "N/A";
+    const confirmMessage = `დარწმუნებული ხართ რომ ინვოისი სრულად ჩაირიცხა?\n\nინვოისის ნომერი: ${invoiceNumber}\nსასტუმრო: ${invoice.customerName}\nთარიღი: ${invoiceDate}\nთანხა: ${totalAmount.toFixed(2)} ₾\nგადახდილი: ${paidAmount.toFixed(2)} ₾\n\nამის შემდეგ ფასის შეცვლა ვეღარ შეიძლება.`;
+    
+    if (!confirm(confirmMessage)) {
       return;
     }
 
     try {
+      // Use the specific invoice ID to update only this invoice
+      // This ensures that even if multiple invoices have the same customerName,
+      // only the specific invoice with this ID will be updated
       const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
         method: "PATCH",
         headers: {
@@ -252,6 +281,7 @@ export default function RevenuesSection() {
         throw new Error(data.error || "დასტური ვერ მოხერხდა");
       }
 
+      // Refresh the list to show updated status for all invoices
       await fetchRevenues();
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
@@ -501,13 +531,17 @@ export default function RevenuesSection() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sentInvoices.map((invoice) => {
-                  const totalAmount = invoice.totalAmount ?? invoice.amount ?? 0;
-                  const paidAmount = invoice.paidAmount ?? 0;
+                  // Ensure we have numbers, not strings or null
+                  const totalAmount = Number(invoice.totalAmount ?? invoice.amount ?? 0);
+                  const paidAmount = Number(invoice.paidAmount ?? 0);
                   const remaining = totalAmount - paidAmount;
                   const isEditing = editingPayment === invoice.id;
                   const isPaid = invoice.status === "PAID";
-                  const isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
-                  const canConfirm = isFullyPaid && !isPaid;
+                  // Use a small epsilon for floating point comparison to avoid precision issues
+                  // Also check if remaining is <= 0 as an additional check
+                  const isFullyPaid = totalAmount > 0 && (paidAmount >= totalAmount || Math.abs(paidAmount - totalAmount) < 0.01 || remaining <= 0);
+                  // Only allow confirmation if invoice is fully paid and not already confirmed
+                  const canConfirm = !isPaid && isFullyPaid;
                   
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
@@ -625,9 +659,15 @@ export default function RevenuesSection() {
                             <button
                               onClick={() => handleConfirmInvoice(invoice.id)}
                               className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 font-semibold"
+                              title="დადასტურება (მხოლოდ სრულად გადახდილი ინვოისებისთვის)"
                             >
                               დასტური
                             </button>
+                          )}
+                          {!isEditing && !isPaid && !isFullyPaid && (
+                            <span className="text-[14px] text-gray-500 italic" title="დადასტურება შესაძლებელია მხოლოდ სრულად გადახდილი ინვოისებისთვის">
+                              დარჩენილი: {remaining.toFixed(2)} ₾
+                            </span>
                           )}
                           {!isEditing && (
                             <button
