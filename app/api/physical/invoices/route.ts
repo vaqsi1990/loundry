@@ -35,23 +35,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
 
-    // Get email sends for this hotel
-    const emailSendsWhere: any = {
-      hotelName: hotel.hotelName,
+    // Normalize hotel name for case-insensitive matching
+    const normalizeHotel = (name: string | null) => {
+      if (!name) return "";
+      return name.trim().replace(/\s+/g, " ").toLowerCase();
     };
 
-    if (month) {
-      const [year, monthNum] = month.split("-");
-      const startOfMonth = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
-      const endOfMonth = new Date(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999);
-      emailSendsWhere.date = {
-        gte: startOfMonth,
-        lte: endOfMonth,
-      };
-    }
-
-    const emailSends = await prisma.dailySheetEmailSend.findMany({
-      where: emailSendsWhere,
+    // Get all email sends and filter by normalized hotel name
+    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      where: {
+        hotelName: {
+          not: null,
+        },
+      },
       include: {
         dailySheet: {
           include: {
@@ -64,7 +60,23 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Group by month
+    const normalizedHotelName = normalizeHotel(hotel.hotelName);
+    let emailSends = allEmailSends.filter(
+      (es) => normalizeHotel(es.hotelName) === normalizedHotelName
+    );
+
+    // Filter by month if specified
+    if (month) {
+      const [year, monthNum] = month.split("-");
+      const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
+      emailSends = emailSends.filter((es) => {
+        const esDate = new Date(es.date);
+        return esDate >= startOfMonth && esDate <= endOfMonth;
+      });
+    }
+
+    // Group by month - count each email send separately (even if same sheet sent multiple times)
     const monthlyData = new Map<string, {
       month: string;
       totalAmount: number;
@@ -76,12 +88,19 @@ export async function GET(request: NextRequest) {
         paidAmount: number;
         remainingAmount: number;
         status: string;
+        sentAt: string | null;
+        weightKg: number;
+        protectorsAmount: number;
+        emailSendCount: number;
       }>;
     }>();
 
     emailSends.forEach((emailSend) => {
+      // Use UTC methods to avoid timezone issues
       const date = new Date(emailSend.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const monthKey = `${year}-${month}`;
       
       if (!monthlyData.has(monthKey)) {
         monthlyData.set(monthKey, {
@@ -96,6 +115,7 @@ export async function GET(request: NextRequest) {
       const monthData = monthlyData.get(monthKey)!;
       const amount = emailSend.totalAmount || 0;
       
+      // Count each email send separately - if same sheet was sent multiple times, count each time
       monthData.totalAmount += amount;
       monthData.invoices.push({
         date: emailSend.date.toISOString().split("T")[0],
@@ -103,6 +123,10 @@ export async function GET(request: NextRequest) {
         paidAmount: 0, // Will be updated from Invoice table
         remainingAmount: amount,
         status: "PENDING",
+        sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
+        weightKg: emailSend.totalWeight || 0,
+        protectorsAmount: emailSend.protectorsAmount || 0,
+        emailSendCount: 1, // Each email send counts as 1
       });
     });
 
@@ -195,12 +219,20 @@ export async function PUT(request: NextRequest) {
     // Calculate total amount for this month to determine if fully paid
     const hotel = user.hotels[0];
     const [year, monthNum] = month.split("-");
-    const startOfMonth = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
-    const endOfMonth = new Date(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999);
+    const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
     
-    const emailSends = await prisma.dailySheetEmailSend.findMany({
+    // Normalize hotel name for case-insensitive matching
+    const normalizeHotel = (name: string | null) => {
+      if (!name) return "";
+      return name.trim().replace(/\s+/g, " ").toLowerCase();
+    };
+
+    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
       where: {
-        hotelName: hotel.hotelName,
+        hotelName: {
+          not: null,
+        },
         date: {
           gte: startOfMonth,
           lte: endOfMonth,
@@ -208,6 +240,12 @@ export async function PUT(request: NextRequest) {
       },
     });
 
+    const normalizedHotelName = normalizeHotel(hotel.hotelName);
+    const emailSends = allEmailSends.filter(
+      (es) => normalizeHotel(es.hotelName) === normalizedHotelName
+    );
+
+    // Count each email send separately - if same sheet was sent multiple times, count each time
     const totalAmount = emailSends.reduce((sum, send) => sum + (send.totalAmount || 0), 0);
     const isPaid = paid >= totalAmount && totalAmount > 0;
 

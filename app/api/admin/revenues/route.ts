@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     });
     console.log("Revenues API - Total invoices:", totalInvoices, "Total in date range:", totalInvoicesInRange);
 
-    const sentInvoices = await prisma.invoice.findMany({
+    const allInvoices = await prisma.invoice.findMany({
       where: invoiceWhere,
       orderBy: {
         createdAt: "desc", // Order by newest first
@@ -132,7 +132,31 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log("Revenues API - Found invoices after filter:", sentInvoices.length, "View:", view, "Date:", date, "Month:", month);
+    // Remove duplicates: group by customerName, date (same day), and totalAmount
+    // Keep only the most recent invoice for each unique combination
+    const invoiceMap = new Map<string, typeof allInvoices[0]>();
+    
+    allInvoices.forEach((invoice) => {
+      const totalAmount = invoice.totalAmount ?? invoice.amount ?? 0;
+      // Create a key based on customerName, date (same day), and totalAmount
+      const dateKey = new Date(invoice.createdAt).toISOString().split("T")[0]; // YYYY-MM-DD
+      const uniqueKey = `${invoice.customerName}-${dateKey}-${totalAmount.toFixed(2)}`;
+      
+      // If we haven't seen this combination, or if this invoice is newer, keep it
+      if (!invoiceMap.has(uniqueKey)) {
+        invoiceMap.set(uniqueKey, invoice);
+      } else {
+        const existing = invoiceMap.get(uniqueKey)!;
+        // Keep the one with the most recent createdAt
+        if (new Date(invoice.createdAt) > new Date(existing.createdAt)) {
+          invoiceMap.set(uniqueKey, invoice);
+        }
+      }
+    });
+
+    const sentInvoices = Array.from(invoiceMap.values());
+
+    console.log("Revenues API - Found invoices after filter:", allInvoices.length, "After deduplication:", sentInvoices.length, "View:", view, "Date:", date, "Month:", month);
     console.log("Revenues API - Invoice date filter:", JSON.stringify(invoiceDateFilter));
     if (sentInvoices.length > 0) {
       console.log("Revenues API - Sample invoice dates:", sentInvoices.slice(0, 3).map(inv => ({
