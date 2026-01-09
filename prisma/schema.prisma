@@ -242,10 +242,13 @@ model DailySheetEmailSend {
   totalAmount    Float?
   payload        Json?
   sentAt         DateTime   @default(now())
+  confirmedBy    String?    // User ID who confirmed the invoice
+  confirmedAt    DateTime?  // When the invoice was confirmed
 
   @@index([dailySheetId])
   @@index([date])
   @@index([hotelName])
+  @@index([confirmedAt])
 }
 
 model DailySheetItem {

@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Get daily sheets with their email sends to show confirmation status per email send
     const sheets = await prisma.dailySheet.findMany({
       where,
       include: {
@@ -68,13 +69,26 @@ export async function GET(request: NextRequest) {
             category: "asc",
           },
         },
+        emailSends: {
+          orderBy: {
+            sentAt: "desc",
+          },
+        },
       },
       orderBy: {
         date: "desc",
       },
     });
 
-    return NextResponse.json(sheets);
+    // Return sheets with their email sends (but confirmation status is separate)
+    // Daily sheet confirmation uses DailySheet.confirmedAt
+    // Invoice confirmation uses DailySheetEmailSend.confirmedAt (separate)
+    const sheetsWithEmailSends = sheets.map((sheet) => ({
+      ...sheet,
+      emailSends: sheet.emailSends || [],
+    }));
+
+    return NextResponse.json(sheetsWithEmailSends);
   } catch (error) {
     console.error("Physical daily sheets fetch error:", error);
     return NextResponse.json(
@@ -136,7 +150,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Confirm the sheet
+    // Check if daily sheet is already confirmed
+    if (sheet.confirmedAt !== null && sheet.confirmedAt !== undefined) {
+      return NextResponse.json(
+        { error: "დღის ფურცელი უკვე დადასტურებულია" },
+        { status: 400 }
+      );
+    }
+
+    // Confirm only the daily sheet (NOT the email sends/invoices)
+    // Daily sheet confirmation and invoice confirmation are separate
     const updated = await prisma.dailySheet.update({
       where: { id: sheetId },
       data: {
@@ -145,7 +168,10 @@ export async function PUT(request: NextRequest) {
       } as any,
     });
 
-    return NextResponse.json({ message: "დღის ფურცელი დაადასტურა", sheet: updated });
+    return NextResponse.json({ 
+      message: "დღის ფურცელი დაადასტურა", 
+      sheet: updated
+    });
   } catch (error) {
     console.error("Daily sheet confirmation error:", error);
     return NextResponse.json(

@@ -15,6 +15,8 @@ interface DateDetail {
   protectorsAmount: number;
   totalAmount: number;
   sentAt: string | null;
+  confirmedAt: string | null;
+  emailSendIds?: string[]; // IDs of emailSends that belong to this invoice detail
 }
 
 interface InvoiceDaySummary {
@@ -41,7 +43,16 @@ export default function InvoicesSection() {
   const [successMessage, setSuccessMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [pdfModal, setPdfModal] = useState<{ open: boolean; hotelName: string | null }>({
+  const [pdfModal, setPdfModal] = useState<{ 
+    open: boolean; 
+    hotelName: string | null;
+    dateDetails?: Array<{
+      date: string;
+      totalAmount: number;
+      weightKg: number;
+      protectorsAmount: number;
+    }>;
+  }>({
     open: false,
     hotelName: null,
   });
@@ -126,46 +137,117 @@ export default function InvoicesSection() {
     }
   };
 
-  const deleteDay = async (date: string) => {
-    if (!confirm(`წაიშალოს ${formatDate(date)}-ის გაგზავნილი ინვოისები?`)) return;
-    setBusy(true);
-    setError("");
-    setSuccessMessage("");
-    try {
-      // Ensure date is in YYYY-MM-DD format
-      const dateStr = date.includes("T") ? date.split("T")[0] : date;
-      const res = await fetch(`/api/admin/invoices?date=${dateStr}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
-      setSuccessMessage(`წაიშალა ${formatDate(date)}-ის ინვოისები`);
-      setTimeout(() => setSuccessMessage(""), 5000);
-      await fetchInvoices();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
-      console.error("Delete day error:", err);
-    } finally {
-      setBusy(false);
+  const deleteDay = async (date: string, emailSendIds?: string[]) => {
+    if (!emailSendIds || emailSendIds.length === 0) {
+      if (!confirm(`წაიშალოს ${formatDate(date)}-ის გაგზავნილი ინვოისები?`)) return;
+      setBusy(true);
+      setError("");
+      setSuccessMessage("");
+      try {
+        // Ensure date is in YYYY-MM-DD format
+        const dateStr = date.includes("T") ? date.split("T")[0] : date;
+        const res = await fetch(`/api/admin/invoices?date=${dateStr}`, { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+        setSuccessMessage(`წაიშალა ${formatDate(date)}-ის ინვოისები`);
+        setTimeout(() => setSuccessMessage(""), 5000);
+        await fetchInvoices();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+        console.error("Delete day error:", err);
+      } finally {
+        setBusy(false);
+      }
+    } else {
+      // Delete specific invoice by emailSendIds
+      if (!confirm(`წაიშალოს ეს ინვოისი?`)) return;
+      setBusy(true);
+      setError("");
+      setSuccessMessage("");
+      try {
+        const res = await fetch(`/api/admin/invoices`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            emailSendIds: emailSendIds,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+        setSuccessMessage(`ინვოისი წაიშალა`);
+        setTimeout(() => setSuccessMessage(""), 5000);
+        await fetchInvoices();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+        console.error("Delete invoice error:", err);
+      } finally {
+        setBusy(false);
+      }
     }
   };
 
-  const deleteHotel = async (hotelName: string | null) => {
+  const deleteHotel = async (hotelName: string | null, dateDetails?: DateDetail[]) => {
     if (!hotelName) return;
-    if (!confirm(`წაიშალოს ${formatHotel(hotelName)}-ის ყველა გაგზავნილი ინვოისი?`)) return;
-    setBusy(true);
-    setError("");
-    setSuccessMessage("");
-    try {
-      const res = await fetch(`/api/admin/invoices?hotelName=${encodeURIComponent(hotelName)}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
-      setSuccessMessage(`${formatHotel(hotelName)}-ის ინვოისები წაიშალა`);
-      setTimeout(() => setSuccessMessage(""), 5000);
-      await fetchInvoices();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
-      console.error("Delete hotel error:", err);
-    } finally {
-      setBusy(false);
+    
+    // If dateDetails are provided, delete only those specific invoices
+    // Otherwise, delete all invoices for the hotel (legacy behavior)
+    if (dateDetails && dateDetails.length > 0) {
+      // Collect all emailSendIds from all dateDetails in this invoice group
+      const allEmailSendIds = dateDetails
+        .flatMap(detail => detail.emailSendIds || [])
+        .filter((id): id is string => id !== undefined);
+      
+      if (allEmailSendIds.length === 0) {
+        setError("ინვოისის ID-ები არ მოიძებნა");
+        return;
+      }
+      
+      if (!confirm(`წაიშალოს ეს ინვოისები (${allEmailSendIds.length})?`)) return;
+      setBusy(true);
+      setError("");
+      setSuccessMessage("");
+      try {
+        const res = await fetch(`/api/admin/invoices`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            emailSendIds: allEmailSendIds,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+        setSuccessMessage(`ინვოისები წაიშალა`);
+        setTimeout(() => setSuccessMessage(""), 5000);
+        await fetchInvoices();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+        console.error("Delete invoice error:", err);
+      } finally {
+        setBusy(false);
+      }
+    } else {
+      // Legacy: delete all invoices for the hotel
+      if (!confirm(`წაიშალოს ${formatHotel(hotelName)}-ის ყველა გაგზავნილი ინვოისი?`)) return;
+      setBusy(true);
+      setError("");
+      setSuccessMessage("");
+      try {
+        const res = await fetch(`/api/admin/invoices?hotelName=${encodeURIComponent(hotelName)}`, { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+        setSuccessMessage(`${formatHotel(hotelName)}-ის ინვოისები წაიშალა`);
+        setTimeout(() => setSuccessMessage(""), 5000);
+        await fetchInvoices();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+        console.error("Delete hotel error:", err);
+      } finally {
+        setBusy(false);
+      }
     }
   };
 
@@ -255,9 +337,14 @@ export default function InvoicesSection() {
     return name.trim().replace(/\s+/g, " ").toLowerCase();
   };
 
-  const openPdfModal = (hotelName: string | null) => {
+  const openPdfModal = (hotelName: string | null, dateDetails?: Array<{
+    date: string;
+    totalAmount: number;
+    weightKg: number;
+    protectorsAmount: number;
+  }>) => {
     setSuccessMessage("");
-    setPdfModal({ open: true, hotelName });
+    setPdfModal({ open: true, hotelName, dateDetails });
     if (hotelName) {
       // Use case-insensitive matching to find the hotel email
       const normalizedSearch = normalizeHotelName(hotelName);
@@ -269,7 +356,7 @@ export default function InvoicesSection() {
   };
 
   const closePdfModal = () => {
-    setPdfModal({ open: false, hotelName: null });
+    setPdfModal({ open: false, hotelName: null, dateDetails: undefined });
     setModalEmail(null);
   };
 
@@ -297,6 +384,7 @@ export default function InvoicesSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           hotelName: pdfModal.hotelName,
+          dateDetails: pdfModal.dateDetails, // Send specific invoices to include
         }),
       });
 
@@ -453,9 +541,23 @@ export default function InvoicesSection() {
             {summaries.map((day, idx) => {
               const isExpanded = expandedRows.has(idx);
               const hasDetails = day.dateDetails && day.dateDetails.length > 0;
+              const dateDetails = day.dateDetails || [];
+              
+              // Check if all invoices for this hotel are confirmed
+              const allConfirmed = hasDetails && dateDetails.every((detail) => detail.confirmedAt !== null && detail.confirmedAt !== undefined);
+              const someConfirmed = hasDetails && dateDetails.some((detail) => detail.confirmedAt !== null && detail.confirmedAt !== undefined);
+              const latestConfirmedAt = hasDetails
+                ? dateDetails
+                    .filter((detail) => detail.confirmedAt !== null && detail.confirmedAt !== undefined)
+                    .map((detail) => new Date(detail.confirmedAt!))
+                    .sort((a, b) => b.getTime() - a.getTime())[0]
+                : undefined;
+              
+              // Use emailSendIds for unique key since multiple invoices can have same hotel name
+              const uniqueKey = day.dateDetails?.[0]?.emailSendIds?.[0] || `${day.displayHotelName || day.hotelName || "-"}-${idx}`;
               
               return (
-                <React.Fragment key={(day.displayHotelName || day.hotelName || "-") + idx}>
+                <React.Fragment key={uniqueKey}>
                   <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => hasDetails && toggleRow(idx)}>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                       {hasDetails && (
@@ -479,7 +581,24 @@ export default function InvoicesSection() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                      {formatHotel(day.displayHotelName || day.hotelName)}
+                      <div className="flex flex-col">
+                        <span>{formatHotel(day.displayHotelName || day.hotelName)}</span>
+                        {allConfirmed && latestConfirmedAt && (
+                          <span className="text-xs text-green-600 font-normal mt-1">
+                            ✓ ყველა ინვოისი დაადასტურა {latestConfirmedAt.toLocaleDateString("ka-GE")}
+                          </span>
+                        )}
+                        {!allConfirmed && someConfirmed && (
+                          <span className="text-xs text-yellow-600 font-normal mt-1">
+                            ⚠ ზოგიერთი ინვოისი დადასტურებულია
+                          </span>
+                        )}
+                        {!allConfirmed && !someConfirmed && hasDetails && (
+                          <span className="text-xs text-yellow-600 font-normal mt-1">
+                            დადასტურება საჭიროა
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                       {day.sheetCount}
@@ -504,7 +623,7 @@ export default function InvoicesSection() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              openPdfModal(day.displayHotelName || day.hotelName);
+                              openPdfModal(day.displayHotelName || day.hotelName, day.dateDetails);
                             }}
                             className="text-[14px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
                           >
@@ -513,7 +632,7 @@ export default function InvoicesSection() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteHotel(day.displayHotelName || day.hotelName);
+                              deleteHotel(day.displayHotelName || day.hotelName, day.dateDetails);
                             }}
                             disabled={busy}
                             className="text-[14px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -526,7 +645,7 @@ export default function InvoicesSection() {
                   </tr>
                   {isExpanded && hasDetails && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 bg-gray-50">
+                      <td colSpan={8} className="px-6 py-4 bg-gray-50">
                         <div className="overflow-x-auto">
                           <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-100">
@@ -548,6 +667,9 @@ export default function InvoicesSection() {
                                 </th>
                                 <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
                                   სულ (₾)
+                                </th>
+                                <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
+                                  დადასტურება
                                 </th>
                                 <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
                                   მოქმედებები
@@ -575,9 +697,20 @@ export default function InvoicesSection() {
                                   <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
                                     {(detail.totalAmount || 0).toFixed(2)} ₾
                                   </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                    {detail.confirmedAt ? (
+                                      <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                                        ✓ დაადასტურა {new Date(detail.confirmedAt).toLocaleDateString("ka-GE")}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                                        დადასტურება საჭიროა
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px]">
                                     <button
-                                      onClick={() => deleteDay(detail.date)}
+                                      onClick={() => deleteDay(detail.date, detail.emailSendIds)}
                                       disabled={busy}
                                       className="text-red-600 hover:text-red-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                                     >

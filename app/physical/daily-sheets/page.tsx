@@ -34,6 +34,11 @@ interface DailySheet {
   createdAt: string;
   confirmedBy?: string | null;
   confirmedAt?: string | null;
+  emailSends?: Array<{
+    id: string;
+    confirmedAt: string | null;
+    confirmedBy: string | null;
+  }>;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {

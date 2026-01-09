@@ -338,43 +338,8 @@ function generateInvoicePDF(
       });
 
       // =========================
-      // TOTAL ROW — ONLY ONCE
+      // NO TOTAL ROW - Each invoice shows its own total separately
       // =========================
-      doc
-        .save()
-        .rect(tableLeft, currentY, tableWidthPixels, 22)
-        .fill("#ffffff")
-        .restore();
-
-      doc.rect(tableLeft, currentY, tableWidthPixels, 22).stroke();
-
-      // Draw vertical lines in total row
-      doc.strokeColor("#000");
-      doc.lineWidth(1);
-      let totalVX = tableLeft + col.number;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
-      totalVX += col.description;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
-      totalVX += col.quantity;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
-      totalVX += col.unitPrice;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
-
-      doc.fontSize(11);
-
-      const totalLabelWidth = 200;
-      const totalAmountWidth = 80;
-      const totalLabelX = tableLeft + tableWidthPixels - (totalLabelWidth + totalAmountWidth);
-
-      drawBoldText("სულ გადასახდელი", totalLabelX, currentY + 5, {
-        width: totalLabelWidth,
-        align: "center",
-      });
-
-      drawBoldText(formatCurrency(totalAmount), tableLeft + tableWidthPixels - totalAmountWidth, currentY + 5, {
-        width: totalAmountWidth,
-        align: "center",
-      });
 
       // =========================
       // NO NOTES
@@ -419,7 +384,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { hotelName, email } = body;
+    const { hotelName, email, dateDetails } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -447,8 +412,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get invoice data for this hotel
-    const emailSends = await prisma.dailySheetEmailSend.findMany({
+    // Get all invoice data for this hotel
+    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
       where: {
         hotelName: hotelName,
       },
@@ -463,6 +428,33 @@ export async function POST(request: NextRequest) {
         date: "asc",
       },
     });
+
+    // If dateDetails is provided, filter emailSends to only include matching invoices
+    let emailSends = allEmailSends;
+    if (dateDetails && Array.isArray(dateDetails) && dateDetails.length > 0) {
+      // Filter to only include emailSends that match the dateDetails
+      emailSends = allEmailSends.filter((emailSend) => {
+        const emailSendDate = emailSend.date.toISOString().split("T")[0];
+        const emailSendAmount = parseFloat((emailSend.totalAmount || 0).toFixed(2));
+        const emailSendWeight = parseFloat((emailSend.totalWeight || 0).toFixed(2));
+        const emailSendProtectors = parseFloat((emailSend.protectorsAmount || 0).toFixed(2));
+        
+        // Check if this emailSend matches any dateDetail
+        return dateDetails.some((detail: any) => {
+          const detailDate = detail.date.split("T")[0]; // Handle both date strings and ISO strings
+          const detailAmount = parseFloat((detail.totalAmount || 0).toFixed(2));
+          const detailWeight = parseFloat((detail.weightKg || 0).toFixed(2));
+          const detailProtectors = parseFloat((detail.protectorsAmount || 0).toFixed(2));
+          
+          return (
+            emailSendDate === detailDate &&
+            Math.abs(emailSendAmount - detailAmount) < 0.01 &&
+            Math.abs(emailSendWeight - detailWeight) < 0.01 &&
+            Math.abs(emailSendProtectors - detailProtectors) < 0.01
+          );
+        });
+      });
+    }
 
     if (emailSends.length === 0) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
@@ -491,7 +483,7 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3); // 3 days from issue
     
-    // Build items array - deduplicate same invoices (same date, amount, weight, protectors)
+    // Build items array - each invoice separately (no deduplication)
     const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
     const pricePerKg = hotel.pricePerKg || 1.8; // Default price
     
@@ -500,25 +492,16 @@ export async function POST(request: NextRequest) {
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     
-    // Track unique invoices to avoid duplicates
-    const uniqueInvoiceMap = new Map<string, {
-      description: string;
-      quantity: string;
-      unitPrice: number;
-      total: number;
-    }>();
-    
-    // Create items for each unique invoice (deduplicate same date, amount, weight, protectors)
+    // Create items for each invoice separately (no deduplication)
     sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
-      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
       const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
 
       // Show only the send date in parentheses; fallback to sheet date if missing
       let sentLabel = dateStr;
       if (emailSend.sentAt) {
         const sentAt = new Date(emailSend.sentAt);
-        sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
+        sentLabel = `${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
       }
 
       const weight = emailSend.totalWeight ?? 0;
@@ -548,85 +531,49 @@ export async function POST(request: NextRequest) {
             0
           );
           
-          // Add regular linen item (deduplicate)
+          // Add regular linen item (separate for each invoice)
           if (regularWeight > 0) {
             const regularTotal = regularWeight * pricePerKg;
-            const regularKey = `${dateKey}-regular-${regularWeight.toFixed(2)}-${regularTotal.toFixed(2)}`;
-            if (!uniqueInvoiceMap.has(regularKey)) {
-              uniqueInvoiceMap.set(regularKey, {
-                description: sentLabel,
-                quantity: `${regularWeight.toFixed(1)} კგ`,
-                unitPrice: pricePerKg,
-                total: regularTotal,
-              });
-            }
-          }
-          
-          // Add tablecloths item (deduplicate)
-          if (tableclothsWeight > 0) {
-            const tableclothsPrice = 3.00; // Price for tablecloths
-            const tableclothsTotal = tableclothsWeight * tableclothsPrice;
-            const tableclothsKey = `${dateKey}-tablecloths-${tableclothsWeight.toFixed(2)}-${tableclothsTotal.toFixed(2)}`;
-            if (!uniqueInvoiceMap.has(tableclothsKey)) {
-              uniqueInvoiceMap.set(tableclothsKey, {
-                description: `${sentLabel} - სუფრები`,
-                quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-                unitPrice: tableclothsPrice,
-                total: tableclothsTotal,
-              });
-            }
-          }
-        } else {
-          // Regular linen item (no tablecloths) - deduplicate
-          const regularTotal = weight * pricePerKg;
-          const regularKey = `${dateKey}-regular-${weight.toFixed(2)}-${regularTotal.toFixed(2)}`;
-          if (!uniqueInvoiceMap.has(regularKey)) {
-            uniqueInvoiceMap.set(regularKey, {
+            items.push({
               description: sentLabel,
-              quantity: `${weight.toFixed(1)} კგ`,
+              quantity: `${regularWeight.toFixed(1)} კგ`,
               unitPrice: pricePerKg,
               total: regularTotal,
             });
           }
+          
+          // Add tablecloths item (separate for each invoice)
+          if (tableclothsWeight > 0) {
+            const tableclothsPrice = 3.00; // Price for tablecloths
+            const tableclothsTotal = tableclothsWeight * tableclothsPrice;
+            items.push({
+              description: `${sentLabel} - სუფრები`,
+              quantity: `${tableclothsWeight.toFixed(1)} კგ`,
+              unitPrice: tableclothsPrice,
+              total: tableclothsTotal,
+            });
+          }
+        } else {
+          // Regular linen item (no tablecloths) - separate for each invoice
+          const regularTotal = weight * pricePerKg;
+          items.push({
+            description: sentLabel,
+            quantity: `${weight.toFixed(1)} კგ`,
+            unitPrice: pricePerKg,
+            total: regularTotal,
+          });
         }
       }
-    });
-    
-    // Add protectors if any (as separate item, deduplicate by amount)
-    // First, collect all unique protector amounts per date
-    const protectorsMap = new Map<string, number>();
-    sortedEmailSends.forEach((emailSend) => {
-      const protectorsAmount = emailSend.protectorsAmount ?? 0;
+      
+      // Add protectors if any (as separate item for each invoice)
       if (protectorsAmount > 0) {
-        const date = new Date(emailSend.date);
-        const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
-        const protectorsKey = `${dateKey}-protectors-${protectorsAmount.toFixed(2)}`;
-        // Only add if we haven't seen this exact protector amount for this date
-        if (!protectorsMap.has(protectorsKey)) {
-          protectorsMap.set(protectorsKey, protectorsAmount);
-        }
+        items.push({
+          description: "დამცავები",
+          quantity: "1",
+          unitPrice: protectorsAmount,
+          total: protectorsAmount,
+        });
       }
-    });
-    
-    // Add unique protectors to items
-    protectorsMap.forEach((protectorsAmount) => {
-      items.push({
-        description: "დამცავები",
-        quantity: "1",
-        unitPrice: protectorsAmount,
-        total: protectorsAmount,
-      });
-    });
-    
-    // Convert map values to array (add regular items)
-    items.push(...Array.from(uniqueInvoiceMap.values()));
-    
-    // Sort items by description (date) to maintain order
-    items.sort((a, b) => {
-      // Extract date from description for sorting
-      const dateA = a.description.match(/(\d{2}\.\d{2}\.\d{2})/)?.[1] || "";
-      const dateB = b.description.match(/(\d{2}\.\d{2}\.\d{2})/)?.[1] || "";
-      return dateA.localeCompare(dateB);
     });
     
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);

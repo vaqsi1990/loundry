@@ -139,12 +139,15 @@ export default function RevenuesSection() {
     }
 
     try {
+      setError(""); // Clear previous errors
       const response = await fetch(`/api/admin/revenues/${id}`, {
         method: "DELETE",
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("წაშლა ვერ მოხერხდა");
+        throw new Error(data.error || "წაშლა ვერ მოხერხდა");
       }
 
       await fetchRevenues();
@@ -411,6 +414,66 @@ export default function RevenuesSection() {
         </div>
       )}
 
+      {/* Revenues Section */}
+      {revenues.length > 0 ? (
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-black mb-4">შემოსავლები</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    თარიღი
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    წყარო
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    აღწერა
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    თანხა
+                  </th>
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                    მოქმედებები
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {revenues.map((revenue) => (
+                  <tr key={revenue.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {new Date(revenue.date).toLocaleDateString("ka-GE")}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {revenue.source === "SERVICE" ? "სერვისი" : revenue.source === "INVOICE" ? "ინვოისი" : "სხვა"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                      {revenue.description}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-bold">
+                      {revenue.amount.toFixed(2)} ₾
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
+                      <button
+                        onClick={() => handleDelete(revenue.id)}
+                        className="text-red-600 hover:underline text-[18px] md:text-[20px]"
+                      >
+                        წაშლა
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-black mb-6">
+          შემოსავლები არ მოიძებნა
+        </div>
+      )}
+
       {/* Sent Invoices Section */}
       {sentInvoices.length > 0 ? (
         <div className="mb-6">
@@ -566,7 +629,7 @@ export default function RevenuesSection() {
                               დასტური
                             </button>
                           )}
-                          {!isEditing && !isPaid && (
+                          {!isEditing && (
                             <button
                               onClick={() => handleDeleteInvoice(invoice.id)}
                               className="text-red-600 hover:underline text-[18px] md:text-[20px]"

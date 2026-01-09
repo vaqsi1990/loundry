@@ -222,82 +222,19 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Aggregate by normalized hotel name to provide a grouped invoice-style summary
+    // Create a separate invoice entry for each emailSend (no grouping)
     const normalizeHotel = (name: string | null) => {
       if (!name) return "-";
       return name.trim().replace(/\s+/g, " ").toLowerCase();
     };
 
-    const aggregateMap = new Map<
-      string,
-      {
-        hotelName: string | null;
-        displayHotelName: string | null;
-        sheetCount: number;
-        totalDispatched: number;
-        totalWeightKg: number;
-        protectorsAmount: number;
-        totalAmount: number;
-        totalEmailSendCount: number;
-        sheetIds: Set<string>; // Track unique sheets
-        sheetDispatched: Map<string, number>; // Track dispatched count per sheet (to avoid double counting)
-        dateDetails: Array<{ // Track each email send separately
-          date: string;
-          emailSendCount: number;
-          weightKg: number;
-          protectorsAmount: number;
-          totalAmount: number;
-          sentAt: string | null;
-        }>;
-      }
-    >();
-
-    emailSends.forEach((emailSend) => {
-      const hotelKey = normalizeHotel(emailSend.hotelName);
+    const invoices = emailSends.map((emailSend) => {
       const sheet = emailSend.dailySheet;
-
-      const current = aggregateMap.get(hotelKey) ?? {
-        hotelName: hotelKey === "-" ? null : hotelKey,
-        displayHotelName: emailSend.hotelName?.trim() || null,
-        sheetCount: 0,
-        totalDispatched: 0,
-        totalWeightKg: 0,
-        protectorsAmount: 0,
-        totalAmount: 0,
-        totalEmailSendCount: 0,
-        sheetIds: new Set<string>(),
-        sheetDispatched: new Map<string, number>(),
-        dateDetails: [] as Array<{ date: string; emailSendCount: number; weightKg: number; protectorsAmount: number; totalAmount: number; sentAt: string | null }>,
-      };
-
-      // Calculate dispatched count from sheet items (only once per sheet)
-      if (!current.sheetDispatched.has(sheet.id)) {
-        const totals = sheet.items.reduce(
-          (acc, item) => {
-            // Treat dispatched as the max known count (fallback to received/washCount when 0 or null)
-            const dispatched =
-              (item.dispatched && item.dispatched > 0
-                ? item.dispatched
-                : item.received && item.received > 0
-                ? item.received
-                : item.washCount || 0) ?? 0;
-
-            return {
-              dispatched: acc.dispatched + dispatched,
-            };
-          },
-          { dispatched: 0 }
-        );
-        current.sheetDispatched.set(sheet.id, totals.dispatched);
-      }
 
       // Use values from DailySheetEmailSend record
       const emailWeight = emailSend.totalWeight ?? 0;
       const emailProtectorsAmount = emailSend.protectorsAmount ?? 0;
       const emailTotalAmount = emailSend.totalAmount ?? 0;
-
-      // Track unique sheets
-      current.sheetIds.add(sheet.id);
 
       // Track each email send separately - use UTC methods to avoid timezone issues
       const dateObj = new Date(emailSend.date);
@@ -307,78 +244,69 @@ export async function GET(request: NextRequest) {
       const day = String(dateObj.getUTCDate()).padStart(2, '0');
       const dateKey = `${year}-${month}-${day}`;
       
-      // Create unique key for this invoice: date + amount + weight + protectors
-      const invoiceKey = `${dateKey}-${emailTotalAmount.toFixed(2)}-${emailWeight.toFixed(2)}-${emailProtectorsAmount.toFixed(2)}`;
+      const hotelKey = normalizeHotel(emailSend.hotelName);
       
-      // Check if this exact invoice (same date, amount, weight, protectors) already exists in dateDetails
-      const existingDetail = current.dateDetails.find(detail => {
-        const detailKey = `${detail.date}-${detail.totalAmount.toFixed(2)}-${detail.weightKg.toFixed(2)}-${detail.protectorsAmount.toFixed(2)}`;
-        return detailKey === invoiceKey;
-      });
+      // Calculate dispatched count from sheet items
+      const totals = sheet.items.reduce(
+        (acc, item) => {
+          // Treat dispatched as the max known count (fallback to received/washCount when 0 or null)
+          const dispatched =
+            (item.dispatched && item.dispatched > 0
+              ? item.dispatched
+              : item.received && item.received > 0
+              ? item.received
+              : item.washCount || 0) ?? 0;
+
+          return {
+            dispatched: acc.dispatched + dispatched,
+          };
+        },
+        { dispatched: 0 }
+      );
       
-      if (existingDetail) {
-        // If duplicate invoice found, increment emailSendCount but DO NOT add to totals
-        // The same invoice (same date, amount, weight, protectors) should only be counted once
-        existingDetail.emailSendCount += 1;
-        // Keep the most recent sentAt if available
-        if (emailSend.sentAt && (!existingDetail.sentAt || new Date(emailSend.sentAt) > new Date(existingDetail.sentAt))) {
-          existingDetail.sentAt = emailSend.sentAt.toISOString();
-        }
-      } else {
-        // Add new unique invoice detail and add to totals only once
-        const dateDetail = {
+      // Get confirmation status from emailSend (not dailySheet)
+      const confirmedAt = emailSend.confirmedAt ? emailSend.confirmedAt.toISOString() : null;
+      
+      // Each emailSend is a separate invoice with a single date detail
+      return {
+        hotelName: hotelKey === "-" ? null : hotelKey,
+        displayHotelName: emailSend.hotelName?.trim() || null,
+        sheetCount: 1, // Each invoice represents one sheet
+        totalDispatched: totals.dispatched,
+        totalWeightKg: emailWeight,
+        protectorsAmount: emailProtectorsAmount,
+        totalAmount: emailTotalAmount,
+        totalEmailSendCount: 1, // Each invoice has one email send
+        dateDetails: [{
           date: dateKey,
-          emailSendCount: 1, // Each entry represents one email send
+          emailSendCount: 1,
           weightKg: emailWeight,
           protectorsAmount: emailProtectorsAmount,
           totalAmount: emailTotalAmount,
           sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
-        };
-        current.dateDetails.push(dateDetail);
-        
-        // Add to totals only for unique invoices
-        current.totalWeightKg += emailWeight;
-        current.protectorsAmount += emailProtectorsAmount;
-        current.totalAmount += emailTotalAmount;
-      }
-
-      aggregateMap.set(hotelKey, {
-        hotelName: hotelKey === "-" ? null : hotelKey,
-        displayHotelName: current.displayHotelName || emailSend.hotelName?.trim() || null,
-        sheetCount: current.sheetIds.size,
-        totalDispatched: Array.from(current.sheetDispatched.values()).reduce((sum, val) => sum + val, 0),
-        // Use weight, protectors amount, and total amount from DailySheetEmailSend (only for unique invoices)
-        totalWeightKg: current.totalWeightKg,
-        protectorsAmount: current.protectorsAmount,
-        totalAmount: current.totalAmount,
-        totalEmailSendCount: current.totalEmailSendCount + 1,
-        sheetIds: current.sheetIds,
-        sheetDispatched: current.sheetDispatched,
-        dateDetails: current.dateDetails,
-      });
+          confirmedAt: confirmedAt,
+          emailSendIds: [emailSend.id], // Each invoice detail has only one emailSend ID
+        }],
+      };
     });
 
-    const aggregated = Array.from(aggregateMap.values())
-      .map(({ sheetIds, sheetDispatched, dateDetails, ...rest }) => ({
-        ...rest,
-        dateDetails: dateDetails.sort((a, b) => {
-          // Sort by date string first (YYYY-MM-DD format), then by sentAt time
-          const dateCompare = b.date.localeCompare(a.date);
-          if (dateCompare !== 0) return dateCompare;
-          // If same date, sort by sentAt (most recent first)
-          if (a.sentAt && b.sentAt) {
-            return b.sentAt.localeCompare(a.sentAt);
-          }
-          return 0;
-        }),
-      })) // dateDetails is already an array, just sort it
-      .sort((a, b) => {
-        const hA = a.displayHotelName || a.hotelName || "";
-        const hB = b.displayHotelName || b.hotelName || "";
-        return hA.localeCompare(hB);
-      });
+    // Sort by hotel name, then by sentAt (most recent first)
+    const sorted = invoices.sort((a, b) => {
+      const hA = a.displayHotelName || a.hotelName || "";
+      const hB = b.displayHotelName || b.hotelName || "";
+      const hotelCompare = hA.localeCompare(hB);
+      if (hotelCompare !== 0) return hotelCompare;
+      
+      // If same hotel, sort by sentAt (most recent first)
+      const sentAtA = a.dateDetails[0]?.sentAt;
+      const sentAtB = b.dateDetails[0]?.sentAt;
+      if (sentAtA && sentAtB) {
+        return sentAtB.localeCompare(sentAtA);
+      }
+      return 0;
+    });
 
-    return NextResponse.json(aggregated);
+    return NextResponse.json(sorted);
   } catch (error) {
     console.error("Invoices fetch error:", error);
     return NextResponse.json(
@@ -411,14 +339,78 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Check if request body contains emailSendIds (for specific invoice deletion)
+    let emailSendIds: string[] | undefined;
+    try {
+      const body = await request.json().catch(() => null);
+      if (body && Array.isArray(body.emailSendIds) && body.emailSendIds.length > 0) {
+        emailSendIds = body.emailSendIds;
+      }
+    } catch {
+      // If body parsing fails, continue with query params
+    }
+
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
     const hotelNameParam = searchParams.get("hotelName");
     const clearAll = searchParams.get("all") === "true";
 
+    // If emailSendIds are provided, delete only those specific email sends
+    if (emailSendIds && emailSendIds.length > 0) {
+      const emailSendDeleteResult = await prisma.dailySheetEmailSend.deleteMany({
+        where: {
+          id: {
+            in: emailSendIds,
+          },
+        },
+      });
+
+      // Also update related daily sheets
+      const relatedSheets = await prisma.dailySheetEmailSend.findMany({
+        where: {
+          id: {
+            in: emailSendIds,
+          },
+        },
+        select: {
+          dailySheetId: true,
+        },
+      });
+
+      const sheetIds = [...new Set(relatedSheets.map(es => es.dailySheetId))];
+      
+      // Check if any sheets have remaining email sends
+      for (const sheetId of sheetIds) {
+        const remainingEmailSends = await prisma.dailySheetEmailSend.count({
+          where: {
+            dailySheetId: sheetId,
+          },
+        });
+
+        if (remainingEmailSends === 0) {
+          // No more email sends for this sheet, clear emailedAt
+          await prisma.dailySheet.update({
+            where: { id: sheetId },
+            data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
+          });
+        } else {
+          // Update emailSendCount
+          await prisma.dailySheet.update({
+            where: { id: sheetId },
+            data: { emailSendCount: remainingEmailSends },
+          });
+        }
+      }
+
+      return NextResponse.json({
+        deletedEmailSends: emailSendDeleteResult.count,
+        message: "ინვოისი წაიშალა",
+      });
+    }
+
     if (!clearAll && !dateParam && !hotelNameParam) {
       return NextResponse.json(
-        { error: "მიუთითეთ date=YYYY-MM-DD, hotelName=სასტუმროს_სახელი ან all=true" },
+        { error: "მიუთითეთ date=YYYY-MM-DD, hotelName=სასტუმროს_სახელი, all=true ან emailSendIds array" },
         { status: 400 }
       );
     }
