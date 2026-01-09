@@ -145,6 +145,18 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Check if invoice exists first
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+    });
+
+    if (!invoice) {
+      return NextResponse.json(
+        { error: "ინვოისი არ მოიძებნა" },
+        { status: 404 }
+      );
+    }
+
     await prisma.invoice.delete({
       where: { id },
     });
@@ -152,8 +164,18 @@ export async function DELETE(
     return NextResponse.json({ message: "ინვოისი წაიშალა" });
   } catch (error) {
     console.error("Invoice delete error:", error);
+    const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
+    
+    // Check for Prisma foreign key constraint errors
+    if (errorMessage.includes("Foreign key constraint") || errorMessage.includes("P2003")) {
+      return NextResponse.json(
+        { error: "ინვოისის წაშლა ვერ მოხერხდა, რადგან ის დაკავშირებულია სხვა ჩანაწერებთან" },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "ინვოისის წაშლისას მოხდა შეცდომა" },
+      { error: `ინვოისის წაშლისას მოხდა შეცდომა: ${errorMessage}` },
       { status: 500 }
     );
   }

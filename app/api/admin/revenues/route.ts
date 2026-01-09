@@ -32,13 +32,15 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get("month");
 
     let revenueWhere: any = {};
-    let invoiceWhere: any = {
-      customerEmail: {
-        not: null,
-      },
-    };
 
     if (view === "daily" && date) {
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) {
+        return NextResponse.json(
+          { error: "არასწორი თარიღის ფორმატი" },
+          { status: 400 }
+        );
+      }
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
@@ -47,21 +49,19 @@ export async function GET(request: NextRequest) {
         gte: startOfDay,
         lte: endOfDay,
       };
-      invoiceWhere.createdAt = {
-        gte: startOfDay,
-        lte: endOfDay,
-      };
     } else if (view === "monthly" && month) {
       const startOfMonth = new Date(`${month}-01`);
+      if (isNaN(startOfMonth.getTime())) {
+        return NextResponse.json(
+          { error: "არასწორი თვის ფორმატი" },
+          { status: 400 }
+        );
+      }
       const endOfMonth = new Date(startOfMonth);
       endOfMonth.setMonth(endOfMonth.getMonth() + 1);
       endOfMonth.setDate(0);
       endOfMonth.setHours(23, 59, 59, 999);
       revenueWhere.date = {
-        gte: startOfMonth,
-        lte: endOfMonth,
-      };
-      invoiceWhere.createdAt = {
         gte: startOfMonth,
         lte: endOfMonth,
       };
@@ -75,10 +75,49 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch invoices that have been sent to hotels (have customerEmail)
-    const allSentInvoices = await prisma.invoice.findMany({
+    // Apply date filter only if view mode is set, otherwise show all sent invoices
+    let invoiceDateFilter: any = {};
+    if (view === "daily" && date) {
+      // Parse date string and create proper date range
+      const dateObj = new Date(date + "T00:00:00");
+      const startOfDay = new Date(dateObj);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(dateObj);
+      endOfDay.setHours(23, 59, 59, 999);
+      invoiceDateFilter.createdAt = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    } else if (view === "monthly" && month) {
+      // Parse month string (YYYY-MM) and create proper date range
+      const startOfMonth = new Date(`${month}-01T00:00:00`);
+      const endOfMonth = new Date(startOfMonth);
+      endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+      endOfMonth.setDate(0); // Last day of the month
+      endOfMonth.setHours(23, 59, 59, 999);
+      invoiceDateFilter.createdAt = {
+        gte: startOfMonth,
+        lte: endOfMonth,
+      };
+    }
+
+    // Build the invoice where clause
+    // Show all invoices (not just those with customerEmail) since invoices can be sent in different ways
+    const invoiceWhere: any = {
+      ...invoiceDateFilter,
+    };
+
+    // Debug: Check total invoices
+    const totalInvoices = await prisma.invoice.count();
+    const totalInvoicesInRange = await prisma.invoice.count({
+      where: invoiceWhere,
+    });
+    console.log("Revenues API - Total invoices:", totalInvoices, "Total in date range:", totalInvoicesInRange);
+
+    const sentInvoices = await prisma.invoice.findMany({
       where: invoiceWhere,
       orderBy: {
-        createdAt: "asc", // Order by oldest first to get first invoice per hotel
+        createdAt: "desc", // Order by newest first
       },
       select: {
         id: true,
@@ -89,22 +128,19 @@ export async function GET(request: NextRequest) {
         paidAmount: true,
         status: true,
         createdAt: true,
+        customerEmail: true, // Include for debugging
       },
     });
 
-    // Group by customerName and keep only the first (oldest) invoice for each hotel
-    const hotelInvoiceMap = new Map<string, typeof allSentInvoices[0]>();
-    allSentInvoices.forEach((invoice) => {
-      const hotelName = invoice.customerName;
-      if (!hotelInvoiceMap.has(hotelName)) {
-        hotelInvoiceMap.set(hotelName, invoice);
-      }
-    });
-
-    // Convert map values to array and sort by createdAt descending for display
-    const sentInvoices = Array.from(hotelInvoiceMap.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    console.log("Revenues API - Found invoices after filter:", sentInvoices.length, "View:", view, "Date:", date, "Month:", month);
+    console.log("Revenues API - Invoice date filter:", JSON.stringify(invoiceDateFilter));
+    if (sentInvoices.length > 0) {
+      console.log("Revenues API - Sample invoice dates:", sentInvoices.slice(0, 3).map(inv => ({
+        id: inv.id,
+        createdAt: inv.createdAt,
+        customerName: inv.customerName,
+      })));
+    }
 
     return NextResponse.json({
       revenues,
@@ -112,8 +148,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Revenues fetch error:", error);
+    const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
     return NextResponse.json(
-      { error: "შემოსავლების ჩატვირთვისას მოხდა შეცდომა" },
+      { error: `შემოსავლების ჩატვირთვისას მოხდა შეცდომა: ${errorMessage}` },
       { status: 500 }
     );
   }

@@ -389,19 +389,83 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
+    const hotelNameParam = searchParams.get("hotelName");
     const clearAll = searchParams.get("all") === "true";
 
-    if (!clearAll && !dateParam) {
+    if (!clearAll && !dateParam && !hotelNameParam) {
       return NextResponse.json(
-        { error: "მიუთითეთ date=YYYY-MM-DD ან all=true" },
+        { error: "მიუთითეთ date=YYYY-MM-DD, hotelName=სასტუმროს_სახელი ან all=true" },
         { status: 400 }
       );
     }
 
+    // Normalize hotel name function (same as GET endpoint)
+    const normalizeHotel = (name: string | null) => {
+      if (!name) return "-";
+      return name.trim().replace(/\s+/g, " ").toLowerCase();
+    };
+
     // Build where clause for DailySheetEmailSend deletion
     let emailSendWhereClause: any = {};
+    let matchingEmailSendIds: string[] = [];
+    let matchingSheetIds: string[] = [];
 
-    if (dateParam && !clearAll) {
+    if (hotelNameParam && !clearAll) {
+      // Use case-insensitive search to match hotel names regardless of case/spacing
+      const normalizedSearchName = normalizeHotel(hotelNameParam);
+      
+      // Find all matching email sends with case-insensitive hotel name
+      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+        where: {
+          hotelName: {
+            not: null,
+          },
+        },
+        select: {
+          id: true,
+          hotelName: true,
+        },
+      });
+      
+      // Find IDs of records that match after normalization
+      matchingEmailSendIds = allEmailSends
+        .filter((es) => normalizeHotel(es.hotelName) === normalizedSearchName)
+        .map((es) => es.id);
+
+      if (matchingEmailSendIds.length === 0) {
+        return NextResponse.json({
+          deletedEmailSends: 0,
+          updatedSheets: 0,
+          message: "მონაცემები არ მოიძებნა",
+        });
+      }
+
+      emailSendWhereClause = {
+        id: {
+          in: matchingEmailSendIds,
+        },
+      };
+
+      // Also find matching sheets for updating
+      const allSheets = await prisma.dailySheet.findMany({
+        where: {
+          hotelName: {
+            not: null,
+          },
+          emailedAt: {
+            not: null,
+          },
+        },
+        select: {
+          id: true,
+          hotelName: true,
+        },
+      });
+
+      matchingSheetIds = allSheets
+        .filter((sheet) => normalizeHotel(sheet.hotelName) === normalizedSearchName)
+        .map((sheet) => sheet.id);
+    } else if (dateParam && !clearAll) {
       const [y, m, d] = dateParam.split("-").map(Number);
       if (!y || !m || !d) {
         return NextResponse.json(
@@ -424,6 +488,8 @@ export async function DELETE(request: NextRequest) {
       where: emailSendWhereClause,
     });
 
+    console.log("Delete invoices - Email sends deleted:", emailSendDeleteResult.count, "Where clause:", JSON.stringify(emailSendWhereClause));
+
     // Also clear emailedAt and emailedTo from dailySheet records
     let sheetWhereClause: any = {
       emailedAt: {
@@ -431,7 +497,23 @@ export async function DELETE(request: NextRequest) {
       },
     };
 
-    if (dateParam && !clearAll) {
+    if (hotelNameParam && !clearAll) {
+      // Use the matching sheet IDs we already found
+      if (matchingSheetIds.length === 0) {
+        // If no matching sheets, still return the email send deletion result
+        return NextResponse.json({
+          deletedEmailSends: emailSendDeleteResult.count,
+          updatedSheets: 0,
+        });
+      }
+
+      sheetWhereClause = {
+        ...sheetWhereClause,
+        id: {
+          in: matchingSheetIds,
+        },
+      };
+    } else if (dateParam && !clearAll) {
       const [y, m, d] = dateParam.split("-").map(Number);
       const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
       const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
@@ -448,6 +530,8 @@ export async function DELETE(request: NextRequest) {
       where: sheetWhereClause,
       data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
     });
+
+    console.log("Delete invoices - Sheets updated:", sheetUpdateResult.count, "Where clause:", JSON.stringify(sheetWhereClause));
 
     return NextResponse.json({ 
       deletedEmailSends: emailSendDeleteResult.count,

@@ -19,6 +19,7 @@ interface DateDetail {
 
 interface InvoiceDaySummary {
   hotelName: string | null;
+  displayHotelName: string | null;
   sheetCount: number;
   totalDispatched: number;
   totalWeightKg: number;
@@ -126,16 +127,43 @@ export default function InvoicesSection() {
   };
 
   const deleteDay = async (date: string) => {
-    if (!confirm(`წაიშალოს ${date}-ის გაგზავნილი ინვოისები?`)) return;
+    if (!confirm(`წაიშალოს ${formatDate(date)}-ის გაგზავნილი ინვოისები?`)) return;
     setBusy(true);
     setError("");
+    setSuccessMessage("");
     try {
-      const res = await fetch(`/api/admin/invoices?date=${date}`, { method: "DELETE" });
+      // Ensure date is in YYYY-MM-DD format
+      const dateStr = date.includes("T") ? date.split("T")[0] : date;
+      const res = await fetch(`/api/admin/invoices?date=${dateStr}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      setSuccessMessage(`წაიშალა ${formatDate(date)}-ის ინვოისები`);
+      setTimeout(() => setSuccessMessage(""), 5000);
       await fetchInvoices();
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      console.error("Delete day error:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteHotel = async (hotelName: string | null) => {
+    if (!hotelName) return;
+    if (!confirm(`წაიშალოს ${formatHotel(hotelName)}-ის ყველა გაგზავნილი ინვოისი?`)) return;
+    setBusy(true);
+    setError("");
+    setSuccessMessage("");
+    try {
+      const res = await fetch(`/api/admin/invoices?hotelName=${encodeURIComponent(hotelName)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      setSuccessMessage(`${formatHotel(hotelName)}-ის ინვოისები წაიშალა`);
+      setTimeout(() => setSuccessMessage(""), 5000);
+      await fetchInvoices();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      console.error("Delete hotel error:", err);
     } finally {
       setBusy(false);
     }
@@ -222,11 +250,18 @@ export default function InvoicesSection() {
     return `${months[month - 1]} ${year}`;
   };
 
+  const normalizeHotelName = (name: string | null) => {
+    if (!name) return "";
+    return name.trim().replace(/\s+/g, " ").toLowerCase();
+  };
+
   const openPdfModal = (hotelName: string | null) => {
     setSuccessMessage("");
     setPdfModal({ open: true, hotelName });
     if (hotelName) {
-      const h = hotels.find(h => h.hotelName === hotelName);
+      // Use case-insensitive matching to find the hotel email
+      const normalizedSearch = normalizeHotelName(hotelName);
+      const h = hotels.find(h => normalizeHotelName(h.hotelName) === normalizedSearch);
       setModalEmail(h?.email || null);
     } else {
       setModalEmail(null);
@@ -240,7 +275,8 @@ export default function InvoicesSection() {
 
   useEffect(() => {
     if (!pdfModal.open || !pdfModal.hotelName) return;
-    const h = hotels.find(h => h.hotelName === pdfModal.hotelName);
+    const normalizedSearch = normalizeHotelName(pdfModal.hotelName);
+    const h = hotels.find(h => normalizeHotelName(h.hotelName) === normalizedSearch);
     if (h?.email !== modalEmail) {
       setModalEmail(h?.email || null);
     }
@@ -419,7 +455,7 @@ export default function InvoicesSection() {
               const hasDetails = day.dateDetails && day.dateDetails.length > 0;
               
               return (
-                <React.Fragment key={(day.hotelName || "-") + idx}>
+                <React.Fragment key={(day.displayHotelName || day.hotelName || "-") + idx}>
                   <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => hasDetails && toggleRow(idx)}>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                       {hasDetails && (
@@ -443,7 +479,7 @@ export default function InvoicesSection() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                      {formatHotel(day.hotelName)}
+                      {formatHotel(day.displayHotelName || day.hotelName)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                       {day.sheetCount}
@@ -462,17 +498,29 @@ export default function InvoicesSection() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
-                      <div className="flex flex-col leading-tight">
+                      <div className="flex flex-col gap-2">
                         <span>{(day.totalAmount || 0).toFixed(2)} ₾</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openPdfModal(day.hotelName);
-                          }}
-                          className="mt-2 text-[16px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
-                        >
-                           გაგზავნა
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPdfModal(day.displayHotelName || day.hotelName);
+                            }}
+                            className="text-[14px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
+                          >
+                            გაგზავნა
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteHotel(day.displayHotelName || day.hotelName);
+                            }}
+                            disabled={busy}
+                            className="text-[14px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            წაშლა
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -501,6 +549,9 @@ export default function InvoicesSection() {
                                 <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
                                   სულ (₾)
                                 </th>
+                                <th className="px-4 py-2 text-left text-[14px] md:text-[16px] font-medium text-black">
+                                  მოქმედებები
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -523,6 +574,15 @@ export default function InvoicesSection() {
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
                                     {(detail.totalAmount || 0).toFixed(2)} ₾
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px]">
+                                    <button
+                                      onClick={() => deleteDay(detail.date)}
+                                      disabled={busy}
+                                      className="text-red-600 hover:text-red-800 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      წაშლა
+                                    </button>
                                   </td>
                                 </tr>
                               ))}

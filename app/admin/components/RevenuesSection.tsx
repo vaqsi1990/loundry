@@ -52,15 +52,50 @@ export default function RevenuesSection() {
 
   const fetchRevenues = async () => {
     try {
+      setLoading(true);
+      setError("");
       const params = viewMode === "daily" 
         ? `?view=daily&date=${selectedDate}`
         : `?view=monthly&month=${selectedMonth}`;
       
       const response = await fetch(`/api/admin/revenues${params}`);
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error("შემოსავლების ჩატვირთვა ვერ მოხერხდა");
+        throw new Error(data.error || "შემოსავლების ჩატვირთვა ვერ მოხერხდა");
       }
-      const data: RevenuesResponse = await response.json();
+      
+      console.log("Revenues fetched:", {
+        revenues: data.revenues?.length || 0,
+        sentInvoices: data.sentInvoices?.length || 0,
+        viewMode,
+        selectedDate,
+        selectedMonth,
+      });
+      
+      // Debug: Log revenue amounts
+      if (data.revenues && data.revenues.length > 0) {
+        console.log("Revenue details:", data.revenues.map((r: any) => ({
+          id: r.id,
+          amount: r.amount,
+          description: r.description,
+          date: r.date,
+        })));
+      }
+      
+      // Debug: Log invoice amounts
+      if (data.sentInvoices && data.sentInvoices.length > 0) {
+        console.log("Invoice details:", data.sentInvoices.map((inv: any) => ({
+          id: inv.id,
+          totalAmount: inv.totalAmount,
+          amount: inv.amount,
+          customerName: inv.customerName,
+          createdAt: inv.createdAt,
+        })));
+      } else {
+        console.log("No invoices found in date range. Total invoices in DB:", data.sentInvoices?.length || 0);
+      }
+      
       setRevenues(data.revenues || []);
       setSentInvoices(data.sentInvoices || []);
     } catch (err) {
@@ -223,6 +258,15 @@ export default function RevenuesSection() {
   const totalRevenueAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
   const totalInvoiceAmount = sentInvoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
   const totalAmount = totalRevenueAmount + totalInvoiceAmount;
+  
+  // Debug: Log calculation breakdown
+  console.log("Total calculation:", {
+    revenueCount: revenues.length,
+    totalRevenueAmount,
+    invoiceCount: sentInvoices.length,
+    totalInvoiceAmount,
+    totalAmount,
+  });
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
@@ -246,28 +290,26 @@ export default function RevenuesSection() {
         </div>
       )}
 
-      {/* View Mode Toggle */}
-      <div className="mb-4 flex space-x-4">
-        <button
-          onClick={() => setViewMode("daily")}
-          className={`px-4 py-2 rounded-lg ${
-            viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-          }`}
-        >
-          ყოველდღიური
-        </button>
-        <button
-          onClick={() => setViewMode("monthly")}
-          className={`px-4 py-2 rounded-lg ${
-            viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-          }`}
-        >
-          ყოველთვიური
-        </button>
-      </div>
-
-      {/* Date/Month Selector */}
-      <div className="mb-4">
+      {/* View Mode Toggle and Date/Month Selector */}
+      <div className="mb-4 flex items-center space-x-4">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setViewMode("daily")}
+            className={`px-4 py-2 rounded-lg ${
+              viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+            }`}
+          >
+            ყოველდღიური
+          </button>
+          <button
+            onClick={() => setViewMode("monthly")}
+            className={`px-4 py-2 rounded-lg ${
+              viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+            }`}
+          >
+            ყოველთვიური
+          </button>
+        </div>
         {viewMode === "daily" ? (
           <input
             type="date"
@@ -286,7 +328,7 @@ export default function RevenuesSection() {
       </div>
 
       {/* Summary */}
-      <div className=" p-4 rounded-lg mb-4">
+      <div className="mb-4">
         <div className="text-lg font-bold text-black">
           სულ: {totalAmount.toFixed(2)} ₾ ({revenues.length} შემოსავალი, {sentInvoices.length} ინვოისი)
         </div>
@@ -370,7 +412,7 @@ export default function RevenuesSection() {
       )}
 
       {/* Sent Invoices Section */}
-      {sentInvoices.length > 0 && (
+      {sentInvoices.length > 0 ? (
         <div className="mb-6">
           <h3 className="text-lg font-bold text-black mb-4">გაგზავნილი ინვოისები</h3>
           <div className="overflow-x-auto">
@@ -541,12 +583,9 @@ export default function RevenuesSection() {
             </table>
           </div>
         </div>
-      )}
-
-     
-      {revenues.length === 0 && sentInvoices.length === 0 && (
+      ) : (
         <div className="text-center py-8 text-black">
-          შემოსავლები არ მოიძებნა
+          გაგზავნილი ინვოისები არ მოიძებნა
         </div>
       )}
     </div>
