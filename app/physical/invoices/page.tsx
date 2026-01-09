@@ -32,8 +32,6 @@ export default function PhysicalInvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<InvoiceMonth[]>([]);
   const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("");
-  const [editingPayments, setEditingPayments] = useState<Record<string, { paidAmount: string }>>({});
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -58,15 +56,6 @@ export default function PhysicalInvoicesPage() {
       if (!response.ok) throw new Error("ინვოისების ჩატვირთვა ვერ მოხერხდა");
       const data = await response.json();
       setInvoices(data);
-      
-      // Initialize editing state with API's paidAmount
-      const initialEditing: Record<string, { paidAmount: string }> = {};
-      data.forEach((inv: InvoiceMonth) => {
-        initialEditing[inv.month] = {
-          paidAmount: (inv.paidAmount || 0).toFixed(2),
-        };
-      });
-      setEditingPayments(initialEditing);
     } catch (err) {
       console.error("Error fetching invoices:", err);
     } finally {
@@ -74,47 +63,6 @@ export default function PhysicalInvoicesPage() {
     }
   };
 
-  const handlePaymentChange = (month: string, value: string) => {
-    setEditingPayments(prev => ({
-      ...prev,
-      [month]: {
-        paidAmount: value,
-      },
-    }));
-  };
-
-  const savePayment = async (month: string) => {
-    const payment = editingPayments[month];
-    if (!payment) return;
-
-    setSaving(prev => ({ ...prev, [month]: true }));
-
-    try {
-      const paidAmount = parseFloat(payment.paidAmount) || 0;
-      const response = await fetch("/api/physical/invoices", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      body: JSON.stringify({
-        month,
-        paidAmount,
-      }),
-      });
-
-      if (!response.ok) {
-        throw new Error("გადახდის შენახვა ვერ მოხერხდა");
-      }
-
-      await fetchInvoices();
-      alert("გადახდა წარმატებით შეინახა");
-    } catch (err) {
-      console.error("Error saving payment:", err);
-      alert("გადახდის შენახვისას მოხდა შეცდომა");
-    } finally {
-      setSaving(prev => ({ ...prev, [month]: false }));
-    }
-  };
 
   const formatMonthGe = (monthKey: string) => {
     const [year, monthNum] = monthKey.split("-");
@@ -160,6 +108,80 @@ export default function PhysicalInvoicesPage() {
     setExpandedRows(newExpanded);
   };
 
+  const handleDownloadPDF = async (month: string) => {
+    try {
+      const response = await fetch(`/api/physical/invoices/pdf?month=${month}`);
+      if (!response.ok) {
+        throw new Error("PDF-ის გადმოწერა ვერ მოხერხდა");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `ინვოისი_${month}.pdf`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      alert("PDF-ის გადმოწერისას მოხდა შეცდომა");
+    }
+  };
+
+  const handleDownloadSingleInvoicePDF = async (
+    date: string, 
+    month: string, 
+    amount: number, 
+    weightKg: number, 
+    protectorsAmount: number
+  ) => {
+    try {
+      // Build URL with all invoice parameters for exact matching
+      const url = `/api/physical/invoices/pdf?month=${month}&date=${date}&amount=${amount.toFixed(2)}&weight=${weightKg.toFixed(2)}&protectors=${protectorsAmount.toFixed(2)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("PDF-ის გადმოწერა ვერ მოხერხდა");
+      }
+      
+      const blob = await response.blob();
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = urlObj;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `ინვოისი_${date}.pdf`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(urlObj);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      alert("PDF-ის გადმოწერისას მოხდა შეცდომა");
+    }
+  };
+
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -190,9 +212,8 @@ export default function PhysicalInvoicesPage() {
         <div className="bg-white shadow rounded-lg p-6">
           {/* Month Filter */}
           <div className="mb-4">
-            <label className="block text-[14px] text-center mx-auto md:text-[16px] font-medium text-gray-700 mb-1">
-              თვე
-            </label>
+          
+          
             <select
               value={selectedInvoiceMonth}
               onChange={(e) => setSelectedInvoiceMonth(e.target.value)}
@@ -218,23 +239,15 @@ export default function PhysicalInvoicesPage() {
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადახდილი თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">დარჩენილი</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სტატუსი</th>
-                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადახდილი თანხა (₾)</th>
-                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">ქმედება</th>
                 </tr>
               </thead>
               <tbody>
                 {invoices.map((invoice) => {
-                  const payment = editingPayments[invoice.month] || { paidAmount: (invoice.paidAmount || 0).toFixed(2) };
-                  const paidAmount = parseFloat(payment.paidAmount) || 0;
-                  // Use API's paidAmount for initial calculation, but allow editing
-                  const apiPaidAmount = invoice.paidAmount || 0;
-                  const remainingAmount = invoice.totalAmount - paidAmount;
-                  const isInsufficient = paidAmount > 0 && remainingAmount > 0 && remainingAmount < invoice.totalAmount;
+                  // Get paidAmount directly from API (updated by admin in /admin/revenues)
+                  const paidAmount = invoice.paidAmount || 0;
+                  const remainingAmount = invoice.remainingAmount || (invoice.totalAmount - paidAmount);
                   const isFullyPaid = remainingAmount <= 0 && paidAmount > 0 && invoice.totalAmount > 0;
-                  const displayStatus = isFullyPaid ? "PAID" : "PENDING";
-                  // Disable save button if fully paid and no changes made
-                  const hasChanges = Math.abs(paidAmount - apiPaidAmount) > 0.01;
-                  const isSaveDisabled = isFullyPaid && !hasChanges;
+                  const displayStatus = invoice.status || (isFullyPaid ? "PAID" : "PENDING");
                   const isExpanded = expandedRows.has(invoice.month);
                   const hasDetails = invoice.invoices && invoice.invoices.length > 0;
                   
@@ -280,11 +293,6 @@ export default function PhysicalInvoicesPage() {
                           remainingAmount > 0 ? "text-red-600" : "text-green-600"
                         }`}>
                           {remainingAmount.toFixed(2)} ₾
-                          {isInsufficient && (
-                            <div className="text-[12px] text-yellow-600 mt-1">
-                              ⚠️ არასაკმარისი
-                            </div>
-                          )}
                         </td>
                         <td className="border border-gray-300 px-2 py-1 text-center">
                           <span
@@ -297,30 +305,11 @@ export default function PhysicalInvoicesPage() {
                             {displayStatus === "PAID" ? "გადახდილი" : "გადასახდელი"}
                           </span>
                         </td>
-                        <td className="border border-gray-300 px-2 py-1" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={payment.paidAmount}
-                            onChange={(e) => handlePaymentChange(invoice.month, e.target.value)}
-                            className="w-full px-2 py-1 border rounded text-[14px] md:text-[16px] text-center"
-                            placeholder="0.00"
-                          />
-                        </td>
-                        <td className="border border-gray-300 px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => savePayment(invoice.month)}
-                            disabled={saving[invoice.month] || isSaveDisabled}
-                            className="bg-blue-600 text-white px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                          >
-                            {saving[invoice.month] ? "ინახება..." : "შენახვა"}
-                          </button>
-                        </td>
                       </tr>
                       {isExpanded && hasDetails && (
                         <tr>
-                          <td colSpan={8} className="border border-gray-300 px-4 py-3 bg-gray-50">
+                          <td colSpan={6} className="border border-gray-300 px-4 py-3 bg-gray-50">
+                          
                             <div className="overflow-x-auto">
                               <table className="w-full border-collapse border border-gray-300 bg-white md:text-[16px] text-[14px]">
                                 <thead>
@@ -331,6 +320,7 @@ export default function PhysicalInvoicesPage() {
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">წონა (კგ)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დამცავები (₾)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">სულ (₾)</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გადმოწერა</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -356,6 +346,27 @@ export default function PhysicalInvoicesPage() {
                                         </td>
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black font-semibold">
                                           {inv.amount.toFixed(2)} ₾
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDownloadSingleInvoicePDF(
+                                                inv.date, 
+                                                invoice.month,
+                                                inv.amount,
+                                                inv.weightKg,
+                                                inv.protectorsAmount
+                                              );
+                                            }}
+                                            className="bg-green-600 text-white font-bold px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-green-700 flex items-center gap-1 mx-auto"
+                                            title="ინვოისის გადმოწერა"
+                                          >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            გადმოწერა
+                                          </button>
                                         </td>
                                       </tr>
                                     );

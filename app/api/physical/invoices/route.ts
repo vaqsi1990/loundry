@@ -3,6 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
+// Normalize hotel name for case-insensitive matching
+const normalizeHotel = (name: string | null) => {
+  if (!name) return "";
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+};
+
 // Get invoices for physical person hotel grouped by month
 export async function GET(request: NextRequest) {
   try {
@@ -34,12 +40,6 @@ export async function GET(request: NextRequest) {
     const hotel = user.hotels[0];
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
-
-    // Normalize hotel name for case-insensitive matching
-    const normalizeHotel = (name: string | null) => {
-      if (!name) return "";
-      return name.trim().replace(/\s+/g, " ").toLowerCase();
-    };
 
     // Get all email sends and filter by normalized hotel name
     const allEmailSends = await prisma.dailySheetEmailSend.findMany({
@@ -114,49 +114,91 @@ export async function GET(request: NextRequest) {
 
       const monthData = monthlyData.get(monthKey)!;
       const amount = emailSend.totalAmount || 0;
+      const dateKey = emailSend.date.toISOString().split("T")[0];
+      const weightKg = emailSend.totalWeight || 0;
+      const protectorsAmount = emailSend.protectorsAmount || 0;
       
-      // Count each email send separately - if same sheet was sent multiple times, count each time
+      // Count each email send separately for totalAmount (if same sheet was sent multiple times, count each time)
       monthData.totalAmount += amount;
-      monthData.invoices.push({
-        date: emailSend.date.toISOString().split("T")[0],
-        amount,
-        paidAmount: 0, // Will be updated from Invoice table
-        remainingAmount: amount,
-        status: "PENDING",
-        sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
-        weightKg: emailSend.totalWeight || 0,
-        protectorsAmount: emailSend.protectorsAmount || 0,
-        emailSendCount: 1, // Each email send counts as 1
+      
+      // Track unique invoices per month to avoid duplicates in details
+      // Create unique key: date + amount + weight + protectors (within the same month)
+      const detailKey = `${dateKey}-${amount.toFixed(2)}-${weightKg.toFixed(2)}-${protectorsAmount.toFixed(2)}`;
+      
+      // Check if this invoice detail already exists in this month
+      const existingDetail = monthData.invoices.find(inv => {
+        const invDateKey = inv.date;
+        const invAmount = inv.amount.toFixed(2);
+        const invWeight = inv.weightKg.toFixed(2);
+        const invProtectors = inv.protectorsAmount.toFixed(2);
+        return `${invDateKey}-${invAmount}-${invWeight}-${invProtectors}` === detailKey;
       });
+      
+      if (existingDetail) {
+        // If duplicate found, increment emailSendCount but keep other values
+        existingDetail.emailSendCount += 1;
+        // Keep the most recent sentAt if available
+        if (emailSend.sentAt && (!existingDetail.sentAt || new Date(emailSend.sentAt) > new Date(existingDetail.sentAt))) {
+          existingDetail.sentAt = emailSend.sentAt.toISOString();
+        }
+      } else {
+        // Add new unique invoice detail
+        monthData.invoices.push({
+          date: dateKey,
+          amount,
+          paidAmount: 0,
+          remainingAmount: amount,
+          status: "PENDING",
+          sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
+          weightKg,
+          protectorsAmount,
+          emailSendCount: 1,
+        });
+      }
     });
 
-    // Get physical invoice payments for this user
-    const physicalPayments = await prisma.physicalInvoicePayment.findMany({
-      where: {
-        userId: session.user.id,
+    // Get paid amounts from Invoice table (updated by admin in /admin/revenues)
+    // Group invoices by month and sum paidAmount for each month
+    const invoicePaidAmounts = new Map<string, number>();
+    
+    // Get all invoices for this hotel
+    const allInvoices = await prisma.invoice.findMany({
+      select: {
+        customerName: true,
+        paidAmount: true,
+        createdAt: true,
       },
     });
 
-    // Update paid amounts from physical payments
-    const paymentMap = new Map<string, { paidAmount: number; isPaid: boolean }>();
-    physicalPayments.forEach((payment: any) => {
-      paymentMap.set(payment.month, {
-        paidAmount: payment.paidAmount || 0,
-        isPaid: payment.isPaid || false,
-      });
-      if (monthlyData.has(payment.month)) {
-        const monthData = monthlyData.get(payment.month)!;
-        monthData.paidAmount = payment.paidAmount || 0;
+    // Use the already normalized hotel name from above
+    
+    // Filter invoices for this hotel and group by month
+    allInvoices.forEach((invoice) => {
+      if (normalizeHotel(invoice.customerName) === normalizedHotelName) {
+        const invoiceDate = new Date(invoice.createdAt);
+        const year = invoiceDate.getUTCFullYear();
+        const month = String(invoiceDate.getUTCMonth() + 1).padStart(2, "0");
+        const monthKey = `${year}-${month}`;
+        
+        const currentPaid = invoicePaidAmounts.get(monthKey) || 0;
+        invoicePaidAmounts.set(monthKey, currentPaid + (invoice.paidAmount || 0));
+      }
+    });
+
+    // Update paid amounts from Invoice table
+    invoicePaidAmounts.forEach((paidAmount, monthKey) => {
+      if (monthlyData.has(monthKey)) {
+        const monthData = monthlyData.get(monthKey)!;
+        monthData.paidAmount = paidAmount;
         monthData.remainingAmount = monthData.totalAmount - monthData.paidAmount;
       }
     });
 
     const result = Array.from(monthlyData.values()).map((data) => {
-      const payment = paymentMap.get(data.month);
       return {
         ...data,
-        status: data.remainingAmount <= 0 ? "PAID" : "PENDING",
-        isPaid: payment?.isPaid || false,
+        status: data.remainingAmount <= 0 && data.totalAmount > 0 ? "PAID" : "PENDING",
+        isPaid: data.remainingAmount <= 0 && data.totalAmount > 0,
       };
     });
 
@@ -221,12 +263,6 @@ export async function PUT(request: NextRequest) {
     const [year, monthNum] = month.split("-");
     const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
     const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
-    
-    // Normalize hotel name for case-insensitive matching
-    const normalizeHotel = (name: string | null) => {
-      if (!name) return "";
-      return name.trim().replace(/\s+/g, " ").toLowerCase();
-    };
 
     const allEmailSends = await prisma.dailySheetEmailSend.findMany({
       where: {

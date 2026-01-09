@@ -150,9 +150,7 @@ export default function LegalInvoicesPage() {
         <div className="bg-white shadow rounded-lg p-6">
           {/* Month Filter */}
           <div className="mb-4">
-            <label className="block text-[14px] text-center mx-auto md:text-[16px] font-medium text-gray-700 mb-1">
-              თვე
-            </label>
+           
             <select
               value={selectedInvoiceMonth}
               onChange={(e) => setSelectedInvoiceMonth(e.target.value)}
