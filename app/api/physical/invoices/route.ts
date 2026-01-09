@@ -292,8 +292,13 @@ export async function GET(request: NextRequest) {
           const paidAmount = invoicePaidAmounts.get(emailSendId)!;
           invoiceDetail.paidAmount = paidAmount;
           invoiceDetail.remainingAmount = invoiceDetail.amount - paidAmount;
-          // Update status based on paid amount
-          invoiceDetail.status = invoiceDetail.remainingAmount <= 0 && invoiceDetail.amount > 0 ? "PAID" : "PENDING";
+          // Update status based on paid amount with floating point tolerance
+          const isDetailPaid = invoiceDetail.amount > 0 && (
+            invoiceDetail.remainingAmount <= 0 || 
+            Math.abs(invoiceDetail.remainingAmount) < 0.01 ||
+            (paidAmount >= invoiceDetail.amount && Math.abs(paidAmount - invoiceDetail.amount) < 0.01)
+          );
+          invoiceDetail.status = isDetailPaid ? "PAID" : "PENDING";
         } else {
           // No matching invoice found, keep defaults
           invoiceDetail.paidAmount = 0;
@@ -332,14 +337,31 @@ export async function GET(request: NextRequest) {
       const uniqueKey = Array.from(monthlyData.entries()).find(([key, value]) => value === data)?.[0];
       const confirmedAt = uniqueKey ? invoiceConfirmations.get(uniqueKey) : null;
       
-      // Check if the invoice detail is confirmed
-      const invoiceConfirmedAt = data.invoices[0]?.confirmedAt || null;
+      // Check if ALL invoice details are confirmed
+      // Month-level invoice is confirmed only if all details are confirmed
+      const allDetailsConfirmed = data.invoices.length > 0 && data.invoices.every(inv => inv.confirmedAt !== null && inv.confirmedAt !== undefined);
+      
+      // If all details are confirmed, use the earliest confirmation date, otherwise null
+      const monthConfirmedAt = allDetailsConfirmed 
+        ? data.invoices
+            .map(inv => inv.confirmedAt)
+            .filter((date): date is string => date !== null && date !== undefined)
+            .sort()[0] // Get earliest confirmation date
+        : null;
+      
+      // Calculate status more accurately with floating point tolerance
+      // Invoice is PAID if remaining amount is <= 0 (or very close to 0 due to floating point)
+      const isFullyPaid = data.totalAmount > 0 && (
+        data.remainingAmount <= 0 || 
+        Math.abs(data.remainingAmount) < 0.01 ||
+        (data.paidAmount >= data.totalAmount && Math.abs(data.paidAmount - data.totalAmount) < 0.01)
+      );
       
       return {
         ...data,
-        status: data.remainingAmount <= 0 && data.totalAmount > 0 ? "PAID" : "PENDING",
-        isPaid: data.remainingAmount <= 0 && data.totalAmount > 0,
-        confirmedAt: invoiceConfirmedAt || confirmedAt || null,
+        status: isFullyPaid ? "PAID" : "PENDING",
+        isPaid: isFullyPaid,
+        confirmedAt: monthConfirmedAt || confirmedAt || null,
       };
     });
 

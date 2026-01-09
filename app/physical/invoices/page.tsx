@@ -342,9 +342,18 @@ export default function PhysicalInvoicesPage() {
               <tbody>
                 {invoices.map((invoice, invoiceIdx) => {
                   // Get paidAmount directly from API (updated by admin in /admin/revenues)
-                  const paidAmount = invoice.paidAmount || 0;
-                  const remainingAmount = invoice.remainingAmount || (invoice.totalAmount - paidAmount);
-                  const isFullyPaid = remainingAmount <= 0 && paidAmount > 0 && invoice.totalAmount > 0;
+                  const paidAmount = Number(invoice.paidAmount || 0);
+                  const totalAmount = Number(invoice.totalAmount || 0);
+                  const remainingAmount = Number(invoice.remainingAmount ?? (totalAmount - paidAmount));
+                  
+                  // Use the same logic as API: check with floating point tolerance
+                  const isFullyPaid = totalAmount > 0 && (
+                    remainingAmount <= 0 || 
+                    Math.abs(remainingAmount) < 0.01 ||
+                    (paidAmount >= totalAmount && Math.abs(paidAmount - totalAmount) < 0.01)
+                  );
+                  
+                  // Use status from API, or calculate if not available
                   const displayStatus = invoice.status || (isFullyPaid ? "PAID" : "PENDING");
                   // Create unique key using emailSendIds to ensure each invoice is unique
                   // Each invoice should have at least one emailSendId in its invoices array
@@ -406,9 +415,9 @@ export default function PhysicalInvoicesPage() {
                           {paidAmount.toFixed(2)} ₾
                         </td>
                         <td className={`border border-gray-300 px-2 py-1 text-center font-medium ${
-                          remainingAmount > 0 ? "text-red-600" : "text-green-600"
+                          remainingAmount > 0.01 ? "text-red-600" : "text-green-600"
                         }`}>
-                          {remainingAmount.toFixed(2)} ₾
+                          {Math.max(0, remainingAmount).toFixed(2)} ₾
                         </td>
                         <td className="border border-gray-300 px-2 py-1 text-center">
                           <div className="flex flex-col items-center gap-2">
@@ -445,6 +454,25 @@ export default function PhysicalInvoicesPage() {
                           <td colSpan={7} className="border border-gray-300 px-4 py-3 bg-gray-50">
                           
                             <div className="overflow-x-auto">
+                              {/* Summary of confirmation status */}
+                              {(() => {
+                                const confirmedCount = invoice.invoices.filter(inv => inv.confirmedAt).length;
+                                const totalCount = invoice.invoices.length;
+                                const allConfirmed = confirmedCount === totalCount && totalCount > 0;
+                                return (
+                                  <div className={`mb-2 p-2 rounded text-sm ${
+                                    allConfirmed 
+                                      ? "bg-green-50 text-green-700 border border-green-200" 
+                                      : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                                  }`}>
+                                    <span className="font-semibold">
+                                      {allConfirmed 
+                                        ? `✓ ყველა ინვოისი დადასტურებულია (${confirmedCount}/${totalCount})`
+                                        : `დადასტურებული: ${confirmedCount}/${totalCount} ინვოისი`}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                               <table className="w-full border-collapse border border-gray-300 bg-white md:text-[16px] text-[14px]">
                                 <thead>
                                   <tr className="bg-gray-100">
