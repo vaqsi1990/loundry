@@ -58,6 +58,8 @@ model User {
   accounts      Account[]
   sessions      Session[]
   hotels        Hotel[]
+  pickupDeliveryRequests PickupDeliveryRequest[]
+  physicalInvoicePayments PhysicalInvoicePayment[]
 }
 
 model Account {
@@ -126,6 +128,8 @@ model Hotel {
 
   createdAt                DateTime   @default(now())
   updatedAt                DateTime   @updatedAt
+
+  pickupDeliveryRequests   PickupDeliveryRequest[]
 
   @@index([userId])
   @@index([email])
@@ -208,6 +212,8 @@ model DailySheet {
   emailedAt       DateTime?
   emailedTo       String?
   emailSendCount  Int           @default(0)
+  confirmedBy     String?       // User ID who confirmed the sheet
+  confirmedAt     DateTime?     // When the sheet was confirmed
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -217,6 +223,7 @@ model DailySheet {
   @@index([date])
   @@index([hotelName])
   @@index([emailedAt])
+  @@index([confirmedAt])
 }
 
 model DailySheetEmailSend {
@@ -378,4 +385,40 @@ model Blacklist {
 
   @@index([hotelName])
   @@index([contactPhone])
+}
+
+model PickupDeliveryRequest {
+  id              String        @id @default(cuid())
+  hotelId         String
+  hotel           Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestType     String        // PICKUP, DELIVERY, BOTH
+  notes           String?
+  status          String        @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  requestedAt     DateTime      @default(now())
+  confirmedAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([hotelId])
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+model PhysicalInvoicePayment {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           String        // YYYY-MM format
+  paidAmount      Float         @default(0)
+  isPaid          Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([userId, month])
+  @@index([userId])
+  @@index([month])
 }

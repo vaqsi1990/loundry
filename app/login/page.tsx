@@ -75,13 +75,17 @@ function LoginForm() {
 
         if (result?.error) {
           setError(result.error);
-        } else {
-          router.push("/");
+          setLoading(false);
+        } else if (result?.ok) {
+          router.push("/physical");
           router.refresh();
+        } else {
+          setError("დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
+          setLoading(false);
         }
       } catch (err) {
-        setError("დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
-      } finally {
+        console.error("Login error:", err);
+        setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
         setLoading(false);
       }
     } else if (loginType === "ADMIN") {

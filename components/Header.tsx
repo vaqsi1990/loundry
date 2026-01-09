@@ -38,7 +38,7 @@ export default function Header() {
             </Link>
             {status === "authenticated" && session ? (
               <>
-                <Link href="/profile" className="text-black md:text-[18px] text-[16px] transition">
+                <Link href="/physical" className="text-black md:text-[18px] text-[16px] transition">
                   პროფილი
                 </Link>
                 {(session.user as any)?.role === "ADMIN" && (
@@ -137,7 +137,7 @@ export default function Header() {
             {status === "authenticated" && session ? (
               <>
                 <Link
-                  href="/profile"
+                  href="/physical"
                   className="block text-black text-[16px] transition"
                   onClick={() => setIsMenuOpen(false)}
                 >

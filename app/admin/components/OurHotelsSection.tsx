@@ -135,15 +135,24 @@ export default function OurHotelsSection() {
       requestBody.name = trimmedName || undefined;
       requestBody.lastName = trimmedLastName || undefined;
       requestBody.email = trimmedEmail || undefined;
-      requestBody.password = isEditing ? password || undefined : password;
-      requestBody.confirmPassword = isEditing ? confirmPassword || undefined : confirmPassword;
+      
+      // Only include password fields if they're provided (for editing) or required (for creating)
+      if (isEditing) {
+        if (password) {
+          requestBody.password = password;
+          requestBody.confirmPassword = confirmPassword;
+        }
+      } else {
+        requestBody.password = password;
+        requestBody.confirmPassword = confirmPassword;
+      }
 
       if (hotelType === "PHYSICAL") {
-        requestBody.personalId = personalId;
+        requestBody.personalId = personalId.trim();
       } else if (hotelType === "LEGAL") {
-        requestBody.legalEntityName = legalEntityName;
-        requestBody.identificationCode = identificationCode;
-        requestBody.responsiblePersonName = responsiblePersonName;
+        requestBody.legalEntityName = legalEntityName.trim();
+        requestBody.identificationCode = identificationCode.trim();
+        requestBody.responsiblePersonName = responsiblePersonName.trim();
       }
 
       const response = await fetch(
@@ -219,14 +228,13 @@ export default function OurHotelsSection() {
     setEmail(hotel.user?.email || "");
     setPassword("");
     setConfirmPassword("");
-    setPersonalId("");
-    setLegalEntityName("");
-    setIdentificationCode("");
-    setResponsiblePersonName("");
+    // Populate physical/legal person specific fields
+    setPersonalId(hotel.personalId || "");
+    setLegalEntityName(hotel.legalEntityName || "");
+    setIdentificationCode(hotel.identificationCode || "");
+    setResponsiblePersonName(hotel.responsiblePersonName || "");
     setFormError("");
     setFormSuccess("");
-    setIsEditing(false);
-    setEditingId(null);
   };
 
   if (loading) {

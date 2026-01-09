@@ -26,24 +26,63 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const sheets = await prisma.dailySheet.findMany({
-      include: {
-        items: {
-          orderBy: {
-            category: "asc",
+    try {
+      const sheets = await prisma.dailySheet.findMany({
+        include: {
+          items: {
+            orderBy: {
+              category: "asc",
+            },
           },
         },
-      },
-      orderBy: {
-        date: "desc",
-      },
-    });
+        orderBy: {
+          date: "desc",
+        },
+      });
 
-    return NextResponse.json(sheets);
+      console.log("Fetched sheets count:", sheets.length);
+
+      // Get all unique confirmedBy user IDs
+      const confirmedByUserIds = [...new Set(sheets.map((s: any) => s.confirmedBy).filter(Boolean))];
+      
+      // Fetch user information for confirmedBy users
+      const confirmedByUsers = confirmedByUserIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: confirmedByUserIds } },
+            select: { id: true, name: true, email: true, role: true },
+          })
+        : [];
+
+      // Create a map for quick lookup
+      const userMap = new Map(confirmedByUsers.map((u: any) => [u.id, u]));
+
+      // Map sheets to include confirmedBy and confirmedAt with user info
+      const sheetsWithConfirmation = sheets.map((sheet: any) => {
+        const confirmedByUser = sheet.confirmedBy ? userMap.get(sheet.confirmedBy) : null;
+        return {
+          ...sheet,
+          confirmedBy: sheet.confirmedBy || null,
+          confirmedAt: sheet.confirmedAt || null,
+          confirmedByUser: confirmedByUser ? {
+            name: confirmedByUser.name,
+            email: confirmedByUser.email,
+            role: confirmedByUser.role,
+          } : null,
+        };
+      });
+
+      return NextResponse.json(sheetsWithConfirmation);
+    } catch (dbError: any) {
+      console.error("Database query error:", dbError);
+      console.error("Error code:", dbError?.code);
+      console.error("Error message:", dbError?.message);
+      throw dbError;
+    }
   } catch (error) {
     console.error("Daily sheets fetch error:", error);
+    const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
     return NextResponse.json(
-      { error: "დღის ფურცლების ჩატვირთვისას მოხდა შეცდომა" },
+      { error: `დღის ფურცლების ჩატვირთვისას მოხდა შეცდომა: ${errorMessage}` },
       { status: 500 }
     );
   }

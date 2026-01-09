@@ -279,6 +279,10 @@ export async function PUT(request: NextRequest) {
       body.name = body?.name?.trim();
       body.lastName = body?.lastName?.trim();
       body.email = body?.email?.trim();
+      body.personalId = body?.personalId?.trim() || undefined;
+      body.identificationCode = body?.identificationCode?.trim() || undefined;
+      body.legalEntityName = body?.legalEntityName?.trim() || undefined;
+      body.responsiblePersonName = body?.responsiblePersonName?.trim() || undefined;
       body.hotelType = body?.hotelType ?? existingHotel.type;
       body.numberOfRooms = body?.numberOfRooms ? Number(body.numberOfRooms) : body.numberOfRooms;
       body.pricePerKg = body?.pricePerKg ? Number(body.pricePerKg) : body.pricePerKg;
@@ -340,19 +344,19 @@ export async function PUT(request: NextRequest) {
         address: validatedData.address,
         personalId:
           (validatedData.hotelType ?? existingHotel.type) === "PHYSICAL"
-            ? validatedData.personalId ?? existingHotel.personalId
+            ? (validatedData.personalId?.trim() || existingHotel.personalId) ?? null
             : null,
         legalEntityName:
           (validatedData.hotelType ?? existingHotel.type) === "LEGAL"
-            ? validatedData.legalEntityName ?? existingHotel.legalEntityName
+            ? (validatedData.legalEntityName?.trim() || existingHotel.legalEntityName) ?? null
             : null,
         identificationCode:
           (validatedData.hotelType ?? existingHotel.type) === "LEGAL"
-            ? validatedData.identificationCode ?? existingHotel.identificationCode
+            ? (validatedData.identificationCode?.trim() || existingHotel.identificationCode) ?? null
             : null,
         responsiblePersonName:
           (validatedData.hotelType ?? existingHotel.type) === "LEGAL"
-            ? validatedData.responsiblePersonName ?? existingHotel.responsiblePersonName
+            ? (validatedData.responsiblePersonName?.trim() || existingHotel.responsiblePersonName) ?? null
             : null,
       },
     });
@@ -409,6 +413,10 @@ export async function POST(request: NextRequest) {
       body.companyName = body?.companyName?.trim();
       body.address = body?.address?.trim();
       body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim();
+      body.personalId = body?.personalId?.trim() || undefined;
+      body.identificationCode = body?.identificationCode?.trim() || undefined;
+      body.legalEntityName = body?.legalEntityName?.trim() || undefined;
+      body.responsiblePersonName = body?.responsiblePersonName?.trim() || undefined;
       console.log("our-hotels POST payload", {
         email: body?.email,
         hotelEmail: body?.hotelEmail,
@@ -476,11 +484,11 @@ export async function POST(request: NextRequest) {
       };
 
       if (validatedData.hotelType === "PHYSICAL") {
-        hotelData.personalId = validatedData.personalId;
+        hotelData.personalId = validatedData.personalId?.trim() || null;
       } else if (validatedData.hotelType === "LEGAL") {
-        hotelData.legalEntityName = validatedData.legalEntityName;
-        hotelData.identificationCode = validatedData.identificationCode;
-        hotelData.responsiblePersonName = validatedData.responsiblePersonName;
+        hotelData.legalEntityName = validatedData.legalEntityName?.trim() || null;
+        hotelData.identificationCode = validatedData.identificationCode?.trim() || null;
+        hotelData.responsiblePersonName = validatedData.responsiblePersonName?.trim() || null;
       }
 
       const hotel = await tx.hotel.create({

@@ -38,6 +38,13 @@ interface DailySheet {
   items: DailySheetItem[];
   createdAt: string;
   emailSendCount?: number;
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
+  confirmedByUser?: {
+    name: string | null;
+    email: string;
+    role: string;
+  } | null;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -202,20 +209,34 @@ export default function DailySheetsSection() {
 
   const fetchSheets = async () => {
     try {
+      setLoading(true);
+      setError("");
       const response = await fetch("/api/admin/daily-sheets");
+      
       if (!response.ok) {
-        throw new Error("დღის ფურცლების ჩატვირთვა ვერ მოხერხდა");
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+        console.error("API error response:", errorMessage, "Status:", response.status);
+        throw new Error(errorMessage || "დღის ფურცლების ჩატვირთვა ვერ მოხერხდა");
       }
+      
       const data = await response.json();
       console.log("Fetched sheets:", data);
       console.log("Sheets count:", data?.length || 0);
       if (data && data.length > 0) {
         console.log("First sheet date:", data[0].date, "type:", typeof data[0].date);
       }
+      
+      if (!Array.isArray(data)) {
+        console.error("Expected array but got:", typeof data, data);
+        throw new Error("მონაცემები არასწორი ფორმატისაა");
+      }
+      
       setSheets(data || []);
     } catch (err) {
       console.error("Fetch sheets error:", err);
-      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      const errorMessage = err instanceof Error ? err.message : "დაფიქსირდა შეცდომა";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -1250,6 +1271,16 @@ export default function DailySheetsSection() {
                       <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
                         გაგზავნილი {sheet.emailSendCount ?? 0}x
                       </span>
+                      {sheet.confirmedAt && sheet.confirmedByUser && (
+                        <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                          ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})
+                        </span>
+                      )}
+                      {!sheet.confirmedAt && (
+                        <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                          დადასტურება საჭიროა
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

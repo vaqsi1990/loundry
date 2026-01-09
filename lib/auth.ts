@@ -130,9 +130,16 @@ export const authOptions: NextAuthOptions = {
             throw new Error("გთხოვთ შეიყვანოთ პირადი ნომერი");
           }
 
+          const trimmedPersonalId = credentials.personalId.trim();
+
+          if (!trimmedPersonalId) {
+            throw new Error("გთხოვთ შეიყვანოთ პირადი ნომერი");
+          }
+
+          // Find hotel by personalId (trimmed)
           const hotel = await prisma.hotel.findFirst({
             where: {
-              personalId: credentials.personalId,
+              personalId: trimmedPersonalId,
               type: "PHYSICAL",
             },
             include: {
@@ -140,8 +147,12 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
-          if (!hotel || !hotel.user) {
+          if (!hotel) {
             throw new Error("პირადი ნომერი ან პაროლი არასწორია");
+          }
+
+          if (!hotel.user) {
+            throw new Error("სასტუმროსთვის ანგარიში არ არის დარეგისტრირებული");
           }
 
           const isPasswordValid = await bcrypt.compare(
@@ -167,9 +178,16 @@ export const authOptions: NextAuthOptions = {
             throw new Error("გთხოვთ შეიყვანოთ საიდენტიფიკაციო კოდი");
           }
 
+          const trimmedIdentificationCode = credentials.identificationCode.trim();
+
+          if (!trimmedIdentificationCode) {
+            throw new Error("გთხოვთ შეიყვანოთ საიდენტიფიკაციო კოდი");
+          }
+
+          // Find hotel by identificationCode (trimmed)
           const hotel = await prisma.hotel.findFirst({
             where: {
-              identificationCode: credentials.identificationCode,
+              identificationCode: trimmedIdentificationCode,
               type: "LEGAL",
             },
             include: {
@@ -177,8 +195,12 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
-          if (!hotel || !hotel.user) {
+          if (!hotel) {
             throw new Error("საიდენტიფიკაციო კოდი ან პაროლი არასწორია");
+          }
+
+          if (!hotel.user) {
+            throw new Error("სასტუმროსთვის ანგარიში არ არის დარეგისტრირებული");
           }
 
           const isPasswordValid = await bcrypt.compare(

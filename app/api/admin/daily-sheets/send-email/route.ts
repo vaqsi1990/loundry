@@ -6,16 +6,14 @@ import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
 
-
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
 });
+
 function renderSection(
   title: string,
   items: any[],
@@ -74,7 +72,7 @@ function renderSection(
   `;
 }
 
-function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: string | null, userRole?: string | null) {
+function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
     weekday: "long",
     year: "numeric",
@@ -124,24 +122,15 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: 
   const totalPrice = linenTowelsPrice + protectorsTotal;
 
   return `
-    <!DOCTYPE html>
-    <html lang="ka">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>დღის ფურცელი</title>
-    </head>
-    <body style="margin:0;padding:20px;font-family:Arial,sans-serif;color:#222;background-color:#f5f5f5;">
-      <div style="max-width:800px;margin:0 auto;background-color:#ffffff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-        <div style="display:flex;align-items:center;gap:30px;margin-bottom:16px;border-bottom:2px solid #fde9d9;padding-bottom:16px;">
-          <img src="cid:logo" alt="Logo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;" />
-          <div style="text-align:left;">
-            <h2 style="margin:0 0 8px 0;color:#333;">დღის ფურცელი</h2>
-            <p style="margin:0 0 4px 0;color:#666;"><strong>თარიღი:</strong> ${date}</p>
-            <p style="margin:0 0 4px 0;color:#666;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
-            ${managerName ? `<p style="margin:0 0 4px 0;color:#666;"><strong>${userRole === "MANAGER_ASSISTANT" ? "ასისტანტი" : "მენეჯერი"}:</strong> ${managerName}</p>` : ""}
-          </div>
+    <div style="font-family:Arial,sans-serif;color:#222;">
+      <div style="display:flex;align-items:center;gap:30px;margin-bottom:16px;">
+        <img src="cid:logo" alt="Logo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;" />
+        <div style="text-align:center;">
+          <h2 style="margin:0 0 8px 0;">დღის ფურცელი</h2>
+          <p style="margin:0 0 4px 0;"><strong>თარიღი:</strong> ${date}</p>
+          <p style="margin:0 0 4px 0;"><strong>სასტუმრო:</strong> ${sheet.hotelName || "-"}</p>
         </div>
+      </div>
      
       ${sheet.roomNumber ? `<p style="margin:0 0 8px 0;"><strong>ოთახი:</strong> ${sheet.roomNumber}</p>` : ""}
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
@@ -158,13 +147,13 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: 
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">რეცხვის რაოდენობა (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დატოვებული (ც.)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">სულ წონა (კგ)</th>
                 `
                 : `
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დატოვებული (ც.)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
                 `
             }
             ${showPriceColumn ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">1 ც-ის ფასი (₾) *</th>' : ""}
@@ -247,33 +236,8 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null, managerName?: 
           }
         </tfoot>
       </table>
-      </div>
-    </body>
-    </html>
+    </div>
   `;
-}
-
-function renderText(sheet: any, managerName?: string | null, userRole?: string | null) {
-  const date = new Date(sheet.date).toLocaleDateString("ka-GE", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  let text = `დღის ფურცელი\n`;
-  text += `თარიღი: ${date}\n`;
-  text += `სასტუმრო: ${sheet.hotelName || "-"}\n`;
-  if (managerName) text += `${userRole === "MANAGER_ASSISTANT" ? "ასისტანტი" : "მენეჯერი"}: ${managerName}\n`;
-  text += `\n`;
-  
-  if (sheet.roomNumber) text += `ოთახი: ${sheet.roomNumber}\n`;
-  if (sheet.description) text += `აღწერა: ${sheet.description}\n`;
-  if (sheet.notes) text += `შენიშვნები: ${sheet.notes}\n`;
-  
-  text += `\nდეტალური ინფორმაცია HTML ვერსიაში.\n`;
-  
-  return text;
 }
 
 export async function POST(req: NextRequest) {
@@ -286,10 +250,10 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true, name: true },
+      select: { role: true },
     });
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+    if (!user || user.role !== "ADMIN") {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
 
@@ -366,49 +330,11 @@ export async function POST(req: NextRequest) {
     const logoPath = path.join(process.cwd(), "public", "logo.jpg");
     const logoExists = fs.existsSync(logoPath);
 
-    // Verify transporter configuration
-    console.log("Verifying SMTP connection...");
-    try {
-      await transporter.verify();
-      console.log("SMTP connection verified successfully");
-    } catch (verifyError: any) {
-      console.error("SMTP verification failed:", verifyError);
-      throw new Error(`SMTP კონფიგურაცია არასწორია: ${verifyError?.message || verifyError}`);
-    }
-
-    const fromEmail = process.env.EMAIL_USER;
-    if (!fromEmail) {
-      throw new Error("EMAIL_USER არ არის მითითებული environment variables-ში");
-    }
-    const fromName = process.env.EMAIL_FROM_NAME || "ქინგ ლონდრი";
-    const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
-    
-    const subject = `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`;
-    
-    // Get manager name if user is MANAGER or MANAGER_ASSISTANT
-    const managerName = (user.role === "MANAGER" || user.role === "MANAGER_ASSISTANT") ? user.name : null;
-    
-    console.log("Sending email:", {
-      from: `${fromName} <${fromEmail}>`,
-      to: recipientEmail,
-      subject: subject,
-    });
-
     await transporter.sendMail({
-      from: `${fromName} <${fromEmail}>`,
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: recipientEmail,
-      replyTo: replyTo,
-      subject: subject,
-      text: renderText(sheet, managerName, user.role),
-      html: renderHtml(sheet, companyName, managerName, user.role),
-      headers: {
-        "Message-ID": `<${Date.now()}-${Math.random().toString(36)}@${fromEmail.split("@")[1]}>`,
-        "X-Mailer": "NodeMailer",
-        "X-Priority": "3",
-        "Importance": "normal",
-        "MIME-Version": "1.0",
-      },
-      date: new Date(),
+      subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+      html: renderHtml(sheet, companyName),
       attachments: logoExists
         ? [
             {
@@ -419,8 +345,6 @@ export async function POST(req: NextRequest) {
           ]
         : [],
     });
-
-    console.log("Email sent successfully to:", recipientEmail);
 
     // Mark sheet as emailed
     await prisma.$transaction([
@@ -459,31 +383,9 @@ export async function POST(req: NextRequest) {
     ]);
 
     return NextResponse.json({ message: "გაგზავნილია" });
-  } catch (error: any) {
-    console.error("=== Daily sheet email send error ===");
-    console.error("Error message:", error?.message);
-    console.error("Error code:", error?.code);
-    console.error("Error response:", error?.response);
-    console.error("Error responseCode:", error?.responseCode);
-    console.error("Error command:", error?.command);
-    console.error("Error syscall:", error?.syscall);
-    console.error("Error address:", error?.address);
-    console.error("Error port:", error?.port);
-    console.error("Full error:", JSON.stringify(error, null, 2));
-    console.error("Error stack:", error?.stack);
-    console.error("================================");
-    
-    // More detailed error message for user
-    let errorMessage = "გაგზავნისას მოხდა შეცდომა";
-    if (error?.code === "ECONNREFUSED") {
-      errorMessage = `SMTP სერვერთან დაკავშირება ვერ მოხერხდა. შეამოწმეთ SMTP კონფიგურაცია (${error?.address}:${error?.port})`;
-    } else if (error?.code === "EAUTH") {
-      errorMessage = "SMTP ავტორიზაცია ვერ მოხერხდა. შეამოწმეთ EMAIL_USER და EMAIL_PASSWORD";
-    } else if (error?.message) {
-      errorMessage = `შეცდომა: ${error.message}`;
-    }
-    
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } catch (error) {
+    console.error("Daily sheet email send error:", error);
+    return NextResponse.json({ error: "გაგზავნისას მოხდა შეცდომა" }, { status: 500 });
   }
 }
 
