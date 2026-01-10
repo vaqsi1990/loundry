@@ -112,24 +112,34 @@ export default function PhysicalInvoicesPage() {
   };
 
   const confirmInvoiceMonth = async (month: string, uniqueKey?: string) => {
-    // Check if invoice is already confirmed
-    // If uniqueKey is provided, find by uniqueKey, otherwise find by month (for backward compatibility)
-    const invoice = uniqueKey 
-      ? invoices.find((inv, idx) => {
-          const firstInvoiceDate = inv.invoices && inv.invoices.length > 0 ? inv.invoices[0].date : '';
-          const invUniqueKey = `${inv.month}-${inv.totalAmount.toFixed(2)}-${firstInvoiceDate}-${idx}`;
-          return invUniqueKey === uniqueKey;
-        })
-      : invoices.find((inv) => inv.month === month);
+    // Find invoice by uniqueKey (which is the firstEmailSendId) or by month
+    let invoice: InvoiceMonth | undefined;
     
-    if (invoice?.confirmedAt) {
+    if (uniqueKey) {
+      // uniqueKey is the firstEmailSendId, so find invoice where any invoice has this emailSendId
+      invoice = invoices.find((inv) => {
+        return inv.invoices && inv.invoices.some((invDetail) => 
+          invDetail.emailSendIds && invDetail.emailSendIds.includes(uniqueKey)
+        );
+      });
+    } else {
+      // Fallback: find by month
+      invoice = invoices.find((inv) => inv.month === month);
+    }
+    
+    if (!invoice) {
+      alert("ინვოისი ვერ მოიძებნა");
+      return;
+    }
+    
+    if (invoice.confirmedAt) {
       alert("ინვოისი უკვე დადასტურებულია");
       return;
     }
 
     // Collect all emailSendIds from all invoices in this invoice group
     const allEmailSendIds: string[] = [];
-    if (invoice?.invoices) {
+    if (invoice.invoices) {
       invoice.invoices.forEach((inv) => {
         if (inv.emailSendIds && Array.isArray(inv.emailSendIds)) {
           allEmailSendIds.push(...inv.emailSendIds);
@@ -152,7 +162,7 @@ export default function PhysicalInvoicesPage() {
         },
         body: JSON.stringify({
           emailSendIds: allEmailSendIds,
-          month: invoice?.month || month,
+          month: invoice.month,
         }),
       });
       
@@ -482,7 +492,7 @@ export default function PhysicalInvoicesPage() {
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">წონა (კგ)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დამცავები (₾)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">სულ (₾)</th>
-                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დადასტურება</th>
+                                  
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გადმოწერა</th>
                                   </tr>
                                 </thead>
@@ -510,23 +520,7 @@ export default function PhysicalInvoicesPage() {
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black font-semibold">
                                           {inv.amount.toFixed(2)} ₾
                                         </td>
-                                        <td className="border border-gray-300 px-2 py-1 text-center">
-                                          {inv.confirmedAt ? (
-                                            <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
-                                              ✓ დაადასტურა {new Date(inv.confirmedAt).toLocaleDateString("ka-GE")}
-                                            </span>
-                                          ) : (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                confirmSingleInvoice(inv.date, invoice.month, inv.amount, inv.weightKg, inv.protectorsAmount, inv.emailSendIds || []);
-                                              }}
-                                              className="bg-green-600 font-bold text-white px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-green-700"
-                                            >
-                                              დადასტურება
-                                            </button>
-                                          )}
-                                        </td>
+                                      
                                         <td className="border border-gray-300 px-2 py-1 text-center">
                                           <button
                                             onClick={(e) => {

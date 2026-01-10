@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       hotelName: hotel.hotelName,
+      emailedAt: { not: null }, // Only show sheets that have been emailed
     };
 
     if (day) {
