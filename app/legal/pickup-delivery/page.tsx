@@ -23,6 +23,7 @@ export default function LegalPickupDeliveryPage() {
   const [requestType, setRequestType] = useState<"PICKUP" | "DELIVERY" | "BOTH" | "">("");
   const [requestNotes, setRequestNotes] = useState("");
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<PickupDeliveryRequest | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -55,22 +56,72 @@ export default function LegalPickupDeliveryPage() {
     }
 
     try {
-      const response = await fetch("/api/legal/pickup-delivery", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestType,
-          notes: requestNotes || null,
-        }),
-      });
-      if (!response.ok) throw new Error("მოთხოვნის გაგზავნა ვერ მოხერხდა");
+      if (editingRequest) {
+        // Update existing request
+        const response = await fetch(`/api/legal/pickup-delivery/${editingRequest.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requestType,
+            notes: requestNotes || null,
+          }),
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "მოთხოვნის განახლება ვერ მოხერხდა");
+        }
+        alert("მოთხოვნა წარმატებით განახლდა");
+      } else {
+        // Create new request
+        const response = await fetch("/api/legal/pickup-delivery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requestType,
+            notes: requestNotes || null,
+          }),
+        });
+        if (!response.ok) throw new Error("მოთხოვნის გაგზავნა ვერ მოხერხდა");
+        alert("მოთხოვნა წარმატებით გაიგზავნა");
+      }
       await fetchPickupDeliveryRequests();
       setRequestType("");
       setRequestNotes("");
       setShowRequestForm(false);
-      alert("მოთხოვნა წარმატებით გაიგზავნა");
-    } catch (err) {
-      alert("მოთხოვნის გაგზავნისას მოხდა შეცდომა");
+      setEditingRequest(null);
+    } catch (err: any) {
+      alert(err.message || "მოხდა შეცდომა");
+    }
+  };
+
+  const handleEdit = (request: PickupDeliveryRequest) => {
+    if (request.status !== "PENDING") {
+      alert("მხოლოდ მოლოდინში მყოფი მოთხოვნების რედაქტირება შეიძლება");
+      return;
+    }
+    setEditingRequest(request);
+    setRequestType(request.requestType as "PICKUP" | "DELIVERY" | "BOTH");
+    setRequestNotes(request.notes || "");
+    setShowRequestForm(true);
+  };
+
+  const handleDelete = async (requestId: string) => {
+    if (!confirm("დარწმუნებული ხართ რომ გსურთ ამ მოთხოვნის წაშლა?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/legal/pickup-delivery/${requestId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "მოთხოვნის წაშლა ვერ მოხერხდა");
+      }
+      await fetchPickupDeliveryRequests();
+      alert("მოთხოვნა წარმატებით წაიშალა");
+    } catch (err: any) {
+      alert(err.message || "წაშლისას მოხდა შეცდომა");
     }
   };
 
@@ -104,7 +155,12 @@ export default function LegalPickupDeliveryPage() {
         <div className="bg-white shadow rounded-lg p-6">
           {!showRequestForm ? (
             <button
-              onClick={() => setShowRequestForm(true)}
+              onClick={() => {
+                setShowRequestForm(true);
+                setEditingRequest(null);
+                setRequestType("");
+                setRequestNotes("");
+              }}
               className="mb-4 bg-[#efa758] text-black px-6 py-2 rounded-lg text-[16px] md:text-[18px] hover:bg-[#d89647]"
             >
               + ახალი მოთხოვნა
@@ -112,7 +168,7 @@ export default function LegalPickupDeliveryPage() {
           ) : (
             <div className="mb-6 border rounded-lg p-4 bg-gray-50">
               <h3 className="text-[16px] md:text-[18px] font-semibold text-black mb-4">
-                ახალი მოთხოვნა
+                {editingRequest ? "მოთხოვნის რედაქტირება" : "ახალი მოთხოვნა"}
               </h3>
               <div className="space-y-4">
                 <div>
@@ -175,6 +231,7 @@ export default function LegalPickupDeliveryPage() {
                       setShowRequestForm(false);
                       setRequestType("");
                       setRequestNotes("");
+                      setEditingRequest(null);
                     }}
                     className="bg-gray-200 text-black px-6 py-2 rounded-lg text-[16px] md:text-[18px] hover:bg-gray-300"
                   >
@@ -220,6 +277,22 @@ export default function LegalPickupDeliveryPage() {
                 {request.notes && (
                   <p className="text-[14px] text-gray-700 mt-2">{request.notes}</p>
                 )}
+                <div className="flex gap-2 mt-3">
+                  {request.status === "PENDING" && (
+                    <button
+                      onClick={() => handleEdit(request)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-blue-700"
+                    >
+                      რედაქტირება
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(request.id)}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-red-700"
+                  >
+                    წაშლა
+                  </button>
+                </div>
               </div>
             ))}
             {pickupDeliveryRequests.length === 0 && (

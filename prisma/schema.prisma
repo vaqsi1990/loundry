@@ -403,6 +403,8 @@ model PickupDeliveryRequest {
   requestedAt     DateTime      @default(now())
   confirmedAt     DateTime?
   completedAt     DateTime?
+  hiddenFromAdmin Boolean       @default(false)
+  hiddenFromManager Boolean     @default(false)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

@@ -34,6 +34,11 @@ interface DailySheet {
   createdAt: string;
   confirmedBy?: string | null;
   confirmedAt?: string | null;
+  emailSends?: Array<{
+    id: string;
+    confirmedAt: string | null;
+    confirmedBy: string | null;
+  }>;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -114,9 +119,7 @@ export default function LegalDailySheetsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [dailySheets, setDailySheets] = useState<DailySheet[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedDay, setSelectedDay] = useState("");
-  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -128,30 +131,19 @@ export default function LegalDailySheetsPage() {
     if (status === "authenticated" && session?.user?.id) {
       fetchDailySheets();
     }
-  }, [status, session, router, selectedMonth, selectedDay]);
+  }, [status, session, router, selectedDay]);
 
   const fetchDailySheets = async () => {
     try {
       let url = "/api/legal/daily-sheets";
       if (selectedDay) {
         url += `?day=${selectedDay}`;
-      } else if (selectedMonth) {
-        url += `?month=${selectedMonth}`;
       }
       
       const response = await fetch(url);
       if (!response.ok) throw new Error("დღის ფურცლების ჩატვირთვა ვერ მოხერხდა");
       const data = await response.json();
       setDailySheets(data);
-      
-      // Extract available months
-      const months = new Set<string>();
-      data.forEach((sheet: DailySheet) => {
-        const date = new Date(sheet.date);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        months.add(monthKey);
-      });
-      setAvailableMonths(Array.from(months).sort().reverse());
     } catch (err) {
       console.error("Error fetching daily sheets:", err);
     } finally {
@@ -169,27 +161,6 @@ export default function LegalDailySheetsPage() {
       alert("დღის ფურცელი წარმატებით დაადასტურა");
     } catch (err) {
       alert("დადასტურებისას მოხდა შეცდომა");
-    }
-  };
-
-  const handleDelete = async (sheetId: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/legal/daily-sheets/${sheetId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("წაშლა ვერ მოხერხდა");
-      }
-
-      await fetchDailySheets();
-      alert("დღის ფურცელი წარმატებით წაიშალა");
-    } catch (err) {
-      alert("წაშლისას მოხდა შეცდომა");
     }
   };
 
@@ -215,15 +186,6 @@ export default function LegalDailySheetsPage() {
     return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
-  const formatMonthGe = (monthKey: string) => {
-    const [year, monthNum] = monthKey.split("-");
-    const months = [
-      "იანვარი", "თებერვალი", "მარტი", "აპრილი", "მაისი", "ივნისი",
-      "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი",
-    ];
-    const monthIndex = parseInt(monthNum) - 1;
-    return `${months[monthIndex]} ${year}`;
-  };
 
   const renderSheetTable = (sheet: DailySheet) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
@@ -463,26 +425,8 @@ export default function LegalDailySheetsPage() {
         <div className="bg-white shadow rounded-lg p-6">
           {/* Filters */}
           <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[14px] md:text-[16px] font-medium text-gray-700 mb-1">
-                თვე
-              </label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => {
-                  setSelectedMonth(e.target.value);
-                  setSelectedDay("");
-                }}
-                className="w-full px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
-              >
-                <option value="">ყველა თვე</option>
-                {availableMonths.map((month) => (
-                  <option key={month} value={month}>
-                    {formatMonthGe(month)}
-                  </option>
-                ))}
-              </select>
-            </div>
+        
+        
             <div>
               <label className="block text-[14px] md:text-[16px] font-medium text-gray-700 mb-1">
                 დღე
@@ -492,7 +436,6 @@ export default function LegalDailySheetsPage() {
                 value={selectedDay}
                 onChange={(e) => {
                   setSelectedDay(e.target.value);
-                  setSelectedMonth("");
                 }}
                 className="w-full px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
               />
@@ -550,17 +493,12 @@ export default function LegalDailySheetsPage() {
                       {!sheet.confirmedAt && (
                         <button
                           onClick={() => confirmDailySheet(sheet.id)}
-                          className="bg-green-600 text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-green-700"
+                          className="bg-green-600 font-bold text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-green-700"
                         >
                           დადასტურება
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(sheet.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-red-700"
-                      >
-                        წაშლა
-                      </button>
+                  
                     </div>
                   </div>
                   {/* Content - Collapsible */}

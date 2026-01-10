@@ -142,6 +142,12 @@ export default function AdminPage() {
       path: "/admin/blacklist",
       adminOnly: true
     },
+    { 
+      id: "pickupDelivery",
+      label: "წასაღები/მოსატანი",
+      description: "ნახეთ სასტუმროების მოთხოვნები და დაადასტურეთ",
+      path: "/admin/pickup-delivery"
+    },
   ];
 
   // Admin sees all sections

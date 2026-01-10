@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import React from "react";
 
 interface InvoiceMonth {
   month: string;
@@ -12,12 +13,19 @@ interface InvoiceMonth {
   remainingAmount: number;
   status: string;
   isPaid?: boolean;
+  confirmedAt?: string | null;
   invoices: Array<{
     date: string;
     amount: number;
     paidAmount: number;
     remainingAmount: number;
     status: string;
+    sentAt: string | null;
+    weightKg: number;
+    protectorsAmount: number;
+    emailSendCount: number;
+    confirmedAt: string | null;
+    emailSendIds: string[]; // IDs of emailSends that belong to this invoice detail
   }>;
 }
 
@@ -27,8 +35,7 @@ export default function LegalInvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<InvoiceMonth[]>([]);
   const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("");
-  const [editingPayments, setEditingPayments] = useState<Record<string, { paidAmount: string }>>({});
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -52,15 +59,6 @@ export default function LegalInvoicesPage() {
       if (!response.ok) throw new Error("ინვოისების ჩატვირთვა ვერ მოხერხდა");
       const data = await response.json();
       setInvoices(data);
-      
-      // Initialize editing state
-      const initialEditing: Record<string, { paidAmount: string }> = {};
-      data.forEach((inv: InvoiceMonth) => {
-        initialEditing[inv.month] = {
-          paidAmount: inv.paidAmount?.toFixed(2) || "0.00",
-        };
-      });
-      setEditingPayments(initialEditing);
     } catch (err) {
       console.error("Error fetching invoices:", err);
     } finally {
@@ -68,47 +66,6 @@ export default function LegalInvoicesPage() {
     }
   };
 
-  const handlePaymentChange = (month: string, value: string) => {
-    setEditingPayments(prev => ({
-      ...prev,
-      [month]: {
-        paidAmount: value,
-      },
-    }));
-  };
-
-  const savePayment = async (month: string) => {
-    const payment = editingPayments[month];
-    if (!payment) return;
-
-    setSaving(prev => ({ ...prev, [month]: true }));
-
-    try {
-      const paidAmount = parseFloat(payment.paidAmount) || 0;
-      const response = await fetch("/api/legal/invoices", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      body: JSON.stringify({
-        month,
-        paidAmount,
-      }),
-      });
-
-      if (!response.ok) {
-        throw new Error("გადახდის შენახვა ვერ მოხერხდა");
-      }
-
-      await fetchInvoices();
-      alert("გადახდა წარმატებით შეინახა");
-    } catch (err) {
-      console.error("Error saving payment:", err);
-      alert("გადახდის შენახვისას მოხდა შეცდომა");
-    } finally {
-      setSaving(prev => ({ ...prev, [month]: false }));
-    }
-  };
 
   const formatMonthGe = (monthKey: string) => {
     const [year, monthNum] = monthKey.split("-");
@@ -118,6 +75,209 @@ export default function LegalInvoicesPage() {
     ];
     const monthIndex = parseInt(monthNum) - 1;
     return `${months[monthIndex]} ${year}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.getMonth();
+    const year = date.getFullYear();
+    
+    const months = [
+      "იანვარი",
+      "თებერვალი",
+      "მარტი",
+      "აპრილი",
+      "მაისი",
+      "ივნისი",
+      "ივლისი",
+      "აგვისტო",
+      "სექტემბერი",
+      "ოქტომბერი",
+      "ნოემბერი",
+      "დეკემბერი",
+    ];
+    
+    return `${day} ${months[month]}, ${year}`;
+  };
+
+  const toggleRow = (month: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(month)) {
+      newExpanded.delete(month);
+    } else {
+      newExpanded.add(month);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  const confirmInvoiceMonth = async (month: string, uniqueKey?: string) => {
+    // Check if invoice is already confirmed
+    // If uniqueKey is provided, find by uniqueKey, otherwise find by month (for backward compatibility)
+    const invoice = uniqueKey 
+      ? invoices.find((inv, idx) => {
+          const firstInvoiceDate = inv.invoices && inv.invoices.length > 0 ? inv.invoices[0].date : '';
+          const invUniqueKey = `${inv.month}-${inv.totalAmount.toFixed(2)}-${firstInvoiceDate}-${idx}`;
+          return invUniqueKey === uniqueKey;
+        })
+      : invoices.find((inv) => inv.month === month);
+    
+    if (invoice?.confirmedAt) {
+      alert("ინვოისი უკვე დადასტურებულია");
+      return;
+    }
+
+    // Collect all emailSendIds from all invoices in this invoice group
+    const allEmailSendIds: string[] = [];
+    if (invoice?.invoices) {
+      invoice.invoices.forEach((inv) => {
+        if (inv.emailSendIds && Array.isArray(inv.emailSendIds)) {
+          allEmailSendIds.push(...inv.emailSendIds);
+        }
+      });
+    }
+
+    if (allEmailSendIds.length === 0) {
+      alert("ინვოისის ID-ები არ მოიძებნა");
+      return;
+    }
+
+    try {
+      // Use the individual confirm endpoint with all emailSendIds from this invoice group
+      // This ensures only this specific invoice group is confirmed, not all invoices for the month
+      const response = await fetch(`/api/legal/invoices/confirm`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          emailSendIds: allEmailSendIds,
+          month: invoice?.month || month,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        // Show the actual error message from API if available
+        const errorMessage = data.error || "დადასტურება ვერ მოხერხდა";
+        alert(errorMessage);
+        return;
+      }
+      
+      await fetchInvoices();
+      alert("ინვოისი წარმატებით დაადასტურა");
+    } catch (err) {
+      console.error("Error confirming invoice:", err);
+      alert("დადასტურებისას მოხდა შეცდომა");
+    }
+  };
+
+  const confirmSingleInvoice = async (date: string, month: string, amount: number, weightKg: number, protectorsAmount: number, emailSendIds: string[]) => {
+    try {
+      const response = await fetch(`/api/legal/invoices/confirm`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          date,
+          month,
+          amount,
+          weightKg,
+          protectorsAmount,
+          emailSendIds, // Send specific emailSend IDs to confirm only these
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        const errorMessage = data.error || "დადასტურება ვერ მოხერხდა";
+        alert(errorMessage);
+        return;
+      }
+      
+      await fetchInvoices();
+      alert("ინვოისი წარმატებით დაადასტურა");
+    } catch (err) {
+      console.error("Error confirming invoice:", err);
+      alert("დადასტურებისას მოხდა შეცდომა");
+    }
+  };
+
+  const handleDownloadPDF = async (month: string) => {
+    try {
+      const response = await fetch(`/api/legal/invoices/pdf?month=${month}`);
+      if (!response.ok) {
+        throw new Error("PDF-ის გადმოწერა ვერ მოხერხდა");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `ინვოისი_${month}.pdf`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      alert("PDF-ის გადმოწერისას მოხდა შეცდომა");
+    }
+  };
+
+  const handleDownloadSingleInvoicePDF = async (
+    date: string, 
+    month: string, 
+    amount: number, 
+    weightKg: number, 
+    protectorsAmount: number
+  ) => {
+    try {
+      // Build URL with all invoice parameters for exact matching
+      const url = `/api/legal/invoices/pdf?month=${month}&date=${date}&amount=${amount.toFixed(2)}&weight=${weightKg.toFixed(2)}&protectors=${protectorsAmount.toFixed(2)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("PDF-ის გადმოწერა ვერ მოხერხდა");
+      }
+      
+      const blob = await response.blob();
+      const urlObj = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = urlObj;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `ინვოისი_${date}.pdf`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = decodeURIComponent(filenameMatch[1].replace(/['"]/g, ''));
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(urlObj);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      alert("PDF-ის გადმოწერისას მოხდა შეცდომა");
+    }
   };
 
   if (status === "loading" || loading) {
@@ -150,16 +310,17 @@ export default function LegalInvoicesPage() {
         <div className="bg-white shadow rounded-lg p-6">
           {/* Month Filter */}
           <div className="mb-4">
-           
+          
+          
             <select
               value={selectedInvoiceMonth}
               onChange={(e) => setSelectedInvoiceMonth(e.target.value)}
               className="w-full md:w-1/3 px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
             >
               <option value="">ყველა თვე</option>
-              {invoices.map((inv) => (
-                <option key={inv.month} value={inv.month}>
-                  {formatMonthGe(inv.month)}
+              {Array.from(new Set(invoices.map(inv => inv.month))).map((month) => (
+                <option key={month} value={month}>
+                  {formatMonthGe(month)}
                 </option>
               ))}
             </select>
@@ -170,85 +331,233 @@ export default function LegalInvoicesPage() {
             <table className="w-full border-collapse border border-gray-300 bg-white md:text-[18px] text-[16px]">
               <thead>
                 <tr className="bg-orange-100">
+                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold w-12"></th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">თვე</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სულ თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადახდილი თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">დარჩენილი</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სტატუსი</th>
-                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადახდილი თანხა (₾)</th>
-                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">ქმედება</th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => {
-                  const payment = editingPayments[invoice.month] || { paidAmount: "0.00" };
-                  const paidAmount = parseFloat(payment.paidAmount) || 0;
-                  const remainingAmount = invoice.totalAmount - paidAmount;
-                  const isInsufficient = paidAmount > 0 && remainingAmount > 0;
-                  const isFullyPaid = remainingAmount <= 0 && paidAmount > 0;
-                  const displayStatus = isFullyPaid ? "PAID" : "PENDING";
-                  // Disable save button if fully paid and no changes made
-                  const hasChanges = Math.abs(paidAmount - (invoice.paidAmount || 0)) > 0.01;
-                  const isSaveDisabled = isFullyPaid && !hasChanges;
+                {invoices.map((invoice, invoiceIdx) => {
+                  // Get paidAmount directly from API (updated by admin in /admin/revenues)
+                  const paidAmount = Number(invoice.paidAmount || 0);
+                  const totalAmount = Number(invoice.totalAmount || 0);
+                  const remainingAmount = Number(invoice.remainingAmount ?? (totalAmount - paidAmount));
+                  
+                  // Use the same logic as API: check with floating point tolerance
+                  const isFullyPaid = totalAmount > 0 && (
+                    remainingAmount <= 0 || 
+                    Math.abs(remainingAmount) < 0.01 ||
+                    (paidAmount >= totalAmount && Math.abs(paidAmount - totalAmount) < 0.01)
+                  );
+                  
+                  // Use status from API, or calculate if not available
+                  const displayStatus = invoice.status || (isFullyPaid ? "PAID" : "PENDING");
+                  // Create unique key using emailSendIds to ensure each invoice is unique
+                  // Each invoice should have at least one emailSendId in its invoices array
+                  const firstEmailSendId = invoice.invoices && invoice.invoices.length > 0 && invoice.invoices[0].emailSendIds && invoice.invoices[0].emailSendIds.length > 0
+                    ? invoice.invoices[0].emailSendIds[0]
+                    : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}-${Date.now()}`;
+                  const uniqueKey = firstEmailSendId;
+                  const isExpanded = expandedRows.has(uniqueKey);
+                  const hasDetails = invoice.invoices && invoice.invoices.length > 0;
                   
                   return (
-                    <tr
-                      key={invoice.month}
-                      className={`bg-white ${
-                        displayStatus === "PAID" ? "bg-green-50" : ""
-                      }`}
-                    >
-                      <td className="border border-gray-300 px-2 py-1 text-black font-semibold">
-                        {formatMonthGe(invoice.month)}
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1 text-center text-black">
-                        {invoice.totalAmount.toFixed(2)} ₾
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1 text-center text-green-600 font-medium">
-                        {paidAmount.toFixed(2)} ₾
-                      </td>
-                      <td className={`border border-gray-300 px-2 py-1 text-center font-medium ${
-                        remainingAmount > 0 ? "text-red-600" : "text-green-600"
-                      }`}>
-                        {remainingAmount.toFixed(2)} ₾
-                        {isInsufficient && (
-                          <div className="text-[12px] text-yellow-600 mt-1">
-                            ⚠️ არასაკმარისი
+                    <React.Fragment key={uniqueKey}>
+                      <tr
+                        className={`bg-white cursor-pointer hover:bg-gray-50 ${
+                          displayStatus === "PAID" ? "bg-green-50" : ""
+                        }`}
+                        onClick={() => hasDetails && toggleRow(uniqueKey)}
+                      >
+                        <td className="border border-gray-300 px-2 py-1 text-center">
+                          {hasDetails && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleRow(uniqueKey);
+                              }}
+                              className="text-gray-600 hover:text-gray-900 focus:outline-none"
+                            >
+                              {isExpanded ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              )}
+                            </button>
+                          )}
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-black font-semibold">
+                          <div className="flex flex-col">
+                            <span>{formatMonthGe(invoice.month)}</span>
+                            {invoice.confirmedAt && (
+                              <span className="text-xs text-green-600 font-normal mt-1">
+                                ✓ დაადასტურა {new Date(invoice.confirmedAt).toLocaleDateString("ka-GE")}
+                              </span>
+                            )}
+                            {!invoice.confirmedAt && (
+                              <span className="text-xs text-yellow-600 font-normal mt-1">
+                                დადასტურება საჭიროა
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1 text-center">
-                        <span
-                          className={`px-2 py-1 rounded text-[12px] md:text-[14px] font-medium ${
-                            displayStatus === "PAID"
-                              ? "bg-green-600 text-white"
-                              : "bg-yellow-600 text-white"
-                          }`}
-                        >
-                          {displayStatus === "PAID" ? "გადახდილი" : "გადასახდელი"}
-                        </span>
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={payment.paidAmount}
-                          onChange={(e) => handlePaymentChange(invoice.month, e.target.value)}
-                          className="w-full px-2 py-1 border rounded text-[14px] md:text-[16px] text-center"
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1 text-center">
-                        <button
-                          onClick={() => savePayment(invoice.month)}
-                          disabled={saving[invoice.month] || isSaveDisabled}
-                          className="bg-blue-600 text-white px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        >
-                          {saving[invoice.month] ? "ინახება..." : "შენახვა"}
-                        </button>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                          {invoice.totalAmount.toFixed(2)} ₾
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center text-green-600 font-medium">
+                          {paidAmount.toFixed(2)} ₾
+                        </td>
+                        <td className={`border border-gray-300 px-2 py-1 text-center font-medium ${
+                          remainingAmount > 0.01 ? "text-red-600" : "text-green-600"
+                        }`}>
+                          {Math.max(0, remainingAmount).toFixed(2)} ₾
+                        </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <span
+                              className={`px-2 py-1 rounded text-[12px] md:text-[14px] font-medium ${
+                                displayStatus === "PAID"
+                                  ? "bg-green-600 text-white"
+                                  : "bg-yellow-600 text-white"
+                              }`}
+                            >
+                              {displayStatus === "PAID" ? "გადახდილი" : "გადასახდელი"}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!invoice.confirmedAt) {
+                                  confirmInvoiceMonth(invoice.month, uniqueKey);
+                                }
+                              }}
+                              disabled={!!invoice.confirmedAt}
+                              className={`font-bold px-3 py-1 rounded text-[12px] md:text-[14px] ${
+                                invoice.confirmedAt
+                                  ? "bg-gray-400 text-white cursor-not-allowed opacity-50"
+                                  : "bg-green-600 text-white hover:bg-green-700"
+                              }`}
+                            >
+                              {invoice.confirmedAt ? "დადასტურებულია" : "დადასტურება"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && hasDetails && (
+                        <tr>
+                          <td colSpan={7} className="border border-gray-300 px-4 py-3 bg-gray-50">
+                          
+                            <div className="overflow-x-auto">
+                              {/* Summary of confirmation status */}
+                              {(() => {
+                                const confirmedCount = invoice.invoices.filter(inv => inv.confirmedAt).length;
+                                const totalCount = invoice.invoices.length;
+                                const allConfirmed = confirmedCount === totalCount && totalCount > 0;
+                                return (
+                                  <div className={`mb-2 p-2 rounded text-sm ${
+                                    allConfirmed 
+                                      ? "bg-green-50 text-green-700 border border-green-200" 
+                                      : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                                  }`}>
+                                    <span className="font-semibold">
+                                      {allConfirmed 
+                                        ? `✓ ყველა ინვოისი დადასტურებულია (${confirmedCount}/${totalCount})`
+                                        : `დადასტურებული: ${confirmedCount}/${totalCount} ინვოისი`}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                              <table className="w-full border-collapse border border-gray-300 bg-white md:text-[16px] text-[14px]">
+                                <thead>
+                                  <tr className="bg-gray-100">
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">თარიღი</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გაგზავნის თარიღი</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გაგზავნილი რაოდენობა</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">წონა (კგ)</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დამცავები (₾)</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">სულ (₾)</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დადასტურება</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გადმოწერა</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {invoice.invoices.map((inv, idx) => {
+                                    // Create unique key using parent uniqueKey, date, amount, weight, protectors, and index
+                                    const detailUniqueKey = `${uniqueKey}-${inv.date}-${inv.amount.toFixed(2)}-${inv.weightKg.toFixed(2)}-${inv.protectorsAmount.toFixed(2)}-${idx}`;
+                                    return (
+                                      <tr key={detailUniqueKey} className="hover:bg-gray-50">
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                          {formatDate(inv.date)}
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                          {inv.sentAt ? formatDate(inv.sentAt) : "-"}
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                          {inv.emailSendCount}
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                          {inv.weightKg.toFixed(2)}
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                          {inv.protectorsAmount.toFixed(2)} ₾
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-black font-semibold">
+                                          {inv.amount.toFixed(2)} ₾
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center">
+                                          {inv.confirmedAt ? (
+                                            <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                                              ✓ დაადასტურა {new Date(inv.confirmedAt).toLocaleDateString("ka-GE")}
+                                            </span>
+                                          ) : (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                confirmSingleInvoice(inv.date, invoice.month, inv.amount, inv.weightKg, inv.protectorsAmount, inv.emailSendIds || []);
+                                              }}
+                                              className="bg-green-600 font-bold text-white px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-green-700"
+                                            >
+                                              დადასტურება
+                                            </button>
+                                          )}
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDownloadSingleInvoicePDF(
+                                                inv.date, 
+                                                invoice.month,
+                                                inv.amount,
+                                                inv.weightKg,
+                                                inv.protectorsAmount
+                                              );
+                                            }}
+                                            className="bg-green-600 text-white font-bold px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-green-700 flex items-center gap-1 mx-auto"
+                                            title="ინვოისის გადმოწერა"
+                                          >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            გადმოწერა
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

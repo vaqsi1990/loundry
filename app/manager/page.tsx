@@ -102,6 +102,12 @@ export default function ManagerPage() {
       description: "ნახეთ და მართეთ რეგისტრირებული სასტუმროები",
       path: "/manager/our-hotels"
     },
+    { 
+      id: "pickupDelivery",
+      label: "წასაღები/მოსატანი",
+      description: "ნახეთ სასტუმროების მოთხოვნები და დაადასტურეთ",
+      path: "/manager/pickup-delivery"
+    },
   ];
 
   return (
