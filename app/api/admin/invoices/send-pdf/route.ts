@@ -338,8 +338,43 @@ function generateInvoicePDF(
       });
 
       // =========================
-      // NO TOTAL ROW - Each invoice shows its own total separately
+      // TOTAL ROW — ONLY ONCE
       // =========================
+      doc
+        .save()
+        .rect(tableLeft, currentY, tableWidthPixels, 22)
+        .fill("#ffffff")
+        .restore();
+
+      doc.rect(tableLeft, currentY, tableWidthPixels, 22).stroke();
+
+      // Draw vertical lines in total row
+      doc.strokeColor("#000");
+      doc.lineWidth(1);
+      let totalVX = tableLeft + col.number;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      totalVX += col.description;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      totalVX += col.quantity;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      totalVX += col.unitPrice;
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+
+      doc.fontSize(11);
+
+      const totalLabelWidth = 200;
+      const totalAmountWidth = 80;
+      const totalLabelX = tableLeft + tableWidthPixels - (totalLabelWidth + totalAmountWidth);
+
+      drawBoldText("სულ გადასახდელი", totalLabelX, currentY + 5, {
+        width: totalLabelWidth,
+        align: "center",
+      });
+
+      drawBoldText(formatCurrency(totalAmount), tableLeft + tableWidthPixels - totalAmountWidth, currentY + 5, {
+        width: totalAmountWidth,
+        align: "center",
+      });
 
       // =========================
       // NO NOTES
@@ -384,7 +419,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { hotelName, email, dateDetails } = body;
+    const { hotelName, email } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -412,8 +447,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all invoice data for this hotel
-    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+    // Get invoice data for this hotel
+    const emailSends = await prisma.dailySheetEmailSend.findMany({
       where: {
         hotelName: hotelName,
       },
@@ -428,33 +463,6 @@ export async function POST(request: NextRequest) {
         date: "asc",
       },
     });
-
-    // If dateDetails is provided, filter emailSends to only include matching invoices
-    let emailSends = allEmailSends;
-    if (dateDetails && Array.isArray(dateDetails) && dateDetails.length > 0) {
-      // Filter to only include emailSends that match the dateDetails
-      emailSends = allEmailSends.filter((emailSend) => {
-        const emailSendDate = emailSend.date.toISOString().split("T")[0];
-        const emailSendAmount = parseFloat((emailSend.totalAmount || 0).toFixed(2));
-        const emailSendWeight = parseFloat((emailSend.totalWeight || 0).toFixed(2));
-        const emailSendProtectors = parseFloat((emailSend.protectorsAmount || 0).toFixed(2));
-        
-        // Check if this emailSend matches any dateDetail
-        return dateDetails.some((detail: any) => {
-          const detailDate = detail.date.split("T")[0]; // Handle both date strings and ISO strings
-          const detailAmount = parseFloat((detail.totalAmount || 0).toFixed(2));
-          const detailWeight = parseFloat((detail.weightKg || 0).toFixed(2));
-          const detailProtectors = parseFloat((detail.protectorsAmount || 0).toFixed(2));
-          
-          return (
-            emailSendDate === detailDate &&
-            Math.abs(emailSendAmount - detailAmount) < 0.01 &&
-            Math.abs(emailSendWeight - detailWeight) < 0.01 &&
-            Math.abs(emailSendProtectors - detailProtectors) < 0.01
-          );
-        });
-      });
-    }
 
     if (emailSends.length === 0) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
@@ -483,7 +491,7 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3); // 3 days from issue
     
-    // Build items array - each invoice separately (no deduplication)
+    // Build items array - each emailSend gets its own row (detailed)
     const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
     const pricePerKg = hotel.pricePerKg || 1.8; // Default price
     
@@ -492,7 +500,7 @@ export async function POST(request: NextRequest) {
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     
-    // Create items for each invoice separately (no deduplication)
+    // Create a separate item for each emailSend
     sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
       const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
@@ -501,11 +509,10 @@ export async function POST(request: NextRequest) {
       let sentLabel = dateStr;
       if (emailSend.sentAt) {
         const sentAt = new Date(emailSend.sentAt);
-        sentLabel = `${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
+        sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
       }
 
       const weight = emailSend.totalWeight ?? 0;
-      const protectorsAmount = emailSend.protectorsAmount ?? 0;
       
       if (weight > 0) {
         // Check if this sheet has tablecloths (სუფრები)
@@ -531,50 +538,48 @@ export async function POST(request: NextRequest) {
             0
           );
           
-          // Add regular linen item (separate for each invoice)
+          // Add regular linen item
           if (regularWeight > 0) {
-            const regularTotal = regularWeight * pricePerKg;
             items.push({
               description: sentLabel,
               quantity: `${regularWeight.toFixed(1)} კგ`,
               unitPrice: pricePerKg,
-              total: regularTotal,
+              total: regularWeight * pricePerKg,
             });
           }
           
-          // Add tablecloths item (separate for each invoice)
+          // Add tablecloths item
           if (tableclothsWeight > 0) {
             const tableclothsPrice = 3.00; // Price for tablecloths
-            const tableclothsTotal = tableclothsWeight * tableclothsPrice;
             items.push({
               description: `${sentLabel} - სუფრები`,
               quantity: `${tableclothsWeight.toFixed(1)} კგ`,
               unitPrice: tableclothsPrice,
-              total: tableclothsTotal,
+              total: tableclothsWeight * tableclothsPrice,
             });
           }
         } else {
-          // Regular linen item (no tablecloths) - separate for each invoice
-          const regularTotal = weight * pricePerKg;
+          // Regular linen item (no tablecloths)
           items.push({
             description: sentLabel,
             quantity: `${weight.toFixed(1)} კგ`,
             unitPrice: pricePerKg,
-            total: regularTotal,
+            total: weight * pricePerKg,
           });
         }
       }
-      
-      // Add protectors if any (as separate item for each invoice)
-      if (protectorsAmount > 0) {
-        items.push({
-          description: "დამცავები",
-          quantity: "1",
-          unitPrice: protectorsAmount,
-          total: protectorsAmount,
-        });
-      }
     });
+    
+    // Add protectors if any (as separate item)
+    const totalProtectors = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
+    if (totalProtectors > 0) {
+      items.push({
+        description: "დამცავები",
+        quantity: "1",
+        unitPrice: totalProtectors,
+        total: totalProtectors,
+      });
+    }
     
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     const totalWeightKg = items.reduce((sum, item) => {

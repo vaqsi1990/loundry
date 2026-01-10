@@ -222,13 +222,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Create a separate invoice entry for each emailSend (no grouping)
+    // Normalize hotel name function
     const normalizeHotel = (name: string | null) => {
       if (!name) return "-";
       return name.trim().replace(/\s+/g, " ").toLowerCase();
     };
 
-    const invoices = emailSends.map((emailSend) => {
+    // Create invoice entries from email sends
+    const invoiceEntries = emailSends.map((emailSend) => {
       const sheet = emailSend.dailySheet;
 
       // Use values from DailySheetEmailSend record
@@ -267,7 +268,7 @@ export async function GET(request: NextRequest) {
       // Get confirmation status from emailSend (not dailySheet)
       const confirmedAt = emailSend.confirmedAt ? emailSend.confirmedAt.toISOString() : null;
       
-      // Each emailSend is a separate invoice with a single date detail
+      // Each emailSend is a separate invoice entry with a single date detail
       return {
         hotelName: hotelKey === "-" ? null : hotelKey,
         displayHotelName: emailSend.hotelName?.trim() || null,
@@ -290,14 +291,73 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Sort by hotel name, then by sentAt (most recent first)
+    // Group invoices by hotel name (normalized)
+    const hotelGroups = new Map<string, typeof invoiceEntries>();
+    
+    invoiceEntries.forEach((invoice) => {
+      const hotelKey = invoice.hotelName || "-";
+      if (!hotelGroups.has(hotelKey)) {
+        hotelGroups.set(hotelKey, []);
+      }
+      hotelGroups.get(hotelKey)!.push(invoice);
+    });
+
+    // Combine invoices for the same hotel
+    const invoices = Array.from(hotelGroups.entries()).map(([hotelKey, hotelInvoices]) => {
+      // Use the first invoice's displayHotelName (preserve original casing)
+      const displayHotelName = hotelInvoices[0]?.displayHotelName || null;
+      
+      // Combine all dateDetails from all invoices for this hotel
+      const allDateDetails = hotelInvoices.flatMap(inv => inv.dateDetails || []);
+      
+      // Sort dateDetails by date (most recent first)
+      allDateDetails.sort((a, b) => {
+        const dateA = a.date;
+        const dateB = b.date;
+        if (dateA && dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        return 0;
+      });
+      
+      // Sum up all totals
+      const combined = hotelInvoices.reduce((acc, inv) => ({
+        sheetCount: acc.sheetCount + (inv.sheetCount || 0),
+        totalDispatched: acc.totalDispatched + (inv.totalDispatched || 0),
+        totalWeightKg: acc.totalWeightKg + (inv.totalWeightKg || 0),
+        protectorsAmount: acc.protectorsAmount + (inv.protectorsAmount || 0),
+        totalAmount: acc.totalAmount + (inv.totalAmount || 0),
+        totalEmailSendCount: acc.totalEmailSendCount + (inv.totalEmailSendCount || 0),
+      }), {
+        sheetCount: 0,
+        totalDispatched: 0,
+        totalWeightKg: 0,
+        protectorsAmount: 0,
+        totalAmount: 0,
+        totalEmailSendCount: 0,
+      });
+      
+      return {
+        hotelName: hotelKey === "-" ? null : hotelKey,
+        displayHotelName: displayHotelName,
+        sheetCount: combined.sheetCount,
+        totalDispatched: combined.totalDispatched,
+        totalWeightKg: combined.totalWeightKg,
+        protectorsAmount: combined.protectorsAmount,
+        totalAmount: combined.totalAmount,
+        totalEmailSendCount: combined.totalEmailSendCount,
+        dateDetails: allDateDetails,
+      };
+    });
+
+    // Sort by hotel name, then by most recent sentAt
     const sorted = invoices.sort((a, b) => {
       const hA = a.displayHotelName || a.hotelName || "";
       const hB = b.displayHotelName || b.hotelName || "";
       const hotelCompare = hA.localeCompare(hB);
       if (hotelCompare !== 0) return hotelCompare;
       
-      // If same hotel, sort by sentAt (most recent first)
+      // If same hotel, sort by most recent sentAt
       const sentAtA = a.dateDetails[0]?.sentAt;
       const sentAtB = b.dateDetails[0]?.sentAt;
       if (sentAtA && sentAtB) {

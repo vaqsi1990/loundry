@@ -311,7 +311,7 @@ function generateInvoicePDF(
       const totalAmountWidth = 80;
       const totalLabelX = tableLeft + tableWidthPixels - (totalLabelWidth + totalAmountWidth);
 
-      drawBoldText("სულ ", totalLabelX, currentY + 5, {
+      drawBoldText("სულ გადასახდელი", totalLabelX, currentY + 5, {
         width: totalLabelWidth,
         align: "center",
       });
@@ -500,6 +500,15 @@ export async function GET(request: NextRequest) {
     );
 
     // Create items for each unique invoice (deduplicate same date, amount, weight, protectors)
+    // Group by date and combine protectors with weight items
+    const itemsByDate = new Map<string, {
+      description: string;
+      quantity: string;
+      unitPrice: number;
+      total: number;
+      protectorsAmount: number;
+    }>();
+
     sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
       const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -515,98 +524,50 @@ export async function GET(request: NextRequest) {
       const protectorsAmount = emailSend.protectorsAmount ?? 0;
 
       if (weight > 0) {
-        const hasTablecloths = emailSend.dailySheet?.items?.some(
-          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-        ) || false;
+        const linenTotal = weight * pricePerKg;
+        const totalWithProtectors = linenTotal + protectorsAmount;
         
-        if (hasTablecloths) {
-          const tableclothsItems = emailSend.dailySheet?.items?.filter(
-            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-          const regularItems = emailSend.dailySheet?.items?.filter(
-            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-          
-          const tableclothsWeight = tableclothsItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          const regularWeight = regularItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          
-          // Add regular linen item (deduplicate)
-          if (regularWeight > 0) {
-            const regularTotal = regularWeight * pricePerKg;
-            const regularKey = `${dateKey}-regular-${regularWeight.toFixed(2)}-${regularTotal.toFixed(2)}`;
-            if (!uniqueInvoiceMap.has(regularKey)) {
-              uniqueInvoiceMap.set(regularKey, {
-                description: sentLabel,
-                quantity: `${regularWeight.toFixed(1)} კგ`,
-                unitPrice: pricePerKg,
-                total: regularTotal,
-              });
-            }
-          }
-          
-          // Add tablecloths item (deduplicate)
-          if (tableclothsWeight > 0) {
-            const tableclothsTotal = tableclothsWeight * pricePerKg;
-            const tableclothsKey = `${dateKey}-tablecloths-${tableclothsWeight.toFixed(2)}-${tableclothsTotal.toFixed(2)}`;
-            if (!uniqueInvoiceMap.has(tableclothsKey)) {
-              uniqueInvoiceMap.set(tableclothsKey, {
-                description: `${sentLabel} (სუფრები)`,
-                quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-                unitPrice: pricePerKg,
-                total: tableclothsTotal,
-              });
-            }
-          }
+        // Use date as key to combine items for the same date
+        const itemKey = dateKey;
+        
+        if (!itemsByDate.has(itemKey)) {
+          itemsByDate.set(itemKey, {
+            description: sentLabel,
+            quantity: `${weight.toFixed(1)} კგ`,
+            unitPrice: pricePerKg,
+            total: totalWithProtectors,
+            protectorsAmount: protectorsAmount,
+          });
         } else {
-          // Regular linen item (no tablecloths) - deduplicate
-          const regularTotal = weight * pricePerKg;
-          const regularKey = `${dateKey}-regular-${weight.toFixed(2)}-${regularTotal.toFixed(2)}`;
-          if (!uniqueInvoiceMap.has(regularKey)) {
-            uniqueInvoiceMap.set(regularKey, {
-              description: sentLabel,
-              quantity: `${weight.toFixed(1)} კგ`,
-              unitPrice: pricePerKg,
-              total: regularTotal,
-            });
-          }
+          // If date already exists, add to totals
+          const existing = itemsByDate.get(itemKey)!;
+          const existingWeight = parseFloat(existing.quantity.replace(' კგ', ''));
+          const newWeight = existingWeight + weight;
+          existing.quantity = `${newWeight.toFixed(1)} კგ`;
+          existing.total = (newWeight * pricePerKg) + existing.protectorsAmount + protectorsAmount;
+          existing.protectorsAmount += protectorsAmount;
         }
-      }
-    });
-
-    // Add protectors if any (as separate item, deduplicate by amount)
-    // First, collect all unique protector amounts per date
-    const protectorsMap = new Map<string, number>();
-    sortedEmailSends.forEach((emailSend) => {
-      const protectorsAmount = emailSend.protectorsAmount ?? 0;
-      if (protectorsAmount > 0) {
-        const date = new Date(emailSend.date);
-        const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
-        const protectorsKey = `${dateKey}-protectors-${protectorsAmount.toFixed(2)}`;
-        // Only add if we haven't seen this exact protector amount for this date
-        if (!protectorsMap.has(protectorsKey)) {
-          protectorsMap.set(protectorsKey, protectorsAmount);
+      } else if (protectorsAmount > 0) {
+        // Only protectors, no weight
+        const itemKey = dateKey;
+        if (!itemsByDate.has(itemKey)) {
+          itemsByDate.set(itemKey, {
+            description: sentLabel,
+            quantity: `0.0 კგ`,
+            unitPrice: pricePerKg,
+            total: protectorsAmount,
+            protectorsAmount: protectorsAmount,
+          });
+        } else {
+          const existing = itemsByDate.get(itemKey)!;
+          existing.total += protectorsAmount;
+          existing.protectorsAmount += protectorsAmount;
         }
       }
     });
     
-    // Add unique protectors to items
-    protectorsMap.forEach((protectorsAmount) => {
-      items.push({
-        description: "დამცავები",
-        quantity: "1",
-        unitPrice: protectorsAmount,
-        total: protectorsAmount,
-      });
-    });
-    
-    // Convert map values to array (add regular items)
-    items.push(...Array.from(uniqueInvoiceMap.values()));
+    // Convert map values to array
+    items.push(...Array.from(itemsByDate.values()).map(({ protectorsAmount, ...item }) => item));
     
     // Sort items by description (date) to maintain order
     items.sort((a, b) => {
