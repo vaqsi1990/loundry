@@ -14,6 +14,14 @@ interface InvoiceMonth {
   status: string;
   isPaid?: boolean;
   confirmedAt?: string | null;
+  revenues?: Array<{
+    id: string;
+    source: string;
+    description: string;
+    amount: number;
+    date: string;
+  }>;
+  totalRevenueAmount?: number;
   invoices: Array<{
     date: string;
     amount: number;
@@ -346,25 +354,20 @@ export default function PhysicalInvoicesPage() {
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სულ თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადახდილი თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">დარჩენილი</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">შემოსავალი</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სტატუსი</th>
+                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადმოწერა</th>
                 </tr>
               </thead>
               <tbody>
                 {invoices.map((invoice, invoiceIdx) => {
-                  // Get paidAmount directly from API (updated by admin in /admin/revenues)
+                  // Use amounts directly from API (already calculated correctly)
                   const paidAmount = Number(invoice.paidAmount || 0);
                   const totalAmount = Number(invoice.totalAmount || 0);
-                  const remainingAmount = Number(invoice.remainingAmount ?? (totalAmount - paidAmount));
+                  const remainingAmount = Number(invoice.remainingAmount || 0);
                   
-                  // Use the same logic as API: check with floating point tolerance
-                  const isFullyPaid = totalAmount > 0 && (
-                    remainingAmount <= 0 || 
-                    Math.abs(remainingAmount) < 0.01 ||
-                    (paidAmount >= totalAmount && Math.abs(paidAmount - totalAmount) < 0.01)
-                  );
-                  
-                  // Use status from API, or calculate if not available
-                  const displayStatus = invoice.status || (isFullyPaid ? "PAID" : "PENDING");
+                  // Use status from API (already calculated correctly)
+                  const displayStatus = invoice.status || "PENDING";
                   // Create unique key using emailSendIds to ensure each invoice is unique
                   // Each invoice should have at least one emailSendId in its invoices array
                   const firstEmailSendId = invoice.invoices && invoice.invoices.length > 0 && invoice.invoices[0].emailSendIds && invoice.invoices[0].emailSendIds.length > 0
@@ -429,6 +432,9 @@ export default function PhysicalInvoicesPage() {
                         }`}>
                           {Math.max(0, remainingAmount).toFixed(2)} ₾
                         </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center text-blue-600 font-medium">
+                          {invoice.totalRevenueAmount ? invoice.totalRevenueAmount.toFixed(2) : "0.00"} ₾
+                        </td>
                         <td className="border border-gray-300 px-2 py-1 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <span
@@ -458,10 +464,25 @@ export default function PhysicalInvoicesPage() {
                             </button>
                           </div>
                         </td>
+                        <td className="border border-gray-300 px-2 py-1 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadPDF(invoice.month);
+                            }}
+                            className="bg-green-600 text-white font-bold px-3 py-1 rounded text-[12px] md:text-[14px] cursor-pointer flex items-center gap-1 mx-auto"
+                            title="ინვოისის გადმოწერა"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            გადმოწერა
+                          </button>
+                        </td>
                       </tr>
                       {isExpanded && hasDetails && (
                         <tr>
-                          <td colSpan={7} className="border border-gray-300 px-4 py-3 bg-gray-50">
+                          <td colSpan={9} className="border border-gray-300 px-4 py-3 bg-gray-50">
                           
                             <div className="overflow-x-auto">
                               {/* Summary of confirmation status */}
@@ -492,8 +513,6 @@ export default function PhysicalInvoicesPage() {
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">წონა (კგ)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დამცავები (₾)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">სულ (₾)</th>
-                                  
-                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გადმოწერა</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -520,33 +539,54 @@ export default function PhysicalInvoicesPage() {
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black font-semibold">
                                           {inv.amount.toFixed(2)} ₾
                                         </td>
-                                      
-                                        <td className="border border-gray-300 px-2 py-1 text-center">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDownloadSingleInvoicePDF(
-                                                inv.date, 
-                                                invoice.month,
-                                                inv.amount,
-                                                inv.weightKg,
-                                                inv.protectorsAmount
-                                              );
-                                            }}
-                                            className="bg-green-600 text-white font-bold px-3 py-1 rounded text-[12px] md:text-[14px] hover:bg-green-700 flex items-center gap-1 mx-auto"
-                                            title="ინვოისის გადმოწერა"
-                                          >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                            გადმოწერა
-                                          </button>
-                                        </td>
                                       </tr>
                                     );
                                   })}
                                 </tbody>
                               </table>
+                              
+                              {/* Revenues Section */}
+                              {invoice.revenues && invoice.revenues.length > 0 && (
+                                <div className="mt-4">
+                                  <h3 className="text-lg font-semibold text-black mb-2">შემოსავლები (რეგისტრირებულია /admin/revenues-ში)</h3>
+                                  <table className="w-full border-collapse border border-gray-300 bg-white md:text-[16px] text-[14px]">
+                                    <thead>
+                                      <tr className="bg-blue-100">
+                                        <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">თარიღი</th>
+                                        <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">წყარო</th>
+                                        <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">აღწერა</th>
+                                        <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">თანხა (₾)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {invoice.revenues.map((revenue) => (
+                                        <tr key={revenue.id} className="hover:bg-gray-50">
+                                          <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                            {formatDate(revenue.date)}
+                                          </td>
+                                          <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                            {revenue.source}
+                                          </td>
+                                          <td className="border border-gray-300 px-2 py-1 text-center text-black">
+                                            {revenue.description}
+                                          </td>
+                                          <td className="border border-gray-300 px-2 py-1 text-center text-green-600 font-semibold">
+                                            {revenue.amount.toFixed(2)} ₾
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      <tr className="bg-blue-50 font-bold">
+                                        <td colSpan={3} className="border border-gray-300 px-2 py-1 text-center text-black">
+                                          სულ შემოსავალი:
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-1 text-center text-green-600">
+                                          {invoice.totalRevenueAmount?.toFixed(2) || "0.00"} ₾
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>

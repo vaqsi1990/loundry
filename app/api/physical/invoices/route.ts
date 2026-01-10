@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
+    const pricePerKg = hotel.pricePerKg || 1.8; // Default price per kg
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
 
@@ -76,8 +77,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Create a separate invoice entry for each emailSend (no grouping)
-    // Group by month for display purposes, but each emailSend is a separate invoice
+    // Group invoices by month - combine all emailSends for the same hotel in the same month
     const monthlyData = new Map<string, {
       month: string;
       totalAmount: number;
@@ -105,17 +105,21 @@ export async function GET(request: NextRequest) {
       const month = String(date.getUTCMonth() + 1).padStart(2, "0");
       const monthKey = `${year}-${month}`;
       
-      const amount = emailSend.totalAmount || 0;
       const dateKey = emailSend.date.toISOString().split("T")[0];
       const weightKg = emailSend.totalWeight || 0;
       const protectorsAmount = emailSend.protectorsAmount || 0;
       
-      // Create unique key for this invoice: month + emailSend.id
-      // This ensures each emailSend is a separate invoice entry
-      const uniqueInvoiceKey = `${monthKey}-${emailSend.id}`;
+      // Calculate amount: if totalAmount exists, use it; otherwise calculate from weight and protectors
+      let amount = emailSend.totalAmount;
+      if (amount === null || amount === undefined) {
+        // Calculate: weight * pricePerKg + protectorsAmount
+        amount = (weightKg * pricePerKg) + protectorsAmount;
+      }
+      amount = amount || 0; // Ensure it's a number
       
-      if (!monthlyData.has(uniqueInvoiceKey)) {
-        monthlyData.set(uniqueInvoiceKey, {
+      // Group by month only - combine all invoices for the same hotel in the same month
+      if (!monthlyData.has(monthKey)) {
+        monthlyData.set(monthKey, {
           month: monthKey,
           totalAmount: 0,
           paidAmount: 0,
@@ -124,12 +128,12 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const monthData = monthlyData.get(uniqueInvoiceKey)!;
+      const monthData = monthlyData.get(monthKey)!;
       
       // Get confirmation status from emailSend (not dailySheet)
       const emailSendConfirmedAt = emailSend.confirmedAt ? emailSend.confirmedAt.toISOString() : null;
       
-      // Each emailSend is a separate invoice with a single detail
+      // Add this emailSend as a detail to the month's invoice
       monthData.totalAmount += amount;
       monthData.invoices.push({
         date: dateKey,
@@ -142,7 +146,7 @@ export async function GET(request: NextRequest) {
         protectorsAmount,
         emailSendCount: 1,
         confirmedAt: emailSendConfirmedAt,
-        emailSendIds: [emailSend.id], // Each invoice detail has only one emailSend ID
+        emailSendIds: [emailSend.id], // Each invoice detail has one emailSend ID
       });
     });
 
@@ -180,17 +184,24 @@ export async function GET(request: NextRequest) {
     });
 
     // Match Invoice records with emailSend records
-    // Try to match by: hotel name, amount (primary), then date, weight, protectors
-    // Use a more flexible matching approach - prioritize amount match, then other fields
+    // Strategy: First try exact 1-1 matching, then try proportional distribution for invoices that contain multiple emailSends
     // Track which invoices have been used to avoid duplicate matches
     const usedInvoiceIds = new Set<string>();
+    const invoiceToEmailSends = new Map<string, string[]>(); // Map invoice.id -> emailSend.id[]
     
+    // First pass: Try exact 1-1 matching (invoice amount = emailSend amount)
     emailSends.forEach((emailSend) => {
       const emailSendDate = new Date(emailSend.date);
       const emailSendDateKey = emailSendDate.toISOString().split("T")[0];
-      const emailSendAmount = parseFloat((emailSend.totalAmount || 0).toFixed(2));
       const emailSendWeight = parseFloat((emailSend.totalWeight || 0).toFixed(2));
       const emailSendProtectors = parseFloat((emailSend.protectorsAmount || 0).toFixed(2));
+      
+      // Calculate amount the same way as above: if totalAmount exists, use it; otherwise calculate
+      let emailSendAmount = emailSend.totalAmount;
+      if (emailSendAmount === null || emailSendAmount === undefined) {
+        emailSendAmount = (emailSendWeight * pricePerKg) + emailSendProtectors;
+      }
+      emailSendAmount = parseFloat((emailSendAmount || 0).toFixed(2));
       
       // First, filter by hotel name
       const hotelInvoices = allInvoices.filter(
@@ -199,13 +210,12 @@ export async function GET(request: NextRequest) {
         }
       );
       
-      // Find best matching invoice - prioritize exact matches, then partial matches
-      // Score each potential match and pick the best one
+      // Find best matching invoice - prioritize exact amount matches
       let bestMatchInvoice: InvoiceSelect | null = null;
       let bestScore = 0;
       
       hotelInvoices.forEach((invoice) => {
-        // Skip if this invoice was already matched to another emailSend
+        // Skip if this invoice was already matched to another emailSend in exact match
         if (usedInvoiceIds.has(invoice.id)) {
           return;
         }
@@ -264,28 +274,98 @@ export async function GET(request: NextRequest) {
         }
       });
       
-      // If we found a match with amount matching (score >= 100), use it
+      // If we found a match with amount matching (score >= 100), use it for exact 1-1 matching
       if (bestMatchInvoice !== null && bestScore >= 100 && bestMatchInvoice) {
-        // TypeScript type narrowing - bestMatchInvoice is guaranteed to be InvoiceSelect here
         const match: InvoiceSelect = bestMatchInvoice;
-        // Mark this invoice as used
+        // Mark this invoice as used for exact matching
         usedInvoiceIds.add(match.id);
         // Set paid amount (use 0 if null/undefined)
         const paidAmount = match.paidAmount ?? 0;
         invoicePaidAmounts.set(emailSend.id, paidAmount);
         
         // Debug logging
-        console.log(`Matched emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾) to Invoice ${match.id} (paid: ${paidAmount}₾, score: ${bestScore})`);
+        console.log(`Exact match: emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾) to Invoice ${match.id} (paid: ${paidAmount}₾, score: ${bestScore})`);
       } else {
-        // Debug logging for unmatched email sends
-        console.log(`No match found for emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾, hotel: ${normalizedHotelName})`);
+        // No exact match found - will try proportional distribution in second pass
+        // For now, mark as unmatched
+        console.log(`No exact match for emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾, hotel: ${normalizedHotelName})`);
+      }
+    });
+    
+    // Second pass: For invoices that weren't matched exactly, try to match them to invoices that contain multiple emailSends
+    // Group emailSends by month and try to match to invoices that contain the month's total
+    const unmatchedEmailSends = emailSends.filter((es) => !invoicePaidAmounts.has(es.id));
+    const unmatchedInvoices = allInvoices.filter((inv) => 
+      normalizeHotel(inv.customerName) === normalizedHotelName && !usedInvoiceIds.has(inv.id)
+    );
+    
+    // Group unmatched emailSends by month
+    const emailSendsByMonth = new Map<string, typeof emailSends>();
+    unmatchedEmailSends.forEach((emailSend) => {
+      const date = new Date(emailSend.date);
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const monthKey = `${year}-${month}`;
+      
+      if (!emailSendsByMonth.has(monthKey)) {
+        emailSendsByMonth.set(monthKey, []);
+      }
+      emailSendsByMonth.get(monthKey)!.push(emailSend);
+    });
+    
+    // Try to match each month's emailSends to an invoice
+    emailSendsByMonth.forEach((monthEmailSends, monthKey) => {
+      // Calculate total amount for this month's emailSends
+      const monthTotalAmount = monthEmailSends.reduce((sum, es) => {
+        let amount = es.totalAmount;
+        if (amount === null || amount === undefined) {
+          const weight = es.totalWeight || 0;
+          const protectors = es.protectorsAmount || 0;
+          amount = (weight * pricePerKg) + protectors;
+        }
+        return sum + (amount || 0);
+      }, 0);
+      
+      // Find invoice that matches this month's total
+      const matchingInvoice = unmatchedInvoices.find((invoice) => {
+        const invoiceAmount = parseFloat((invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2));
+        const monthTotal = parseFloat(monthTotalAmount.toFixed(2));
+        // Allow small difference due to rounding
+        return Math.abs(invoiceAmount - monthTotal) < 0.01;
+      });
+      
+      if (matchingInvoice) {
+        const paidAmount = matchingInvoice.paidAmount ?? 0;
+        // Distribute paidAmount proportionally among emailSends
+        monthEmailSends.forEach((emailSend) => {
+          let emailSendAmount = emailSend.totalAmount;
+          if (emailSendAmount === null || emailSendAmount === undefined) {
+            const weight = emailSend.totalWeight || 0;
+            const protectors = emailSend.protectorsAmount || 0;
+            emailSendAmount = (weight * pricePerKg) + protectors;
+          }
+          emailSendAmount = emailSendAmount || 0;
+          
+          // Calculate proportional paid amount
+          const proportionalPaid = monthTotalAmount > 0 
+            ? (emailSendAmount / monthTotalAmount) * paidAmount
+            : 0;
+          
+          invoicePaidAmounts.set(emailSend.id, proportionalPaid);
+          console.log(`Proportional match: emailSend ${emailSend.id} (${emailSendAmount.toFixed(2)}₾) gets ${proportionalPaid.toFixed(2)}₾ from Invoice ${matchingInvoice.id} (total: ${monthTotalAmount.toFixed(2)}₾, paid: ${paidAmount.toFixed(2)}₾)`);
+        });
+        
+        // Mark invoice as used
+        usedInvoiceIds.add(matchingInvoice.id);
       }
     });
     
     console.log(`Total email sends: ${emailSends.length}, Matched invoices: ${invoicePaidAmounts.size}, Total invoices in DB: ${allInvoices.length}`);
 
     // Update paid amounts for each invoice detail
-    monthlyData.forEach((monthData, uniqueKey) => {
+    // Use paidAmount from Invoice table (updated by admin in /admin/revenues)
+    monthlyData.forEach((monthData, monthKey) => {
+      // Update individual invoice details with their matched payments from Invoice table
       monthData.invoices.forEach((invoiceDetail) => {
         const emailSendId = invoiceDetail.emailSendIds[0];
         if (emailSendId && invoicePaidAmounts.has(emailSendId)) {
@@ -307,36 +387,56 @@ export async function GET(request: NextRequest) {
         }
       });
       
-      // Update month-level totals
+      // Calculate month-level totals from individual invoice detail payments
+      // Sum all paidAmount from Invoice table (updated by admin in /admin/revenues)
       monthData.paidAmount = monthData.invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
       monthData.remainingAmount = monthData.totalAmount - monthData.paidAmount;
     });
 
-    // Get confirmation status for each invoice from DailySheetEmailSend records
-    // Since each invoice now has only one emailSend, check that emailSend's confirmation status
-    const invoiceConfirmations = new Map<string, string | null>();
-    
-    // Map each unique invoice key to its emailSend confirmation status
-    monthlyData.forEach((data, uniqueKey) => {
-      // Each invoice has exactly one detail with one emailSend ID
-      const emailSendId = data.invoices[0]?.emailSendIds?.[0];
-      if (emailSendId) {
-        const emailSend = emailSends.find(es => es.id === emailSendId);
-        if (emailSend && emailSend.confirmedAt) {
-          invoiceConfirmations.set(uniqueKey, emailSend.confirmedAt.toISOString());
-        } else {
-          invoiceConfirmations.set(uniqueKey, null);
-        }
-      } else {
-        invoiceConfirmations.set(uniqueKey, null);
-      }
+    // Get revenue data for each month from Revenue table (entered in /admin/revenues)
+    const revenuesByMonth = new Map<string, Array<{
+      id: string;
+      source: string;
+      description: string;
+      amount: number;
+      date: string;
+    }>>();
+
+    // Get all revenues and group by month
+    const allRevenues = await prisma.revenue.findMany({
+      orderBy: {
+        date: "desc",
+      },
+      select: {
+        id: true,
+        source: true,
+        description: true,
+        amount: true,
+        date: true,
+      },
     });
 
-    const result = Array.from(monthlyData.values()).map((data) => {
-      // Find the unique key for this data
-      const uniqueKey = Array.from(monthlyData.entries()).find(([key, value]) => value === data)?.[0];
-      const confirmedAt = uniqueKey ? invoiceConfirmations.get(uniqueKey) : null;
+    allRevenues.forEach((revenue) => {
+      const revenueDate = new Date(revenue.date);
+      const year = revenueDate.getUTCFullYear();
+      const month = String(revenueDate.getUTCMonth() + 1).padStart(2, "0");
+      const monthKey = `${year}-${month}`;
       
+      if (!revenuesByMonth.has(monthKey)) {
+        revenuesByMonth.set(monthKey, []);
+      }
+      revenuesByMonth.get(monthKey)!.push({
+        id: revenue.id,
+        source: revenue.source,
+        description: revenue.description,
+        amount: revenue.amount,
+        date: revenue.date.toISOString(),
+      });
+    });
+
+    // Get confirmation status for each invoice from DailySheetEmailSend records
+    // Since invoices are now grouped by month, check if all invoice details in that month are confirmed
+    const result = Array.from(monthlyData.values()).map((data) => {
       // Check if ALL invoice details are confirmed
       // Month-level invoice is confirmed only if all details are confirmed
       const allDetailsConfirmed = data.invoices.length > 0 && data.invoices.every(inv => inv.confirmedAt !== null && inv.confirmedAt !== undefined);
@@ -357,11 +457,17 @@ export async function GET(request: NextRequest) {
         (data.paidAmount >= data.totalAmount && Math.abs(data.paidAmount - data.totalAmount) < 0.01)
       );
       
+      // Get revenues for this month
+      const monthRevenues = revenuesByMonth.get(data.month) || [];
+      const totalRevenueAmount = monthRevenues.reduce((sum, rev) => sum + rev.amount, 0);
+      
       return {
         ...data,
         status: isFullyPaid ? "PAID" : "PENDING",
         isPaid: isFullyPaid,
-        confirmedAt: monthConfirmedAt || confirmedAt || null,
+        confirmedAt: monthConfirmedAt || null,
+        revenues: monthRevenues,
+        totalRevenueAmount: totalRevenueAmount,
       };
     });
 

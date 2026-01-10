@@ -179,7 +179,7 @@ function generateInvoicePDF(
         description: 150, // shrink service period
         quantity: 90,     // widen
         unitPrice: 120,   // widen
-        total: tableWidthPixels - (30 + 150 + 90 + 120), // remainder
+        total: tableWidthPixels - (30 + 200 + 90 + 120), // widen remainder (same as admin)
       };
 
       // Header background
@@ -225,11 +225,6 @@ function generateInvoicePDF(
       let currentY = tableTop + 22;
 
       items.forEach((item, index) => {
-        if (currentY > doc.page.height - 100) {
-          doc.addPage();
-          currentY = doc.page.margins.top;
-        }
-
         doc.rect(tableLeft, currentY, tableWidthPixels, 20).stroke();
 
         // Draw vertical lines in each row
@@ -311,7 +306,7 @@ function generateInvoicePDF(
       const totalAmountWidth = 80;
       const totalLabelX = tableLeft + tableWidthPixels - (totalLabelWidth + totalAmountWidth);
 
-      drawBoldText("სულ გადასახდელი", totalLabelX, currentY + 5, {
+      drawBoldText("სულ", totalLabelX, currentY + 5, {
         width: totalLabelWidth,
         align: "center",
       });
@@ -482,100 +477,95 @@ export async function GET(request: NextRequest) {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
 
-    // Build items array - deduplicate same invoices (same date, amount, weight, protectors)
+    // Build items array - each emailSend gets its own row (detailed) - same as admin send-pdf
     const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
-    const pricePerKg = hotel.pricePerKg || 1.8;
-
-    // Track unique invoices to avoid duplicates
-    const uniqueInvoiceMap = new Map<string, {
-      description: string;
-      quantity: string;
-      unitPrice: number;
-      total: number;
-    }>();
-
+    const pricePerKg = hotel.pricePerKg || 1.8; // Default price
+    
     // Sort email sends by date
     const sortedEmailSends = [...emailSends].sort((a, b) => 
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-
-    // Create items for each unique invoice (deduplicate same date, amount, weight, protectors)
-    // Group by date and combine protectors with weight items
-    const itemsByDate = new Map<string, {
-      description: string;
-      quantity: string;
-      unitPrice: number;
-      total: number;
-      protectorsAmount: number;
-    }>();
-
+    
+    // Create a separate item for each emailSend - same logic as admin send-pdf
     sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
-      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
       const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
 
+      // Show only the send date; fallback to sheet date if missing
       let sentLabel = dateStr;
       if (emailSend.sentAt) {
         const sentAt = new Date(emailSend.sentAt);
-        sentLabel = `${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
+        sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
       }
 
       const weight = emailSend.totalWeight ?? 0;
-      const protectorsAmount = emailSend.protectorsAmount ?? 0;
-
+      
       if (weight > 0) {
-        const linenTotal = weight * pricePerKg;
-        const totalWithProtectors = linenTotal + protectorsAmount;
+        // Check if this sheet has tablecloths (სუფრები)
+        const hasTablecloths = emailSend.dailySheet?.items?.some(
+          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+        ) || false;
         
-        // Use date as key to combine items for the same date
-        const itemKey = dateKey;
-        
-        if (!itemsByDate.has(itemKey)) {
-          itemsByDate.set(itemKey, {
+        if (hasTablecloths) {
+          // Separate regular linen and tablecloths
+          const tableclothsItems = emailSend.dailySheet?.items?.filter(
+            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+          ) || [];
+          const regularItems = emailSend.dailySheet?.items?.filter(
+            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
+          ) || [];
+          
+          const tableclothsWeight = tableclothsItems.reduce(
+            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+            0
+          );
+          const regularWeight = regularItems.reduce(
+            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+            0
+          );
+          
+          // Add regular linen item
+          if (regularWeight > 0) {
+            items.push({
+              description: sentLabel,
+              quantity: `${regularWeight.toFixed(1)} კგ`,
+              unitPrice: pricePerKg,
+              total: regularWeight * pricePerKg,
+            });
+          }
+          
+          // Add tablecloths item
+          if (tableclothsWeight > 0) {
+            const tableclothsPrice = 3.00; // Price for tablecloths
+            items.push({
+              description: `${sentLabel} - სუფრები`,
+              quantity: `${tableclothsWeight.toFixed(1)} კგ`,
+              unitPrice: tableclothsPrice,
+              total: tableclothsWeight * tableclothsPrice,
+            });
+          }
+        } else {
+          // Regular linen item (no tablecloths)
+          items.push({
             description: sentLabel,
             quantity: `${weight.toFixed(1)} კგ`,
             unitPrice: pricePerKg,
-            total: totalWithProtectors,
-            protectorsAmount: protectorsAmount,
+            total: weight * pricePerKg,
           });
-        } else {
-          // If date already exists, add to totals
-          const existing = itemsByDate.get(itemKey)!;
-          const existingWeight = parseFloat(existing.quantity.replace(' კგ', ''));
-          const newWeight = existingWeight + weight;
-          existing.quantity = `${newWeight.toFixed(1)} კგ`;
-          existing.total = (newWeight * pricePerKg) + existing.protectorsAmount + protectorsAmount;
-          existing.protectorsAmount += protectorsAmount;
-        }
-      } else if (protectorsAmount > 0) {
-        // Only protectors, no weight
-        const itemKey = dateKey;
-        if (!itemsByDate.has(itemKey)) {
-          itemsByDate.set(itemKey, {
-            description: sentLabel,
-            quantity: `0.0 კგ`,
-            unitPrice: pricePerKg,
-            total: protectorsAmount,
-            protectorsAmount: protectorsAmount,
-          });
-        } else {
-          const existing = itemsByDate.get(itemKey)!;
-          existing.total += protectorsAmount;
-          existing.protectorsAmount += protectorsAmount;
         }
       }
     });
     
-    // Convert map values to array
-    items.push(...Array.from(itemsByDate.values()).map(({ protectorsAmount, ...item }) => item));
-    
-    // Sort items by description (date) to maintain order
-    items.sort((a, b) => {
-      // Extract date from description for sorting
-      const dateA = a.description.match(/(\d{2}\.\d{2}\.\d{2})/)?.[1] || "";
-      const dateB = b.description.match(/(\d{2}\.\d{2}\.\d{2})/)?.[1] || "";
-      return dateA.localeCompare(dateB);
-    });
+    // Add protectors if any (as separate item) - same as admin send-pdf
+    const totalProtectors = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
+    if (totalProtectors > 0) {
+      items.push({
+        description: "დამცავები",
+        quantity: "1",
+        unitPrice: totalProtectors,
+        total: totalProtectors,
+      });
+    }
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
