@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
+    const pricePerKg = hotel.pricePerKg || 1.8; // Default price per kg
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
 
@@ -105,10 +106,17 @@ export async function GET(request: NextRequest) {
       const month = String(date.getUTCMonth() + 1).padStart(2, "0");
       const monthKey = `${year}-${month}`;
       
-      const amount = emailSend.totalAmount || 0;
       const dateKey = emailSend.date.toISOString().split("T")[0];
       const weightKg = emailSend.totalWeight || 0;
       const protectorsAmount = emailSend.protectorsAmount || 0;
+      
+      // Calculate amount: if totalAmount exists, use it; otherwise calculate from weight and protectors
+      let amount = emailSend.totalAmount;
+      if (amount === null || amount === undefined) {
+        // Calculate: weight * pricePerKg + protectorsAmount
+        amount = (weightKg * pricePerKg) + protectorsAmount;
+      }
+      amount = amount || 0; // Ensure it's a number
       
       // Create unique key for this invoice: month + emailSend.id
       // This ensures each emailSend is a separate invoice entry
@@ -188,9 +196,15 @@ export async function GET(request: NextRequest) {
     emailSends.forEach((emailSend) => {
       const emailSendDate = new Date(emailSend.date);
       const emailSendDateKey = emailSendDate.toISOString().split("T")[0];
-      const emailSendAmount = parseFloat((emailSend.totalAmount || 0).toFixed(2));
       const emailSendWeight = parseFloat((emailSend.totalWeight || 0).toFixed(2));
       const emailSendProtectors = parseFloat((emailSend.protectorsAmount || 0).toFixed(2));
+      
+      // Calculate amount the same way as above: if totalAmount exists, use it; otherwise calculate
+      let emailSendAmount = emailSend.totalAmount;
+      if (emailSendAmount === null || emailSendAmount === undefined) {
+        emailSendAmount = (emailSendWeight * pricePerKg) + emailSendProtectors;
+      }
+      emailSendAmount = parseFloat((emailSendAmount || 0).toFixed(2));
       
       // First, filter by hotel name
       const hotelInvoices = allInvoices.filter(
@@ -324,6 +338,47 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Get revenue data for each month from Revenue table (entered in /admin/revenues)
+    const revenuesByMonth = new Map<string, Array<{
+      id: string;
+      source: string;
+      description: string;
+      amount: number;
+      date: string;
+    }>>();
+
+    // Get all revenues and group by month
+    const allRevenues = await prisma.revenue.findMany({
+      orderBy: {
+        date: "desc",
+      },
+      select: {
+        id: true,
+        source: true,
+        description: true,
+        amount: true,
+        date: true,
+      },
+    });
+
+    allRevenues.forEach((revenue) => {
+      const revenueDate = new Date(revenue.date);
+      const year = revenueDate.getUTCFullYear();
+      const month = String(revenueDate.getUTCMonth() + 1).padStart(2, "0");
+      const monthKey = `${year}-${month}`;
+      
+      if (!revenuesByMonth.has(monthKey)) {
+        revenuesByMonth.set(monthKey, []);
+      }
+      revenuesByMonth.get(monthKey)!.push({
+        id: revenue.id,
+        source: revenue.source,
+        description: revenue.description,
+        amount: revenue.amount,
+        date: revenue.date.toISOString(),
+      });
+    });
+
     const result = Array.from(monthlyData.values()).map((data) => {
       // Find the unique key for this data
       const uniqueKey = Array.from(monthlyData.entries()).find(([key, value]) => value === data)?.[0];
@@ -349,11 +404,17 @@ export async function GET(request: NextRequest) {
         (data.paidAmount >= data.totalAmount && Math.abs(data.paidAmount - data.totalAmount) < 0.01)
       );
       
+      // Get revenues for this month
+      const monthRevenues = revenuesByMonth.get(data.month) || [];
+      const totalRevenueAmount = monthRevenues.reduce((sum, rev) => sum + rev.amount, 0);
+      
       return {
         ...data,
         status: isFullyPaid ? "PAID" : "PENDING",
         isPaid: isFullyPaid,
         confirmedAt: monthConfirmedAt || confirmedAt || null,
+        revenues: monthRevenues,
+        totalRevenueAmount: totalRevenueAmount,
       };
     });
 
