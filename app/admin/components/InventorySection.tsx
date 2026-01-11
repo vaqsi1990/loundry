@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 interface InventoryMovement {
   id: string;
@@ -63,6 +63,7 @@ export default function InventorySection() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const [expenses, setExpenses] = useState<Record<string, Expense[]>>({});
   const [loadingExpenses, setLoadingExpenses] = useState<Set<string>>(new Set());
   
@@ -139,6 +140,16 @@ export default function InventorySection() {
       }
     }
     setExpandedRows(newExpanded);
+  };
+
+  const toggleDetails = (itemId: string) => {
+    const newExpanded = new Set(expandedDetails);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedDetails(newExpanded);
   };
 
   const handleExpenseSubmit = async (e: React.FormEvent, inventoryId: string) => {
@@ -650,6 +661,9 @@ export default function InventorySection() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
               <tr>
+                <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider w-12">
+                  
+                </th>
                 <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
                   პროდუქტი
                 </th>
@@ -683,11 +697,34 @@ export default function InventorySection() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {items.map((item) => (
-                <tr key={item.id} className="text-[16px] md:text-[18px] text-black transition-colors duration-150">
-                  <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                    <div className="text-[16px] md:text-[18px] font-semibold text-gray-900">{item.itemName}</div>
-                  </td>
+              {items.map((item) => {
+                const isDetailsExpanded = expandedDetails.has(item.id);
+                const receiptMovements = item.movements.filter(m => m.type === "RECEIPT");
+                const removalMovements = item.movements.filter(m => m.type === "REMOVAL");
+                
+                return (
+                  <Fragment key={item.id}>
+                    <tr className="text-[16px] md:text-[18px] text-black transition-colors duration-150">
+                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => toggleDetails(item.id)}
+                          className="text-gray-600 hover:text-gray-900 transition-colors"
+                          title="დეტალების ჩვენება"
+                        >
+                          {isDetailsExpanded ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                        <div className="text-[16px] md:text-[18px] font-semibold text-gray-900">{item.itemName}</div>
+                      </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[16px] md:text-[18px] font-medium bg-blue-100 text-blue-800">
                       {item.category 
@@ -788,7 +825,98 @@ export default function InventorySection() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                {isDetailsExpanded && (
+                  <tr>
+                    <td colSpan={10} className="px-4 md:px-6 py-4 bg-gray-50">
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3">დეტალური ინფორმაცია</h4>
+                        
+                        {/* შემოტანის თარიღები */}
+                        {receiptMovements.length > 0 && (
+                          <div className="mb-4">
+                            <h5 className="text-md font-semibold text-green-700 mb-2"> შემოტანის თარიღები:</h5>
+                            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-green-50">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">თარიღი</th>
+                                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">რაოდენობა</th>
+                                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">შენიშვნა</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {receiptMovements.map((movement) => (
+                                    <tr key={movement.id}>
+                                      <td className="px-4 py-2 text-sm text-gray-900">
+                                        {new Date(movement.date).toLocaleDateString("ka-GE", {
+                                          year: "numeric",
+                                          month: "long",
+                                          day: "numeric",
+                                        })}
+                                      </td>
+                                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">
+                                        {movement.quantity} {translateUnit(item.unit)}
+                                      </td>
+                                      <td className="px-4 py-2 text-sm text-gray-600">
+                                        {movement.notes || "-"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* გატანის თარიღები */}
+                        {removalMovements.length > 0 && (
+                          <div>
+                            <h5 className="text-md font-semibold text-orange-700 mb-2"> გატანის თარიღები:</h5>
+                            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-orange-50">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">თარიღი</th>
+                                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">რაოდენობა</th>
+                                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">შენიშვნა</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {removalMovements.map((movement) => (
+                                    <tr key={movement.id}>
+                                      <td className="px-4 py-2 text-sm text-gray-900">
+                                        {new Date(movement.date).toLocaleDateString("ka-GE", {
+                                          year: "numeric",
+                                          month: "long",
+                                          day: "numeric",
+                                        })}
+                                      </td>
+                                      <td className="px-4 py-2 text-sm text-gray-900 font-medium">
+                                        {movement.quantity} {translateUnit(item.unit)}
+                                      </td>
+                                      <td className="px-4 py-2 text-sm text-gray-600">
+                                        {movement.notes || "-"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        {receiptMovements.length === 0 && removalMovements.length === 0 && (
+                          <div className="text-center py-4 text-gray-500">
+                            დეტალური ინფორმაცია არ არის ხელმისაწვდომი
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
