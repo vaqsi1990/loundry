@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { z } from "zod";
+import bcrypt from "bcryptjs";
+
+const updateLegalHotelSchema = z.object({
+  hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა").optional(),
+  hotelRegistrationNumber: z.string().min(1, "რეგისტრაციის ნომერი სავალდებულოა").optional(),
+  numberOfRooms: z.number().int().positive("ნომრების რაოდენობა უნდა იყოს დადებითი რიცხვი").optional(),
+  email: z.string().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა").optional(),
+  mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა").optional(),
+  pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი").optional(),
+  companyName: z.string().optional(),
+  address: z.string().optional(),
+  legalEntityName: z.string().optional(),
+  identificationCode: z.string().optional(),
+  responsiblePersonName: z.string().optional(),
+  password: z.string().min(6, "პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან").optional(),
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,6 +76,102 @@ export async function GET(request: NextRequest) {
     console.error("Legal profile fetch error:", error);
     return NextResponse.json(
       { error: "პროფილის ჩატვირთვისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: {
+        hotels: {
+          where: { type: "LEGAL" },
+        },
+      },
+    });
+
+    if (!user || !user.hotels || user.hotels.length === 0) {
+      return NextResponse.json(
+        { error: "იურიდიული პირის სასტუმრო არ მოიძებნა" },
+        { status: 404 }
+      );
+    }
+
+    const hotel = user.hotels[0];
+    const body = await request.json();
+    const validatedData = updateLegalHotelSchema.parse(body);
+
+    // Update user if email or password is provided
+    const userUpdates: any = {};
+    if (validatedData.email && validatedData.email !== user.email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: validatedData.email },
+      });
+      if (existingUser && existingUser.id !== session.user.id) {
+        return NextResponse.json(
+          { error: "ეს ელფოსტა უკვე გამოყენებულია" },
+          { status: 400 }
+        );
+      }
+      userUpdates.email = validatedData.email;
+    }
+    if (validatedData.mobileNumber) {
+      userUpdates.mobileNumber = validatedData.mobileNumber;
+    }
+    if (validatedData.password) {
+      userUpdates.password = await bcrypt.hash(validatedData.password, 10);
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: userUpdates,
+      });
+    }
+
+    // Update hotel
+    const hotelUpdates: any = {};
+    if (validatedData.hotelName) hotelUpdates.hotelName = validatedData.hotelName.trim();
+    if (validatedData.hotelRegistrationNumber) hotelUpdates.hotelRegistrationNumber = validatedData.hotelRegistrationNumber.trim();
+    if (validatedData.numberOfRooms !== undefined) hotelUpdates.numberOfRooms = validatedData.numberOfRooms;
+    if (validatedData.email) hotelUpdates.email = validatedData.email.trim();
+    if (validatedData.mobileNumber) hotelUpdates.mobileNumber = validatedData.mobileNumber.trim();
+    if (validatedData.pricePerKg !== undefined) hotelUpdates.pricePerKg = validatedData.pricePerKg;
+    if (validatedData.companyName !== undefined) hotelUpdates.companyName = validatedData.companyName?.trim() || null;
+    if (validatedData.address !== undefined) hotelUpdates.address = validatedData.address?.trim() || null;
+    if (validatedData.legalEntityName !== undefined) hotelUpdates.legalEntityName = validatedData.legalEntityName?.trim() || null;
+    if (validatedData.identificationCode !== undefined) hotelUpdates.identificationCode = validatedData.identificationCode?.trim() || null;
+    if (validatedData.responsiblePersonName !== undefined) hotelUpdates.responsiblePersonName = validatedData.responsiblePersonName?.trim() || null;
+
+    if (Object.keys(hotelUpdates).length > 0) {
+      await prisma.hotel.update({
+        where: { id: hotel.id },
+        data: hotelUpdates,
+      });
+    }
+
+    return NextResponse.json({ message: "პროფილი წარმატებით განახლდა" });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.issues[0].message },
+        { status: 400 }
+      );
+    }
+    console.error("Legal profile update error:", error);
+    return NextResponse.json(
+      { error: "პროფილის განახლებისას მოხდა შეცდომა" },
       { status: 500 }
     );
   }
