@@ -181,6 +181,25 @@ export async function GET(request: NextRequest) {
         ? confirmedEmailSends[0].confirmedAt.toISOString()
         : null;
       
+      // Get sentAt date from matching emailSends (daily sheet send date)
+      // Use the earliest sentAt date from matching email sends, or fallback to invoice createdAt
+      let sentAtDate: string | null = null;
+      if (matchingEmailSends.length > 0) {
+        const sentAtDates = matchingEmailSends
+          .map(es => es.sentAt)
+          .filter((date): date is Date => date !== null && date !== undefined)
+          .sort((a, b) => a.getTime() - b.getTime()); // Sort ascending (earliest first)
+        
+        if (sentAtDates.length > 0) {
+          sentAtDate = sentAtDates[0].toISOString(); // Use earliest sentAt date
+        }
+      }
+      
+      // Fallback to invoice createdAt if no sentAt found in emailSends
+      if (!sentAtDate) {
+        sentAtDate = invoice.createdAt.toISOString();
+      }
+      
       // Calculate status based on paid amount
       const isPaid = amount > 0 && (
         remainingAmount <= 0 || 
@@ -197,7 +216,7 @@ export async function GET(request: NextRequest) {
         paidAmount,
         remainingAmount,
         status: isPaid ? "PAID" : "PENDING",
-        sentAt: invoice.createdAt.toISOString(), // Use createdAt as sentAt
+        sentAt: sentAtDate, // Use daily sheet email send date (sentAt from DailySheetEmailSend)
         weightKg,
         protectorsAmount,
         emailSendCount: matchingEmailSends.length || 1, // Count of matching email sends

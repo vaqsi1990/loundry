@@ -331,7 +331,7 @@ export default function AdminPickupDeliveryPage() {
                                   </div>
                                   {request.notes && (
                                     <p className="text-[14px] text-gray-700 mt-2 p-2 bg-gray-50 rounded">
-                                      <span className="font-semibold">შენიშვნა:</span> {request.notes}
+                                      <span className="font-semibold">ტექსტი:</span> {request.notes}
                                     </p>
                                   )}
                                   <div className="flex gap-2 mt-3">

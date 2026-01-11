@@ -3,10 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: session, status } = useSession();
+  const pathname = usePathname();
+  
+  // Determine profile link based on current path
+  const profileLink = pathname?.startsWith("/legal") ? "/legal" : "/physical";
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-md shadow-sm">
@@ -38,7 +43,7 @@ export default function Header() {
             </Link>
             {status === "authenticated" && session ? (
               <>
-                <Link href="/physical" className="text-black md:text-[18px] text-[16px] transition">
+                <Link href={profileLink} className="text-black md:text-[18px] text-[16px] transition">
                   პროფილი
                 </Link>
                 {(session.user as any)?.role === "ADMIN" && (
@@ -124,7 +129,7 @@ export default function Header() {
             >
               ჩვენს შესახებ
             </Link>
-            <Link href="/clean" className="text-black text-[16px transition">
+            <Link href="/clean" className="text-black text-[16px] transition" onClick={() => setIsMenuOpen(false)}>
               რეცხვის გარემო
             </Link>
             <Link
@@ -137,7 +142,7 @@ export default function Header() {
             {status === "authenticated" && session ? (
               <>
                 <Link
-                  href="/physical"
+                  href={profileLink}
                   className="block text-black text-[16px] transition"
                   onClick={() => setIsMenuOpen(false)}
                 >

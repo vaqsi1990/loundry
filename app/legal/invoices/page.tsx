@@ -318,7 +318,8 @@ export default function LegalInvoicesPage() {
   }
 
   if (!session) return null;
-
+ console.log(invoices);
+ 
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
       <div className="max-w-7xl mx-auto">
