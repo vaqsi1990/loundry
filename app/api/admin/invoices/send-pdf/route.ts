@@ -419,7 +419,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { hotelName, email } = body;
+    const { hotelName, email, dateDetails } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -448,21 +448,54 @@ export async function POST(request: NextRequest) {
     }
 
     // Get invoice data for this hotel
-    const emailSends = await prisma.dailySheetEmailSend.findMany({
-      where: {
-        hotelName: hotelName,
-      },
-      include: {
-        dailySheet: {
-          include: {
-            items: true,
+    // If dateDetails are provided, only get emailSends for those specific dates
+    let emailSends;
+    if (dateDetails && Array.isArray(dateDetails) && dateDetails.length > 0) {
+      // Collect all emailSendIds from dateDetails
+      const emailSendIds = dateDetails
+        .flatMap((detail: any) => detail.emailSendIds || [])
+        .filter((id: string) => id !== undefined && id !== null);
+      
+      if (emailSendIds.length === 0) {
+        return NextResponse.json({ error: "ინვოისის ID-ები არ მოიძებნა" }, { status: 400 });
+      }
+      
+      emailSends = await prisma.dailySheetEmailSend.findMany({
+        where: {
+          id: {
+            in: emailSendIds,
+          },
+          hotelName: hotelName,
+        },
+        include: {
+          dailySheet: {
+            include: {
+              items: true,
+            },
           },
         },
-      },
-      orderBy: {
-        date: "asc",
-      },
-    });
+        orderBy: {
+          date: "asc",
+        },
+      });
+    } else {
+      // Get all emailSends for this hotel (legacy behavior)
+      emailSends = await prisma.dailySheetEmailSend.findMany({
+        where: {
+          hotelName: hotelName,
+        },
+        include: {
+          dailySheet: {
+            include: {
+              items: true,
+            },
+          },
+        },
+        orderBy: {
+          date: "asc",
+        },
+      });
+    }
 
     if (emailSends.length === 0) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
@@ -709,6 +742,28 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Invoice email sent successfully to:", recipientEmail);
+    
+    // After successful email send, confirm all emailSends that were included in the PDF
+    const emailSendIdsToConfirm = emailSends
+      .filter((es) => es.confirmedAt === null || es.confirmedAt === undefined)
+      .map((es) => es.id);
+    
+    if (emailSendIdsToConfirm.length > 0) {
+      await prisma.dailySheetEmailSend.updateMany({
+        where: {
+          id: {
+            in: emailSendIdsToConfirm,
+          },
+          confirmedAt: null, // Only update email sends that are not already confirmed
+        },
+        data: {
+          confirmedBy: session.user.id,
+          confirmedAt: new Date(),
+        },
+      });
+      console.log(`Confirmed ${emailSendIdsToConfirm.length} email sends after PDF send`);
+    }
+    
     return NextResponse.json({ message: "PDF ინვოისი წარმატებით გაიგზავნა" });
   } catch (error: any) {
     console.error("=== PDF invoice send error ===");

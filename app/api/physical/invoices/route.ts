@@ -10,6 +10,7 @@ const normalizeHotel = (name: string | null) => {
 };
 
 // Get invoices for physical person hotel grouped by month
+// Invoices come from Invoice table (created when admin/manager sends invoices)
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -38,46 +39,50 @@ export async function GET(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
-    const pricePerKg = hotel.pricePerKg || 1.8; // Default price per kg
+    const normalizedHotelName = normalizeHotel(hotel.hotelName);
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
 
-    // Get all email sends and filter by normalized hotel name
+    // Build date filter for month if specified
+    let invoiceWhere: any = {};
+    if (month) {
+      const [year, monthNum] = month.split("-");
+      const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
+      invoiceWhere.createdAt = {
+        gte: startOfMonth,
+        lte: endOfMonth,
+      };
+    }
+
+    // Get all Invoice records and filter by normalized hotel name (case-insensitive)
+    const allInvoices = await prisma.invoice.findMany({
+      where: invoiceWhere,
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    // Filter invoices by normalized hotel name (case-insensitive)
+    const invoices = allInvoices.filter((inv) => 
+      normalizeHotel(inv.customerName) === normalizedHotelName
+    );
+
+    // Also get emailSends to check confirmation status
+    // When invoices are sent, the corresponding emailSends are confirmed
     const allEmailSends = await prisma.dailySheetEmailSend.findMany({
       where: {
         hotelName: {
           not: null,
         },
       },
-      include: {
-        dailySheet: {
-          include: {
-            items: true,
-          },
-        },
-      },
-      orderBy: {
-        date: "desc",
-      },
     });
 
-    const normalizedHotelName = normalizeHotel(hotel.hotelName);
-    let emailSends = allEmailSends.filter(
+    const emailSends = allEmailSends.filter(
       (es) => normalizeHotel(es.hotelName) === normalizedHotelName
     );
 
-    // Filter by month if specified
-    if (month) {
-      const [year, monthNum] = month.split("-");
-      const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
-      const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
-      emailSends = emailSends.filter((es) => {
-        const esDate = new Date(es.date);
-        return esDate >= startOfMonth && esDate <= endOfMonth;
-      });
-    }
-
-    // Group invoices by month - combine all emailSends for the same hotel in the same month
+    // Group invoices by month based on createdAt date
     const monthlyData = new Map<string, {
       month: string;
       totalAmount: number;
@@ -94,30 +99,26 @@ export async function GET(request: NextRequest) {
         protectorsAmount: number;
         emailSendCount: number;
         confirmedAt: string | null;
-        emailSendIds: string[]; // IDs of emailSends that belong to this invoice detail
+        emailSendIds: string[]; // Invoice ID for tracking
+        invoiceId: string; // Invoice record ID
       }>;
     }>();
 
-    emailSends.forEach((emailSend) => {
+    invoices.forEach((invoice) => {
       // Use UTC methods to avoid timezone issues
-      const date = new Date(emailSend.date);
+      const date = new Date(invoice.createdAt);
       const year = date.getUTCFullYear();
       const month = String(date.getUTCMonth() + 1).padStart(2, "0");
       const monthKey = `${year}-${month}`;
       
-      const dateKey = emailSend.date.toISOString().split("T")[0];
-      const weightKg = emailSend.totalWeight || 0;
-      const protectorsAmount = emailSend.protectorsAmount || 0;
+      const dateKey = invoice.createdAt.toISOString().split("T")[0];
+      const weightKg = invoice.totalWeightKg || 0;
+      const protectorsAmount = invoice.protectorsAmount || 0;
+      const amount = invoice.totalAmount ?? invoice.amount ?? 0;
+      const paidAmount = invoice.paidAmount ?? 0;
+      const remainingAmount = amount - paidAmount;
       
-      // Calculate amount: if totalAmount exists, use it; otherwise calculate from weight and protectors
-      let amount = emailSend.totalAmount;
-      if (amount === null || amount === undefined) {
-        // Calculate: weight * pricePerKg + protectorsAmount
-        amount = (weightKg * pricePerKg) + protectorsAmount;
-      }
-      amount = amount || 0; // Ensure it's a number
-      
-      // Group by month only - combine all invoices for the same hotel in the same month
+      // Group by month
       if (!monthlyData.has(monthKey)) {
         monthlyData.set(monthKey, {
           month: monthKey,
@@ -130,266 +131,84 @@ export async function GET(request: NextRequest) {
 
       const monthData = monthlyData.get(monthKey)!;
       
-      // Get confirmation status from emailSend (not dailySheet)
-      const emailSendConfirmedAt = emailSend.confirmedAt ? emailSend.confirmedAt.toISOString() : null;
+      // Check if there are matching emailSends that were confirmed (when invoice was sent)
+      // Match by date and amount (primary), weight and protectors (secondary, more flexible)
+      let matchingEmailSends = emailSends.filter((es) => {
+        const esDate = new Date(es.date);
+        const invoiceDate = new Date(invoice.createdAt);
+        
+        // Check if dates are close (within 30 days, since invoice might be sent later)
+        const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (dateDiff > 30) return false;
+        
+        // Primary match: amount must match (within 0.01 tolerance)
+        const esAmount = parseFloat((es.totalAmount || 0).toFixed(2));
+        const invoiceAmount = parseFloat(amount.toFixed(2));
+        if (Math.abs(esAmount - invoiceAmount) > 0.01) return false;
+        
+        // Secondary matches: weight and protectors (if both are available and > 0)
+        // These are bonus checks, not required - allow some tolerance
+        if (weightKg > 0 && es.totalWeight !== null && es.totalWeight !== undefined && es.totalWeight > 0) {
+          const esWeight = parseFloat((es.totalWeight || 0).toFixed(2));
+          // Allow up to 1kg difference since invoice might aggregate multiple sends
+          if (Math.abs(esWeight - weightKg) > 1.0) return false;
+        }
+        
+        if (protectorsAmount > 0 && es.protectorsAmount !== null && es.protectorsAmount !== undefined && es.protectorsAmount > 0) {
+          const esProtectors = parseFloat((es.protectorsAmount || 0).toFixed(2));
+          // Allow up to 1 GEL difference
+          if (Math.abs(esProtectors - protectorsAmount) > 1.0) return false;
+        }
+        
+        return true;
+      });
       
-      // Add this emailSend as a detail to the month's invoice
+      // If no exact matches found, try to find emailSends by date only (within 7 days)
+      // This ensures we have emailSendIds for confirmation even if amounts don't match exactly
+      if (matchingEmailSends.length === 0) {
+        const invoiceDate = new Date(invoice.createdAt);
+        matchingEmailSends = emailSends.filter((es) => {
+          const esDate = new Date(es.date);
+          const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+          return dateDiff <= 7; // Within 7 days of invoice creation
+        });
+      }
+      
+      // Get confirmation status from matching emailSends
+      // If any matching emailSend is confirmed, consider the invoice confirmed
+      const confirmedEmailSends = matchingEmailSends.filter(es => es.confirmedAt !== null);
+      const confirmedAt = confirmedEmailSends.length > 0 && confirmedEmailSends[0].confirmedAt
+        ? confirmedEmailSends[0].confirmedAt.toISOString()
+        : null;
+      
+      // Calculate status based on paid amount
+      const isPaid = amount > 0 && (
+        remainingAmount <= 0 || 
+        Math.abs(remainingAmount) < 0.01 ||
+        (paidAmount >= amount && Math.abs(paidAmount - amount) < 0.01)
+      );
+      
+      // Add this invoice as a detail to the month's invoice
       monthData.totalAmount += amount;
+      monthData.paidAmount += paidAmount;
       monthData.invoices.push({
         date: dateKey,
         amount,
-        paidAmount: 0,
-        remainingAmount: amount,
-        status: "PENDING",
-        sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
+        paidAmount,
+        remainingAmount,
+        status: isPaid ? "PAID" : "PENDING",
+        sentAt: invoice.createdAt.toISOString(), // Use createdAt as sentAt
         weightKg,
         protectorsAmount,
-        emailSendCount: 1,
-        confirmedAt: emailSendConfirmedAt,
-        emailSendIds: [emailSend.id], // Each invoice detail has one emailSend ID
+        emailSendCount: matchingEmailSends.length || 1, // Count of matching email sends
+        confirmedAt,
+        emailSendIds: matchingEmailSends.map(es => es.id), // IDs of matching email sends
+        invoiceId: invoice.id, // Invoice record ID
       });
     });
 
-    // Get paid amounts from Invoice table (updated by admin in /admin/revenues)
-    // Match Invoice records with emailSend records by date, amount, weight, and protectors
-    const invoicePaidAmounts = new Map<string, number>(); // Map emailSend.id -> paidAmount
-    
-    // Get all invoices for this hotel with more details for matching
-    // Include id to properly track which invoices have been used
-    type InvoiceSelect = {
-      id: string;
-      customerName: string;
-      totalAmount: number | null;
-      amount: number;
-      totalWeightKg: number | null;
-      protectorsAmount: number | null;
-      paidAmount: number | null;
-      createdAt: Date;
-    };
-    
-    const allInvoices: InvoiceSelect[] = await prisma.invoice.findMany({
-      select: {
-        id: true,
-        customerName: true,
-        totalAmount: true,
-        amount: true,
-        totalWeightKg: true,
-        protectorsAmount: true,
-        paidAmount: true,
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: "desc", // Newer invoices first
-      },
-    });
-
-    // Match Invoice records with emailSend records
-    // Strategy: First try exact 1-1 matching, then try proportional distribution for invoices that contain multiple emailSends
-    // Track which invoices have been used to avoid duplicate matches
-    const usedInvoiceIds = new Set<string>();
-    const invoiceToEmailSends = new Map<string, string[]>(); // Map invoice.id -> emailSend.id[]
-    
-    // First pass: Try exact 1-1 matching (invoice amount = emailSend amount)
-    emailSends.forEach((emailSend) => {
-      const emailSendDate = new Date(emailSend.date);
-      const emailSendDateKey = emailSendDate.toISOString().split("T")[0];
-      const emailSendWeight = parseFloat((emailSend.totalWeight || 0).toFixed(2));
-      const emailSendProtectors = parseFloat((emailSend.protectorsAmount || 0).toFixed(2));
-      
-      // Calculate amount the same way as above: if totalAmount exists, use it; otherwise calculate
-      let emailSendAmount = emailSend.totalAmount;
-      if (emailSendAmount === null || emailSendAmount === undefined) {
-        emailSendAmount = (emailSendWeight * pricePerKg) + emailSendProtectors;
-      }
-      emailSendAmount = parseFloat((emailSendAmount || 0).toFixed(2));
-      
-      // First, filter by hotel name
-      const hotelInvoices = allInvoices.filter(
-        (invoice) => {
-          return normalizeHotel(invoice.customerName) === normalizedHotelName;
-        }
-      );
-      
-      // Find best matching invoice - prioritize exact amount matches
-      let bestMatchInvoice: InvoiceSelect | null = null;
-      let bestScore = 0;
-      
-      hotelInvoices.forEach((invoice) => {
-        // Skip if this invoice was already matched to another emailSend in exact match
-        if (usedInvoiceIds.has(invoice.id)) {
-          return;
-        }
-        
-        const invoiceAmount = parseFloat((invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2));
-        let score = 0;
-        
-        // Must match amount exactly (required) - this is the primary matching criteria
-        if (Math.abs(invoiceAmount - emailSendAmount) >= 0.01) {
-          return;
-        }
-        score += 100; // Base score for amount match
-        
-        // Check date (closer dates score higher, but allow up to 30 days for flexibility)
-        const invoiceDate = new Date(invoice.createdAt);
-        const dateDiff = Math.abs((invoiceDate.getTime() - emailSendDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (dateDiff <= 1) {
-          score += 50; // Same day or next day
-        } else if (dateDiff <= 3) {
-          score += 30; // Within 3 days
-        } else if (dateDiff <= 7) {
-          score += 20; // Within 7 days
-        } else if (dateDiff <= 30) {
-          score += 10; // Within 30 days (more flexible)
-        } else {
-          // Still allow matching if amount matches, but with lower priority
-          score += 5;
-        }
-        
-        // Check weight (if both are available and > 0) - bonus points, not required
-        if (invoice.totalWeightKg !== null && invoice.totalWeightKg !== undefined && 
-            emailSendWeight > 0 && invoice.totalWeightKg > 0) {
-          const invoiceWeight = parseFloat((invoice.totalWeightKg || 0).toFixed(2));
-          if (Math.abs(invoiceWeight - emailSendWeight) < 0.01) {
-            score += 20; // Weight matches
-          } else if (Math.abs(invoiceWeight - emailSendWeight) < 1.0) {
-            score += 10; // Weight close (within 1kg)
-          }
-        }
-        
-        // Check protectors (if both are available and > 0) - bonus points, not required
-        if (invoice.protectorsAmount !== null && invoice.protectorsAmount !== undefined &&
-            emailSendProtectors > 0 && invoice.protectorsAmount > 0) {
-          const invoiceProtectors = parseFloat((invoice.protectorsAmount || 0).toFixed(2));
-          if (Math.abs(invoiceProtectors - emailSendProtectors) < 0.01) {
-            score += 20; // Protectors match
-          } else if (Math.abs(invoiceProtectors - emailSendProtectors) < 1.0) {
-            score += 10; // Protectors close (within 1 GEL)
-          }
-        }
-        
-        // Update best match if this one scores higher
-        if (score > bestScore) {
-          bestMatchInvoice = invoice;
-          bestScore = score;
-        }
-      });
-      
-      // If we found a match with amount matching (score >= 100), use it for exact 1-1 matching
-      if (bestMatchInvoice !== null && bestScore >= 100 && bestMatchInvoice) {
-        const match: InvoiceSelect = bestMatchInvoice;
-        // Mark this invoice as used for exact matching
-        usedInvoiceIds.add(match.id);
-        // Set paid amount (use 0 if null/undefined)
-        const paidAmount = match.paidAmount ?? 0;
-        invoicePaidAmounts.set(emailSend.id, paidAmount);
-        
-        // Debug logging
-        console.log(`Exact match: emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾) to Invoice ${match.id} (paid: ${paidAmount}₾, score: ${bestScore})`);
-      } else {
-        // No exact match found - will try proportional distribution in second pass
-        // For now, mark as unmatched
-        console.log(`No exact match for emailSend ${emailSend.id} (${emailSendDateKey}, ${emailSendAmount}₾, hotel: ${normalizedHotelName})`);
-      }
-    });
-    
-    // Second pass: For invoices that weren't matched exactly, try to match them to invoices that contain multiple emailSends
-    // Group emailSends by month and try to match to invoices that contain the month's total
-    const unmatchedEmailSends = emailSends.filter((es) => !invoicePaidAmounts.has(es.id));
-    const unmatchedInvoices = allInvoices.filter((inv) => 
-      normalizeHotel(inv.customerName) === normalizedHotelName && !usedInvoiceIds.has(inv.id)
-    );
-    
-    // Group unmatched emailSends by month
-    const emailSendsByMonth = new Map<string, typeof emailSends>();
-    unmatchedEmailSends.forEach((emailSend) => {
-      const date = new Date(emailSend.date);
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-      const monthKey = `${year}-${month}`;
-      
-      if (!emailSendsByMonth.has(monthKey)) {
-        emailSendsByMonth.set(monthKey, []);
-      }
-      emailSendsByMonth.get(monthKey)!.push(emailSend);
-    });
-    
-    // Try to match each month's emailSends to an invoice
-    emailSendsByMonth.forEach((monthEmailSends, monthKey) => {
-      // Calculate total amount for this month's emailSends
-      const monthTotalAmount = monthEmailSends.reduce((sum, es) => {
-        let amount = es.totalAmount;
-        if (amount === null || amount === undefined) {
-          const weight = es.totalWeight || 0;
-          const protectors = es.protectorsAmount || 0;
-          amount = (weight * pricePerKg) + protectors;
-        }
-        return sum + (amount || 0);
-      }, 0);
-      
-      // Find invoice that matches this month's total
-      const matchingInvoice = unmatchedInvoices.find((invoice) => {
-        const invoiceAmount = parseFloat((invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2));
-        const monthTotal = parseFloat(monthTotalAmount.toFixed(2));
-        // Allow small difference due to rounding
-        return Math.abs(invoiceAmount - monthTotal) < 0.01;
-      });
-      
-      if (matchingInvoice) {
-        const paidAmount = matchingInvoice.paidAmount ?? 0;
-        // Distribute paidAmount proportionally among emailSends
-        monthEmailSends.forEach((emailSend) => {
-          let emailSendAmount = emailSend.totalAmount;
-          if (emailSendAmount === null || emailSendAmount === undefined) {
-            const weight = emailSend.totalWeight || 0;
-            const protectors = emailSend.protectorsAmount || 0;
-            emailSendAmount = (weight * pricePerKg) + protectors;
-          }
-          emailSendAmount = emailSendAmount || 0;
-          
-          // Calculate proportional paid amount
-          const proportionalPaid = monthTotalAmount > 0 
-            ? (emailSendAmount / monthTotalAmount) * paidAmount
-            : 0;
-          
-          invoicePaidAmounts.set(emailSend.id, proportionalPaid);
-          console.log(`Proportional match: emailSend ${emailSend.id} (${emailSendAmount.toFixed(2)}₾) gets ${proportionalPaid.toFixed(2)}₾ from Invoice ${matchingInvoice.id} (total: ${monthTotalAmount.toFixed(2)}₾, paid: ${paidAmount.toFixed(2)}₾)`);
-        });
-        
-        // Mark invoice as used
-        usedInvoiceIds.add(matchingInvoice.id);
-      }
-    });
-    
-    console.log(`Total email sends: ${emailSends.length}, Matched invoices: ${invoicePaidAmounts.size}, Total invoices in DB: ${allInvoices.length}`);
-
-    // Update paid amounts for each invoice detail
-    // Use paidAmount from Invoice table (updated by admin in /admin/revenues)
-    monthlyData.forEach((monthData, monthKey) => {
-      // Update individual invoice details with their matched payments from Invoice table
-      monthData.invoices.forEach((invoiceDetail) => {
-        const emailSendId = invoiceDetail.emailSendIds[0];
-        if (emailSendId && invoicePaidAmounts.has(emailSendId)) {
-          const paidAmount = invoicePaidAmounts.get(emailSendId)!;
-          invoiceDetail.paidAmount = paidAmount;
-          invoiceDetail.remainingAmount = invoiceDetail.amount - paidAmount;
-          // Update status based on paid amount with floating point tolerance
-          const isDetailPaid = invoiceDetail.amount > 0 && (
-            invoiceDetail.remainingAmount <= 0 || 
-            Math.abs(invoiceDetail.remainingAmount) < 0.01 ||
-            (paidAmount >= invoiceDetail.amount && Math.abs(paidAmount - invoiceDetail.amount) < 0.01)
-          );
-          invoiceDetail.status = isDetailPaid ? "PAID" : "PENDING";
-        } else {
-          // No matching invoice found, keep defaults
-          invoiceDetail.paidAmount = 0;
-          invoiceDetail.remainingAmount = invoiceDetail.amount;
-          invoiceDetail.status = "PENDING";
-        }
-      });
-      
-      // Calculate month-level totals from individual invoice detail payments
-      // Sum all paidAmount from Invoice table (updated by admin in /admin/revenues)
-      monthData.paidAmount = monthData.invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    // Calculate month-level totals
+    monthlyData.forEach((monthData) => {
       monthData.remainingAmount = monthData.totalAmount - monthData.paidAmount;
     });
 
@@ -434,11 +253,9 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Get confirmation status for each invoice from DailySheetEmailSend records
-    // Since invoices are now grouped by month, check if all invoice details in that month are confirmed
+    // Build result with confirmation status
     const result = Array.from(monthlyData.values()).map((data) => {
       // Check if ALL invoice details are confirmed
-      // Month-level invoice is confirmed only if all details are confirmed
       const allDetailsConfirmed = data.invoices.length > 0 && data.invoices.every(inv => inv.confirmedAt !== null && inv.confirmedAt !== undefined);
       
       // If all details are confirmed, use the earliest confirmation date, otherwise null
@@ -450,7 +267,6 @@ export async function GET(request: NextRequest) {
         : null;
       
       // Calculate status more accurately with floating point tolerance
-      // Invoice is PAID if remaining amount is <= 0 (or very close to 0 due to floating point)
       const isFullyPaid = data.totalAmount > 0 && (
         data.remainingAmount <= 0 || 
         Math.abs(data.remainingAmount) < 0.01 ||
