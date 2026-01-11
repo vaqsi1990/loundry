@@ -468,8 +468,26 @@ export default function PhysicalDailySheetsPage() {
         <div className="bg-white shadow rounded-lg p-6">
           {/* Filters */}
           <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        
-        
+            <div>
+              <label className="block text-[14px] md:text-[16px] font-medium text-gray-700 mb-1">
+                თვე
+              </label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value);
+                  setSelectedDay("");
+                }}
+                className="w-full px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
+              >
+                <option value="">ყველა თვე</option>
+                {availableMonths.map((month) => (
+                  <option key={month} value={month}>
+                    {formatMonthGe(month)}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-[14px] md:text-[16px] font-medium text-gray-700 mb-1">
                 დღე
