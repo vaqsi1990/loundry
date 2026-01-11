@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -9,9 +9,46 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const [profileLink, setProfileLink] = useState("/physical");
   
-  // Determine profile link based on current path
-  const profileLink = pathname?.startsWith("/legal") ? "/legal" : "/physical";
+  // Determine profile link based on user's hotel type
+  useEffect(() => {
+    const determineProfileLink = async () => {
+      if (status === "authenticated" && session?.user?.id) {
+        try {
+          const response = await fetch("/api/profile");
+          if (response.ok) {
+            const userData = await response.json();
+            // Check if user has a legal hotel
+            const hasLegalHotel = userData.hotels?.some((hotel: any) => hotel.type === "LEGAL");
+            // Check if user has a physical hotel
+            const hasPhysicalHotel = userData.hotels?.some((hotel: any) => hotel.type === "PHYSICAL");
+            
+            // Prioritize legal if exists, otherwise use physical
+            if (hasLegalHotel) {
+              setProfileLink("/legal");
+            } else if (hasPhysicalHotel) {
+              setProfileLink("/physical");
+            } else {
+              // Fallback: use pathname-based logic
+              setProfileLink(pathname?.startsWith("/legal") ? "/legal" : "/physical");
+            }
+          } else {
+            // Fallback: use pathname-based logic
+            setProfileLink(pathname?.startsWith("/legal") ? "/legal" : "/physical");
+          }
+        } catch (error) {
+          // Fallback: use pathname-based logic
+          setProfileLink(pathname?.startsWith("/legal") ? "/legal" : "/physical");
+        }
+      } else {
+        // Default for unauthenticated users
+        setProfileLink(pathname?.startsWith("/legal") ? "/legal" : "/physical");
+      }
+    };
+    
+    determineProfileLink();
+  }, [status, session, pathname]);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-md shadow-sm">
@@ -43,9 +80,13 @@ export default function Header() {
             </Link>
             {status === "authenticated" && session ? (
               <>
-                <Link href={profileLink} className="text-black md:text-[18px] text-[16px] transition">
-                  პროფილი
-                </Link>
+                {(session.user as any)?.role !== "ADMIN" && 
+                 (session.user as any)?.role !== "MANAGER" && 
+                 (session.user as any)?.role !== "MANAGER_ASSISTANT" && (
+                  <Link href={profileLink} className="text-black md:text-[18px] text-[16px] transition">
+                    პროფილი
+                  </Link>
+                )}
                 {(session.user as any)?.role === "ADMIN" && (
                   <Link href="/admin" className="text-black md:text-[18px] text-[16px] transition">
                     ადმინის პანელი
@@ -141,13 +182,17 @@ export default function Header() {
             </Link>
             {status === "authenticated" && session ? (
               <>
-                <Link
-                  href={profileLink}
-                  className="block text-black text-[16px] transition"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  პროფილი
-                </Link>
+                {(session.user as any)?.role !== "ADMIN" && 
+                 (session.user as any)?.role !== "MANAGER" && 
+                 (session.user as any)?.role !== "MANAGER_ASSISTANT" && (
+                  <Link
+                    href={profileLink}
+                    className="block text-black text-[16px] transition"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    პროფილი
+                  </Link>
+                )}
                 {(session.user as any)?.role === "ADMIN" && (
                   <Link
                     href="/admin"
