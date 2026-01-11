@@ -277,10 +277,33 @@ export async function POST(req: NextRequest) {
     let companyName: string | null = null;
     let hotelEmail: string | null = null;
     if (sheet.hotelName) {
-      const hotel = await prisma.hotel.findFirst({
+      // Normalize hotel name for case-insensitive matching
+      const normalizeHotel = (name: string | null) => {
+        if (!name) return "";
+        return name.trim().replace(/\s+/g, " ").toLowerCase();
+      };
+
+      const normalizedSheetHotelName = normalizeHotel(sheet.hotelName);
+      
+      // First try exact match
+      let hotel = await prisma.hotel.findFirst({
         where: { hotelName: sheet.hotelName },
         select: { companyName: true, email: true },
       });
+
+      // If not found, try case-insensitive search through all hotels
+      if (!hotel) {
+        const allHotels = await prisma.hotel.findMany({
+          select: { hotelName: true, companyName: true, email: true },
+        });
+
+        hotel = allHotels
+          .filter((h) => h.hotelName !== null)
+          .find(
+            (h) => normalizeHotel(h.hotelName) === normalizedSheetHotelName
+          ) || null;
+      }
+
       companyName = hotel?.companyName ?? null;
       hotelEmail = hotel?.email ?? null;
     }

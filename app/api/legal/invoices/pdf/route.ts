@@ -489,15 +489,20 @@ export async function GET(request: NextRequest) {
     
     // Create a separate item for each emailSend - same logic as admin send-pdf and physical
     sortedEmailSends.forEach((emailSend) => {
-      const date = new Date(emailSend.date);
-      const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
+      // Format dailySheetDate (emailSend.date is the DailySheet date)
+      const formatDateGe = (date: Date) => {
+        const d = new Date(date);
+        const weekdays = ["კვირა", "ორშაბათი", "სამშაბათი", "ოთხშაბათი", "ხუთშაბათი", "პარასკევი", "შაბათი"];
+        const months = [
+          "იანვარი", "თებერვალი", "მარტი", "აპრილი", "მაისი", "ივნისი",
+          "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი",
+        ];
+        return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      };
 
-      // Show only the send date; fallback to sheet date if missing
-      let sentLabel = dateStr;
-      if (emailSend.sentAt) {
-        const sentAt = new Date(emailSend.sentAt);
-        sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
-      }
+      // Use dailySheetDate (emailSend.date) formatted with formatDateGe
+      const dailySheetDate = new Date(emailSend.date);
+      const sentLabel = formatDateGe(dailySheetDate);
 
       const weight = emailSend.totalWeight ?? 0;
       
