@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
 
@@ -596,6 +597,79 @@ export async function GET(request: NextRequest) {
       // Monthly invoice - use month range
       const monthParts = month.split("-");
       filename = `ინვოისი - ${monthParts[0]}-${monthParts[1]}.pdf`;
+    }
+
+    // Send email notification to kl.kinglaundry@gmail.com
+    try {
+      if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+        // Create email transporter
+        const getTransporter = () => {
+          if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
+            return nodemailer.createTransport({
+              host: process.env.SMTP_HOST,
+              port: parseInt(process.env.SMTP_PORT),
+              secure: process.env.SMTP_PORT === "465",
+              auth: {
+                user: process.env.SMTP_USER || process.env.EMAIL_USER,
+                pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD,
+              },
+              tls: {
+                rejectUnauthorized: false,
+              },
+            });
+          }
+          return nodemailer.createTransport({
+            host: "smtp.gmail.com",
+            port: 587,
+            secure: false,
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASSWORD,
+            },
+            tls: {
+              rejectUnauthorized: false,
+              ciphers: "SSLv3",
+            },
+          });
+        };
+
+        const transporter = getTransporter();
+        const fromEmail = process.env.EMAIL_USER;
+        const fromName = process.env.EMAIL_FROM_NAME || "ქინგ ლონდრი";
+        const adminEmail = "kl.kinglaundry@gmail.com";
+        const replyTo = process.env.EMAIL_REPLY_TO || fromEmail;
+        const subject = `ინვოისი - ${hotel.hotelName}`;
+
+        await transporter.sendMail({
+          from: `${fromName} <${fromEmail}>`,
+          to: adminEmail,
+          replyTo: replyTo,
+          subject: subject,
+          text: `გთხოვთ იხილოთ მიმაგრებული ინვოისი ${hotel.hotelName}-ისთვის.`,
+          html: `<div style="font-family:Arial,sans-serif;padding:20px;">
+            <p>გთხოვთ იხილოთ მიმაგრებული ინვოისი <strong>${hotel.hotelName}</strong>-ისთვის.</p>
+            <p>თუ გაქვთ შეკითხვები, გთხოვთ დაგვიკავშირდეთ.</p>
+          </div>`,
+          headers: {
+            "Message-ID": `<${Date.now()}-${Math.random().toString(36)}@${fromEmail.split("@")[1]}>`,
+            "X-Mailer": "NodeMailer",
+            "X-Priority": "3",
+            "Importance": "normal",
+            "MIME-Version": "1.0",
+          },
+          date: new Date(),
+          attachments: [
+            {
+              filename: `ინვოისი_${hotel.hotelName}_${new Date().toISOString().split("T")[0]}.pdf`,
+              content: pdfBuffer,
+            },
+          ],
+        });
+        console.log(`Legal invoice PDF email sent to: ${adminEmail}`);
+      }
+    } catch (emailError) {
+      // Don't fail the request if email fails, just log it
+      console.error("Failed to send legal invoice PDF email:", emailError);
     }
 
     // Return PDF as response
