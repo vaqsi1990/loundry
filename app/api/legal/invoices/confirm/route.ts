@@ -38,29 +38,93 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { date, month, amount, weightKg, protectorsAmount, emailSendIds } = body;
-
-    // If emailSendIds are provided, date/amount/weight/protectors are optional
-    // Otherwise, they are required for backward compatibility
-    if (!emailSendIds || !Array.isArray(emailSendIds) || emailSendIds.length === 0) {
-      if (!date || amount === undefined || weightKg === undefined || protectorsAmount === undefined) {
-        return NextResponse.json(
-          { error: "თარიღი, ფასი, წონა და დამცავები აუცილებელია (ან emailSendIds)" },
-          { status: 400 }
-        );
-      }
-    }
+    const { date, month, amount, weightKg, protectorsAmount, emailSendIds, invoiceId } = body;
 
     const hotel = user.hotels[0];
     const normalizedHotelName = normalizeHotel(hotel.hotelName);
 
-    // If emailSendIds are provided, use them directly (more precise)
-    // Otherwise, filter by date, amount, weight, protectors (backward compatibility)
-    let matchingEmailSends;
-    
-    if (emailSendIds && Array.isArray(emailSendIds) && emailSendIds.length > 0) {
+    let matchingEmailSends: any[] = [];
+
+    // Priority 1: If invoiceId is provided, find Invoice record and match emailSends
+    if (invoiceId) {
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: invoiceId },
+      });
+
+      if (!invoice) {
+        return NextResponse.json(
+          { error: "ინვოისი ვერ მოიძებნა" },
+          { status: 404 }
+        );
+      }
+
+      // Verify invoice belongs to this user's hotel
+      if (normalizeHotel(invoice.customerName) !== normalizedHotelName) {
+        return NextResponse.json(
+          { error: "ინვოისი არ ეკუთვნის ამ სასტუმროს" },
+          { status: 403 }
+        );
+      }
+
+      // Find matching emailSends based on Invoice data
+      const invoiceDate = new Date(invoice.createdAt);
+      const invoiceAmount = parseFloat((invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2));
+      const invoiceWeight = parseFloat((invoice.totalWeightKg || 0).toFixed(2));
+      const invoiceProtectors = parseFloat((invoice.protectorsAmount || 0).toFixed(2));
+
+      // Get all email sends for this hotel
+      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+        where: {
+          hotelName: {
+            not: null,
+          },
+        },
+      });
+
+      const hotelEmailSends = allEmailSends.filter(
+        (es) => normalizeHotel(es.hotelName) === normalizedHotelName
+      );
+
+      // Match emailSends to invoice (within 30 days of invoice creation, matching amount)
+      // Be more flexible with matching - amount is primary, weight/protectors are secondary
+      matchingEmailSends = hotelEmailSends.filter((es) => {
+        const esDate = new Date(es.date);
+        const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (dateDiff > 30) return false; // Allow 30 days difference (more flexible)
+
+        // Primary match: amount must match (within 0.01 tolerance)
+        const esAmount = parseFloat((es.totalAmount || 0).toFixed(2));
+        if (Math.abs(esAmount - invoiceAmount) > 0.01) return false;
+
+        // Secondary matches: weight and protectors (if both are available and > 0)
+        // These are bonus checks, not required
+        if (invoiceWeight > 0 && es.totalWeight !== null && es.totalWeight !== undefined && es.totalWeight > 0) {
+          const esWeight = parseFloat((es.totalWeight || 0).toFixed(2));
+          // Allow some difference in weight (up to 1kg) since invoice might aggregate multiple sends
+          if (Math.abs(esWeight - invoiceWeight) > 1.0) return false;
+        }
+
+        if (invoiceProtectors > 0 && es.protectorsAmount !== null && es.protectorsAmount !== undefined && es.protectorsAmount > 0) {
+          const esProtectors = parseFloat((es.protectorsAmount || 0).toFixed(2));
+          // Allow some difference in protectors (up to 1 GEL)
+          if (Math.abs(esProtectors - invoiceProtectors) > 1.0) return false;
+        }
+
+        return true;
+      });
+
+      // If no exact matches found, try to find emailSends by date only (within 7 days)
+      if (matchingEmailSends.length === 0) {
+        matchingEmailSends = hotelEmailSends.filter((es) => {
+          const esDate = new Date(es.date);
+          const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+          return dateDiff <= 7; // Within 7 days of invoice creation
+        });
+      }
+    }
+    // Priority 2: If emailSendIds are provided, use them directly
+    else if (emailSendIds && Array.isArray(emailSendIds) && emailSendIds.length > 0) {
       // Use specific emailSend IDs - confirm only these exact ones
-      // First verify these email sends belong to this user's hotel
       const allEmailSends = await prisma.dailySheetEmailSend.findMany({
         where: {
           id: {
@@ -76,11 +140,12 @@ export async function POST(request: NextRequest) {
       matchingEmailSends = allEmailSends.filter(
         (es) => normalizeHotel(es.hotelName) === normalizedHotelName
       );
-    } else {
-      // Fallback: filter by date, amount, weight, protectors (for backward compatibility)
+    }
+    // Priority 3: Fallback - filter by date, amount, weight, protectors
+    else {
       if (!date || !month || amount === undefined || weightKg === undefined || protectorsAmount === undefined) {
         return NextResponse.json(
-          { error: "თარიღი, თვე, ფასი, წონა და დამცავები აუცილებელია" },
+          { error: "თარიღი, თვე, ფასი, წონა და დამცავები აუცილებელია (ან invoiceId/emailSendIds)" },
           { status: 400 }
         );
       }
@@ -133,7 +198,7 @@ export async function POST(request: NextRequest) {
 
     if (matchingEmailSends.length === 0) {
       return NextResponse.json(
-        { error: "ინვოისი ვერ მოიძებნა" },
+        { error: "ინვოისი ვერ მოიძებნა - შესაბამისი emailSends ვერ მოიძებნა" },
         { status: 404 }
       );
     }

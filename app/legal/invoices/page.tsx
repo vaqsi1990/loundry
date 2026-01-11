@@ -34,6 +34,7 @@ interface InvoiceMonth {
     emailSendCount: number;
     confirmedAt: string | null;
     emailSendIds: string[]; // IDs of emailSends that belong to this invoice detail
+    invoiceId?: string; // Invoice record ID
   }>;
 }
 
@@ -120,14 +121,15 @@ export default function LegalInvoicesPage() {
   };
 
   const confirmInvoiceMonth = async (month: string, uniqueKey?: string) => {
-    // Find invoice by uniqueKey (which is the firstEmailSendId) or by month
+    // Find invoice by uniqueKey (which could be invoiceId, emailSendId, or fallback) or by month
     let invoice: InvoiceMonth | undefined;
     
     if (uniqueKey) {
-      // uniqueKey is the firstEmailSendId, so find invoice where any invoice has this emailSendId
+      // uniqueKey could be invoiceId, emailSendId, or fallback string
       invoice = invoices.find((inv) => {
         return inv.invoices && inv.invoices.some((invDetail) => 
-          invDetail.emailSendIds && invDetail.emailSendIds.includes(uniqueKey)
+          invDetail.invoiceId === uniqueKey || 
+          (invDetail.emailSendIds && invDetail.emailSendIds.includes(uniqueKey))
         );
       });
     } else {
@@ -145,23 +147,28 @@ export default function LegalInvoicesPage() {
       return;
     }
 
-    // Collect all emailSendIds from all invoices in this invoice group
+    // Collect all invoiceIds and emailSendIds from all invoices in this invoice group
+    const allInvoiceIds: string[] = [];
     const allEmailSendIds: string[] = [];
-    if (invoice?.invoices) {
+    if (invoice.invoices) {
       invoice.invoices.forEach((inv) => {
+        if (inv.invoiceId) {
+          allInvoiceIds.push(inv.invoiceId);
+        }
         if (inv.emailSendIds && Array.isArray(inv.emailSendIds)) {
           allEmailSendIds.push(...inv.emailSendIds);
         }
       });
     }
 
-    if (allEmailSendIds.length === 0) {
+    // Prefer invoiceId if available, otherwise use emailSendIds
+    if (allInvoiceIds.length === 0 && allEmailSendIds.length === 0) {
       alert("ინვოისის ID-ები არ მოიძებნა");
       return;
     }
 
     try {
-      // Use the individual confirm endpoint with all emailSendIds from this invoice group
+      // Use the individual confirm endpoint with invoiceIds or emailSendIds
       // This ensures only this specific invoice group is confirmed, not all invoices for the month
       const response = await fetch(`/api/legal/invoices/confirm`, {
         method: "POST",
@@ -169,7 +176,8 @@ export default function LegalInvoicesPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          emailSendIds: allEmailSendIds,
+          invoiceId: allInvoiceIds.length > 0 ? allInvoiceIds[0] : undefined, // Use first invoiceId if available
+          emailSendIds: allEmailSendIds.length > 0 ? allEmailSendIds : undefined,
           month: invoice.month,
         }),
       });
@@ -191,7 +199,7 @@ export default function LegalInvoicesPage() {
     }
   };
 
-  const confirmSingleInvoice = async (date: string, month: string, amount: number, weightKg: number, protectorsAmount: number, emailSendIds: string[]) => {
+  const confirmSingleInvoice = async (date: string, month: string, amount: number, weightKg: number, protectorsAmount: number, emailSendIds: string[], invoiceId?: string) => {
     try {
       const response = await fetch(`/api/legal/invoices/confirm`, {
         method: "POST",
@@ -199,12 +207,13 @@ export default function LegalInvoicesPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          invoiceId: invoiceId, // Prefer invoiceId if available
+          emailSendIds: emailSendIds.length > 0 ? emailSendIds : undefined,
           date,
           month,
           amount,
           weightKg,
           protectorsAmount,
-          emailSendIds, // Send specific emailSend IDs to confirm only these
         }),
       });
       
@@ -368,12 +377,13 @@ export default function LegalInvoicesPage() {
                   
                   // Use status from API (already calculated correctly)
                   const displayStatus = invoice.status || "PENDING";
-                  // Create unique key using emailSendIds to ensure each invoice is unique
-                  // Each invoice should have at least one emailSendId in its invoices array
-                  const firstEmailSendId = invoice.invoices && invoice.invoices.length > 0 && invoice.invoices[0].emailSendIds && invoice.invoices[0].emailSendIds.length > 0
-                    ? invoice.invoices[0].emailSendIds[0]
-                    : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}-${Date.now()}`;
-                  const uniqueKey = firstEmailSendId;
+                  // Create unique key using invoiceId if available, otherwise use emailSendIds or fallback
+                  const firstInvoice = invoice.invoices && invoice.invoices.length > 0 ? invoice.invoices[0] : null;
+                  const uniqueKey = firstInvoice?.invoiceId 
+                    ? firstInvoice.invoiceId
+                    : (firstInvoice?.emailSendIds && firstInvoice.emailSendIds.length > 0
+                      ? firstInvoice.emailSendIds[0]
+                      : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}-${Date.now()}`);
                   const isExpanded = expandedRows.has(uniqueKey);
                   const hasDetails = invoice.invoices && invoice.invoices.length > 0;
                   
