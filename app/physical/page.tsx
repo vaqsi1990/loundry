@@ -252,16 +252,7 @@ export default function PhysicalProfilePage() {
                   className="w-full border rounded px-3 py-2"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">კგ-ის ფასი</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editData.pricePerKg || 0}
-                  onChange={(e) => setEditData({ ...editData, pricePerKg: parseFloat(e.target.value) || 0 })}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
+       
               <div>
                 <label className="block text-sm font-medium mb-1">კომპანიის სახელი</label>
                 <input
