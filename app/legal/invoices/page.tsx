@@ -375,7 +375,7 @@ export default function LegalInvoicesPage() {
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სულ თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადახდილი თანხა</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">დარჩენილი</th>
-                  <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">შემოსავალი</th>
+      
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">სტატუსი</th>
                   <th className="border border-gray-300 px-2 py-1 text-black md:text-[18px] text-[16px] text-center font-semibold">გადმოწერა</th>
                 </tr>
@@ -454,9 +454,7 @@ export default function LegalInvoicesPage() {
                         }`}>
                           {Math.max(0, remainingAmount).toFixed(2)} ₾
                         </td>
-                        <td className="border border-gray-300 px-2 py-1 text-center text-blue-600 font-medium">
-                          {invoice.totalRevenueAmount ? invoice.totalRevenueAmount.toFixed(2) : "0.00"} ₾
-                        </td>
+                       
                         <td className="border border-gray-300 px-2 py-1 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <span
