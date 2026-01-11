@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
         remainingAmount: number;
         status: string;
         sentAt: string | null;
+        dailySheetDate: string | null; // DailySheet date
         weightKg: number;
         protectorsAmount: number;
         emailSendCount: number;
@@ -202,6 +203,19 @@ export async function GET(request: NextRequest) {
         sentAtDate = invoice.createdAt.toISOString();
       }
       
+      // Get DailySheet date from matching emailSends (use the earliest date)
+      let dailySheetDate: string | null = null;
+      if (matchingEmailSends.length > 0) {
+        const dailySheetDates = matchingEmailSends
+          .map(es => es.date)
+          .filter((date): date is Date => date !== null && date !== undefined)
+          .sort((a, b) => a.getTime() - b.getTime()); // Sort ascending (earliest first)
+        
+        if (dailySheetDates.length > 0) {
+          dailySheetDate = dailySheetDates[0].toISOString(); // Use earliest daily sheet date
+        }
+      }
+      
       // Calculate status based on paid amount
       const isPaid = amount > 0 && (
         remainingAmount <= 0 || 
@@ -219,6 +233,7 @@ export async function GET(request: NextRequest) {
         remainingAmount,
         status: isPaid ? "PAID" : "PENDING",
         sentAt: sentAtDate, // Use daily sheet creation date (date from DailySheetEmailSend, which is DailySheet.date)
+        dailySheetDate: dailySheetDate, // DailySheet date
         weightKg,
         protectorsAmount,
         emailSendCount: matchingEmailSends.length || 1, // Count of matching email sends

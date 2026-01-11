@@ -29,6 +29,7 @@ interface InvoiceMonth {
     remainingAmount: number;
     status: string;
     sentAt: string | null;
+    dailySheetDate: string | null; // DailySheet date
     weightKg: number;
     protectorsAmount: number;
     emailSendCount: number;
@@ -108,6 +109,16 @@ export default function LegalInvoicesPage() {
     ];
     
     return `${day} ${months[month]}, ${year}`;
+  };
+
+  const formatDateGe = (date: string | Date) => {
+    const d = new Date(date);
+    const weekdays = ["კვირა", "ორშაბათი", "სამშაბათი", "ოთხშაბათი", "ხუთშაბათი", "პარასკევი", "შაბათი"];
+    const months = [
+      "იანვარი", "თებერვალი", "მარტი", "აპრილი", "მაისი", "ივნისი",
+      "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი",
+    ];
+    return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
   const toggleRow = (month: string) => {
@@ -318,7 +329,7 @@ export default function LegalInvoicesPage() {
   }
 
   if (!session) return null;
- console.log(invoices);
+
  
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
@@ -536,7 +547,7 @@ export default function LegalInvoicesPage() {
                                           {formatDate(inv.date)}
                                         </td>
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black">
-                                          {inv.sentAt ? formatDate(inv.sentAt) : "-"}
+                                          {inv.dailySheetDate ? formatDateGe(inv.dailySheetDate) : "-"}
                                         </td>
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black">
                                           {inv.emailSendCount}
