@@ -70,11 +70,34 @@ export async function GET(request: NextRequest) {
 
     // Also get emailSends to check confirmation status
     // When invoices are sent, the corresponding emailSends are confirmed
+    // Get emailSends filtered by month if specified
+    let emailSendWhere: any = {
+      hotelName: {
+        not: null,
+      },
+    };
+    
+    if (month) {
+      const [year, monthNum] = month.split("-");
+      const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
+      emailSendWhere.date = {
+        gte: startOfMonth,
+        lte: endOfMonth,
+      };
+    }
+
     const allEmailSends = await prisma.dailySheetEmailSend.findMany({
-      where: {
-        hotelName: {
-          not: null,
+      where: emailSendWhere,
+      include: {
+        dailySheet: {
+          include: {
+            items: true,
+          },
         },
+      },
+      orderBy: {
+        date: "asc",
       },
     });
 
@@ -105,19 +128,121 @@ export async function GET(request: NextRequest) {
       }>;
     }>();
 
+    // Create invoice detail rows from emailSends (like PDF does - one row per emailSend)
+    // Get price per kg from hotel
+    const pricePerKg = hotel.pricePerKg || 1.8;
+    
+    // Create a map to track which invoices contain which emailSends
+    const invoiceEmailSendMap = new Map<string, string[]>(); // invoiceId -> emailSendIds[]
+    
+    // First, match invoices to emailSends to track relationships
     invoices.forEach((invoice) => {
-      // Use UTC methods to avoid timezone issues
-      const date = new Date(invoice.createdAt);
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const invoiceDate = new Date(invoice.createdAt);
+      const invoiceAmount = invoice.totalAmount ?? invoice.amount ?? 0;
+      const invoiceWeight = invoice.totalWeightKg || 0;
+      const invoiceProtectors = invoice.protectorsAmount || 0;
+      
+      // Find emailSends that match this invoice
+      const matchingEmailSends = emailSends.filter((es) => {
+        const esDate = new Date(es.date);
+        const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (dateDiff > 30) return false;
+        
+        const esAmount = parseFloat((es.totalAmount || 0).toFixed(2));
+        const invAmount = parseFloat(invoiceAmount.toFixed(2));
+        if (Math.abs(esAmount - invAmount) > 0.01) return false;
+        
+        return true;
+      });
+      
+      if (matchingEmailSends.length > 0) {
+        invoiceEmailSendMap.set(invoice.id, matchingEmailSends.map(es => es.id));
+      }
+    });
+    
+    // Now create one row per emailSend (like PDF structure)
+    emailSends.forEach((emailSend) => {
+      const esDate = new Date(emailSend.date);
+      const year = esDate.getUTCFullYear();
+      const month = String(esDate.getUTCMonth() + 1).padStart(2, "0");
       const monthKey = `${year}-${month}`;
       
-      const dateKey = invoice.createdAt.toISOString().split("T")[0];
-      const weightKg = invoice.totalWeightKg || 0;
-      const protectorsAmount = invoice.protectorsAmount || 0;
-      const amount = invoice.totalAmount ?? invoice.amount ?? 0;
-      const paidAmount = invoice.paidAmount ?? 0;
-      const remainingAmount = amount - paidAmount;
+      const dateKey = emailSend.date.toISOString().split("T")[0];
+      
+      // Calculate amount for this emailSend (like PDF does)
+      const weight = emailSend.totalWeight ?? 0;
+      const protectorsAmount = emailSend.protectorsAmount ?? 0;
+      
+      let itemAmount = 0;
+      
+      if (weight > 0) {
+        // Check if this sheet has tablecloths (სუფრები)
+        const hasTablecloths = emailSend.dailySheet?.items?.some(
+          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+        ) || false;
+        
+        if (hasTablecloths) {
+          // Separate regular linen and tablecloths
+          const tableclothsItems = emailSend.dailySheet?.items?.filter(
+            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+          ) || [];
+          const regularItems = emailSend.dailySheet?.items?.filter(
+            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
+          ) || [];
+          
+          const tableclothsWeight = tableclothsItems.reduce(
+            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+            0
+          );
+          const regularWeight = regularItems.reduce(
+            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+            0
+          );
+          
+          // Add regular linen amount
+          if (regularWeight > 0) {
+            itemAmount += regularWeight * pricePerKg;
+          }
+          
+          // Add tablecloths amount
+          if (tableclothsWeight > 0) {
+            const tableclothsPrice = 3.00;
+            itemAmount += tableclothsWeight * tableclothsPrice;
+          }
+        } else {
+          // Regular linen item (no tablecloths)
+          itemAmount = weight * pricePerKg;
+        }
+      }
+      
+      // Add protectors amount
+      itemAmount += protectorsAmount;
+      
+      // Find which invoice this emailSend belongs to
+      let invoiceId: string | undefined;
+      let paidAmount = 0;
+      let confirmedAt: string | null = null;
+      
+      for (const [invId, emailSendIds] of invoiceEmailSendMap.entries()) {
+        if (emailSendIds.includes(emailSend.id)) {
+          invoiceId = invId;
+          const invoice = invoices.find(inv => inv.id === invId);
+          if (invoice) {
+            // Distribute paid amount proportionally
+            const invoiceTotal = invoice.totalAmount ?? invoice.amount ?? 0;
+            const invoicePaid = invoice.paidAmount ?? 0;
+            if (invoiceTotal > 0) {
+              paidAmount = (itemAmount / invoiceTotal) * invoicePaid;
+            }
+          }
+          break;
+        }
+      }
+      
+      // Get confirmation status
+      if (emailSend.confirmedAt) {
+        confirmedAt = emailSend.confirmedAt.toISOString();
+      }
       
       // Group by month
       if (!monthlyData.has(monthKey)) {
@@ -132,114 +257,31 @@ export async function GET(request: NextRequest) {
 
       const monthData = monthlyData.get(monthKey)!;
       
-      // Check if there are matching emailSends that were confirmed (when invoice was sent)
-      // Match by date and amount (primary), weight and protectors (secondary, more flexible)
-      let matchingEmailSends = emailSends.filter((es) => {
-        const esDate = new Date(es.date);
-        const invoiceDate = new Date(invoice.createdAt);
-        
-        // Check if dates are close (within 30 days, since invoice might be sent later)
-        const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (dateDiff > 30) return false;
-        
-        // Primary match: amount must match (within 0.01 tolerance)
-        const esAmount = parseFloat((es.totalAmount || 0).toFixed(2));
-        const invoiceAmount = parseFloat(amount.toFixed(2));
-        if (Math.abs(esAmount - invoiceAmount) > 0.01) return false;
-        
-        // Secondary matches: weight and protectors (if both are available and > 0)
-        // These are bonus checks, not required - allow some tolerance
-        if (weightKg > 0 && es.totalWeight !== null && es.totalWeight !== undefined && es.totalWeight > 0) {
-          const esWeight = parseFloat((es.totalWeight || 0).toFixed(2));
-          // Allow up to 1kg difference since invoice might aggregate multiple sends
-          if (Math.abs(esWeight - weightKg) > 1.0) return false;
-        }
-        
-        if (protectorsAmount > 0 && es.protectorsAmount !== null && es.protectorsAmount !== undefined && es.protectorsAmount > 0) {
-          const esProtectors = parseFloat((es.protectorsAmount || 0).toFixed(2));
-          // Allow up to 1 GEL difference
-          if (Math.abs(esProtectors - protectorsAmount) > 1.0) return false;
-        }
-        
-        return true;
-      });
-      
-      // If no exact matches found, try to find emailSends by date only (within 7 days)
-      // This ensures we have emailSendIds for confirmation even if amounts don't match exactly
-      if (matchingEmailSends.length === 0) {
-        const invoiceDate = new Date(invoice.createdAt);
-        matchingEmailSends = emailSends.filter((es) => {
-          const esDate = new Date(es.date);
-          const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-          return dateDiff <= 7; // Within 7 days of invoice creation
-        });
-      }
-      
-      // Get confirmation status from matching emailSends
-      // If any matching emailSend is confirmed, consider the invoice confirmed
-      const confirmedEmailSends = matchingEmailSends.filter(es => es.confirmedAt !== null);
-      const confirmedAt = confirmedEmailSends.length > 0 && confirmedEmailSends[0].confirmedAt
-        ? confirmedEmailSends[0].confirmedAt.toISOString()
-        : null;
-      
-      // Get date from matching emailSends (daily sheet creation date)
-      // Use the earliest date from matching email sends (which is DailySheet.date), or fallback to invoice createdAt
-      let sentAtDate: string | null = null;
-      if (matchingEmailSends.length > 0) {
-        const sheetDates = matchingEmailSends
-          .map(es => es.date)
-          .filter((date): date is Date => date !== null && date !== undefined)
-          .sort((a, b) => a.getTime() - b.getTime()); // Sort ascending (earliest first)
-        
-        if (sheetDates.length > 0) {
-          // Convert date to ISO string (date is Date type from DailySheetEmailSend.date)
-          const earliestDate = sheetDates[0];
-          sentAtDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), earliestDate.getDate()).toISOString();
-        }
-      }
-      
-      // Fallback to invoice createdAt if no date found in emailSends
-      if (!sentAtDate) {
-        sentAtDate = invoice.createdAt.toISOString();
-      }
-      
-      // Get DailySheet date from matching emailSends (use the earliest date)
-      let dailySheetDate: string | null = null;
-      if (matchingEmailSends.length > 0) {
-        const dailySheetDates = matchingEmailSends
-          .map(es => es.date)
-          .filter((date): date is Date => date !== null && date !== undefined)
-          .sort((a, b) => a.getTime() - b.getTime()); // Sort ascending (earliest first)
-        
-        if (dailySheetDates.length > 0) {
-          dailySheetDate = dailySheetDates[0].toISOString(); // Use earliest daily sheet date
-        }
-      }
-      
-      // Calculate status based on paid amount
-      const isPaid = amount > 0 && (
+      // Calculate remaining amount for this item
+      const remainingAmount = itemAmount - paidAmount;
+      const isPaid = itemAmount > 0 && (
         remainingAmount <= 0 || 
         Math.abs(remainingAmount) < 0.01 ||
-        (paidAmount >= amount && Math.abs(paidAmount - amount) < 0.01)
+        (paidAmount >= itemAmount && Math.abs(paidAmount - itemAmount) < 0.01)
       );
       
-      // Add this invoice as a detail to the month's invoice
-      monthData.totalAmount += amount;
+      // Add this emailSend as a separate invoice detail row
+      monthData.totalAmount += itemAmount;
       monthData.paidAmount += paidAmount;
       monthData.invoices.push({
         date: dateKey,
-        amount,
+        amount: itemAmount,
         paidAmount,
         remainingAmount,
         status: isPaid ? "PAID" : "PENDING",
-        sentAt: sentAtDate, // Use daily sheet creation date (date from DailySheetEmailSend, which is DailySheet.date)
-        dailySheetDate: dailySheetDate, // DailySheet date
-        weightKg,
+        sentAt: emailSend.sentAt?.toISOString() || null,
+        dailySheetDate: emailSend.date.toISOString(), // Use emailSend date directly
+        weightKg: weight,
         protectorsAmount,
-        emailSendCount: matchingEmailSends.length || 1, // Count of matching email sends
+        emailSendCount: 1, // Each row represents one emailSend
         confirmedAt,
-        emailSendIds: matchingEmailSends.map(es => es.id), // IDs of matching email sends
-        invoiceId: invoice.id, // Invoice record ID
+        emailSendIds: [emailSend.id],
+        invoiceId: invoiceId || "", // Invoice record ID if found
       });
     });
 
