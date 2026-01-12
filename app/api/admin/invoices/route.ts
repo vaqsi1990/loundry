@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
       const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
       const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1, 0, 0, 0, 0));
 
-      const invoices = await prisma.invoice.findMany({
+      const invoices = await prisma.adminInvoice.findMany({
         where: {
           createdAt: {
             gte: start,
@@ -444,47 +444,86 @@ export async function DELETE(request: NextRequest) {
 
     // If emailSendIds are provided, delete only those specific email sends
     if (emailSendIds && emailSendIds.length > 0) {
-      const emailSendDeleteResult = await prisma.dailySheetEmailSend.deleteMany({
-        where: {
-          id: {
-            in: emailSendIds,
+      // Delete from both legal and physical email send tables
+      const [legalDeleteResult, physicalDeleteResult] = await Promise.all([
+        prisma.legalDailySheetEmailSend.deleteMany({
+          where: {
+            id: {
+              in: emailSendIds,
+            },
           },
-        },
-      });
-
-      // Also update related daily sheets
-      const relatedSheets = await prisma.dailySheetEmailSend.findMany({
-        where: {
-          id: {
-            in: emailSendIds,
+        }),
+        prisma.physicalDailySheetEmailSend.deleteMany({
+          where: {
+            id: {
+              in: emailSendIds,
+            },
           },
-        },
-        select: {
-          dailySheetId: true,
-        },
-      });
+        }),
+      ]);
+      const emailSendDeleteResult = {
+        count: legalDeleteResult.count + physicalDeleteResult.count,
+      };
 
-      const sheetIds = [...new Set(relatedSheets.map(es => es.dailySheetId))];
+      // Also update related daily sheets from both tables
+      const [legalSheets, physicalSheets] = await Promise.all([
+        prisma.legalDailySheetEmailSend.findMany({
+          where: {
+            id: {
+              in: emailSendIds,
+            },
+          },
+          select: {
+            dailySheetId: true,
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.findMany({
+          where: {
+            id: {
+              in: emailSendIds,
+            },
+          },
+          select: {
+            dailySheetId: true,
+          },
+        }),
+      ]);
+
+      const allRelatedSheets = [...legalSheets, ...physicalSheets];
+      const sheetIds = [...new Set(allRelatedSheets.map((es: any) => es.dailySheetId))];
       
       // Check if any sheets have remaining email sends
       for (const sheetId of sheetIds) {
-        const remainingEmailSends = await prisma.dailySheetEmailSend.count({
-          where: {
-            dailySheetId: sheetId,
-          },
-        });
+        // Check both legal and physical tables
+        const [legalRemaining, physicalRemaining] = await Promise.all([
+          prisma.legalDailySheetEmailSend.count({
+            where: {
+              dailySheetId: sheetId,
+            },
+          }),
+          prisma.physicalDailySheetEmailSend.count({
+            where: {
+              dailySheetId: sheetId,
+            },
+          }),
+        ]);
+        const remainingEmailSends = legalRemaining + physicalRemaining;
 
-        if (remainingEmailSends === 0) {
-          // No more email sends for this sheet, clear emailedAt
-          await prisma.dailySheet.update({
+        // Try to update in legal table first, then physical
+        try {
+          await prisma.legalDailySheet.update({
             where: { id: sheetId },
-            data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
+            data: remainingEmailSends === 0
+              ? { emailedAt: null, emailedTo: null, emailSendCount: 0 }
+              : { emailSendCount: remainingEmailSends },
           });
-        } else {
-          // Update emailSendCount
-          await prisma.dailySheet.update({
+        } catch {
+          // Not in legal table, try physical
+          await prisma.physicalDailySheet.update({
             where: { id: sheetId },
-            data: { emailSendCount: remainingEmailSends },
+            data: remainingEmailSends === 0
+              ? { emailedAt: null, emailedTo: null, emailSendCount: 0 }
+              : { emailSendCount: remainingEmailSends },
           });
         }
       }
@@ -617,10 +656,18 @@ export async function DELETE(request: NextRequest) {
       };
     }
 
-    // Delete DailySheetEmailSend records (this is what the GET endpoint uses)
-    const emailSendDeleteResult = await prisma.dailySheetEmailSend.deleteMany({
-      where: emailSendWhereClause,
-    });
+    // Delete DailySheetEmailSend records from both legal and physical tables
+    const [legalEmailSendDeleteResult, physicalEmailSendDeleteResult] = await Promise.all([
+      prisma.legalDailySheetEmailSend.deleteMany({
+        where: emailSendWhereClause,
+      }),
+      prisma.physicalDailySheetEmailSend.deleteMany({
+        where: emailSendWhereClause,
+      }),
+    ]);
+    const emailSendDeleteResult = {
+      count: legalEmailSendDeleteResult.count + physicalEmailSendDeleteResult.count,
+    };
 
     console.log("Delete invoices - Email sends deleted:", emailSendDeleteResult.count, "Where clause:", JSON.stringify(emailSendWhereClause));
 

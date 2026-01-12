@@ -542,7 +542,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate sequential invoice number starting from 1
-    const lastInvoice = await prisma.invoice.findFirst({
+    const lastInvoice = await prisma.adminInvoice.findFirst({
       orderBy: {
         createdAt: "desc",
       },
@@ -788,19 +788,35 @@ export async function POST(request: NextRequest) {
       .map((es) => es.id);
     
     if (emailSendIdsToConfirm.length > 0) {
-      await prisma.dailySheetEmailSend.updateMany({
-        where: {
-          id: {
-            in: emailSendIdsToConfirm,
+      // Update both legal and physical email sends
+      const [legalUpdateResult, physicalUpdateResult] = await Promise.all([
+        prisma.legalDailySheetEmailSend.updateMany({
+          where: {
+            id: {
+              in: emailSendIdsToConfirm,
+            },
+            confirmedAt: null, // Only update email sends that are not already confirmed
           },
-          confirmedAt: null, // Only update email sends that are not already confirmed
-        },
-        data: {
-          confirmedBy: session.user.id,
-          confirmedAt: new Date(),
-        },
-      });
-      console.log(`Confirmed ${emailSendIdsToConfirm.length} email sends after PDF send`);
+          data: {
+            confirmedBy: session.user.id,
+            confirmedAt: new Date(),
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.updateMany({
+          where: {
+            id: {
+              in: emailSendIdsToConfirm,
+            },
+            confirmedAt: null, // Only update email sends that are not already confirmed
+          },
+          data: {
+            confirmedBy: session.user.id,
+            confirmedAt: new Date(),
+          },
+        }),
+      ]);
+      const totalConfirmed = legalUpdateResult.count + physicalUpdateResult.count;
+      console.log(`Confirmed ${totalConfirmed} email sends after PDF send`);
     }
     
     return NextResponse.json({ message: "PDF ინვოისი წარმატებით გაიგზავნა" });
