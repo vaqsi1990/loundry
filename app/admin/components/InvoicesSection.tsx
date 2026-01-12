@@ -375,6 +375,11 @@ export default function InvoicesSection() {
       return;
     }
 
+    // Prevent double submission
+    if (sendingPdf) {
+      return;
+    }
+
     setSendingPdf(true);
     setError("");
 

@@ -4,9 +4,9 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import InvoicesSection from "../../admin/components/InvoicesSection";
+import RevenuesSection from "../../admin/components/RevenuesSection";
 
-export default function ManagerInvoicesPage() {
+export default function ManagerRevenuesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -52,16 +52,15 @@ export default function ManagerInvoicesPage() {
               ← უკან
             </Link>
             <h1 className="text-[18px] md:text-[24px] font-bold text-black">
-              ინვოისები
+              შემოსავლები
             </h1>
           </div>
         </div>
 
         <div className="bg-white shadow rounded-lg p-6">
-          <InvoicesSection />
+          <RevenuesSection />
         </div>
       </div>
     </div>
   );
 }
-

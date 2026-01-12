@@ -17,7 +17,7 @@ export default function ManagerPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "MANAGER") {
+      if (userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
         router.push("/");
         return;
       }
@@ -35,7 +35,7 @@ export default function ManagerPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  const isManager = userRole === "MANAGER";
+  const isManager = userRole === "MANAGER" || userRole === "MANAGER_ASSISTANT";
 
   if (!session || !isManager) {
     return null;
@@ -83,6 +83,12 @@ export default function ManagerPage() {
       label: "ხელფასები",
       description: "მართეთ თანამშრომლების ხელფასები",
       path: "/manager/salaries"
+    },
+    { 
+      id: "revenues",
+      label: "შემოსავლები",
+      description: "ნახეთ შემოსავლები დღის და თვის მიხედვით",
+      path: "/manager/revenues"
     },
     { 
       id: "hotels",
