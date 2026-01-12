@@ -44,6 +44,7 @@ export default function PhysicalInvoicesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<InvoiceMonth[]>([]);
+  const [allMonths, setAllMonths] = useState<string[]>([]); // Store all available months for dropdown
   const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -57,6 +58,32 @@ export default function PhysicalInvoicesPage() {
       fetchInvoices();
     }
   }, [status, session, router, selectedInvoiceMonth]);
+
+  // Fetch all months once when component mounts (for dropdown)
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.id) {
+      fetchAllMonths();
+    }
+  }, [status, session]);
+
+  const fetchAllMonths = async () => {
+    try {
+      const response = await fetch("/api/physical/invoices");
+      if (!response.ok) return;
+      const data = await response.json() as InvoiceMonth[];
+      // Extract unique months from all invoices
+      const uniqueMonths = new Set<string>();
+      data.forEach((inv) => {
+        if (inv.month) {
+          uniqueMonths.add(inv.month);
+        }
+      });
+      const months = Array.from(uniqueMonths).sort().reverse();
+      setAllMonths(months);
+    } catch (err) {
+      console.error("Error fetching all months:", err);
+    }
+  };
 
   const fetchInvoices = async () => {
     try {
@@ -356,7 +383,7 @@ export default function PhysicalInvoicesPage() {
               className="w-full md:w-1/3 px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
             >
               <option value="">ყველა თვე</option>
-              {Array.from(new Set(invoices.map(inv => inv.month))).map((month) => (
+              {allMonths.map((month) => (
                 <option key={month} value={month}>
                   {formatMonthGe(month)}
                 </option>
@@ -388,13 +415,14 @@ export default function PhysicalInvoicesPage() {
                   
                   // Use status from API (already calculated correctly)
                   const displayStatus = invoice.status || "PENDING";
-                  // Create unique key using invoiceId if available, otherwise use emailSendIds or fallback
+                  // Create unique key that includes month to ensure uniqueness across different months
+                  // Even if two months have the same emailSend ID, they should have different keys
                   const firstInvoice = invoice.invoices && invoice.invoices.length > 0 ? invoice.invoices[0] : null;
                   const uniqueKey = firstInvoice?.invoiceId 
-                    ? firstInvoice.invoiceId
+                    ? `${invoice.month}-${firstInvoice.invoiceId}` // Include month to ensure uniqueness
                     : (firstInvoice?.emailSendIds && firstInvoice.emailSendIds.length > 0
-                      ? firstInvoice.emailSendIds[0]
-                      : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}-${Date.now()}`);
+                      ? `${invoice.month}-${firstInvoice.emailSendIds[0]}` // Include month to ensure uniqueness
+                      : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}`);
                   const isExpanded = expandedRows.has(uniqueKey);
                   const hasDetails = invoice.invoices && invoice.invoices.length > 0;
                   
@@ -536,8 +564,14 @@ export default function PhysicalInvoicesPage() {
                                 </thead>
                                 <tbody>
                                   {invoice.invoices.map((inv, idx) => {
-                                    // Create unique key using parent uniqueKey, date, amount, weight, protectors, and index
-                                    const detailUniqueKey = `${uniqueKey}-${inv.date}-${inv.amount.toFixed(2)}-${inv.weightKg.toFixed(2)}-${inv.protectorsAmount.toFixed(2)}-${idx}`;
+                                    // Create unique key using emailSendIds (which should be unique) or fallback to composite key
+                                    // Use first emailSendId if available, otherwise use composite key
+                                    const emailSendId = inv.emailSendIds && inv.emailSendIds.length > 0 
+                                      ? inv.emailSendIds[0] 
+                                      : null;
+                                    const detailUniqueKey = emailSendId 
+                                      ? `${emailSendId}-${idx}` // Use emailSendId as primary key
+                                      : `${uniqueKey}-${inv.date}-${inv.amount.toFixed(2)}-${inv.weightKg.toFixed(2)}-${inv.protectorsAmount.toFixed(2)}-${idx}`;
                                     return (
                                       <tr key={detailUniqueKey} className="hover:bg-gray-50">
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black">

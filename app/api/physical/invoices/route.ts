@@ -43,21 +43,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
 
-    // Build date filter for month if specified
-    let invoiceWhere: any = {};
-    if (month) {
-      const [year, monthNum] = month.split("-");
-      const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
-      const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
-      invoiceWhere.createdAt = {
-        gte: startOfMonth,
-        lte: endOfMonth,
-      };
-    }
-
+    // Don't filter invoices by createdAt - we'll filter by emailSend.date instead
+    // This is because invoices are grouped by emailSend.date, not invoice.createdAt
     // Get all PhysicalInvoice records and filter by normalized hotel name (case-insensitive)
     const allInvoices = await prisma.physicalInvoice.findMany({
-      where: invoiceWhere,
       orderBy: {
         createdAt: "desc",
       },
@@ -70,25 +59,13 @@ export async function GET(request: NextRequest) {
 
     // Also get emailSends to check confirmation status
     // When invoices are sent, the corresponding emailSends are confirmed
-    // Get emailSends filtered by month if specified
-    let emailSendWhere: any = {
-      hotelName: {
-        not: null,
-      },
-    };
-    
-    if (month) {
-      const [year, monthNum] = month.split("-");
-      const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
-      const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
-      emailSendWhere.date = {
-        gte: startOfMonth,
-        lte: endOfMonth,
-      };
-    }
-
+    // Get all emailSends (we'll filter by sentAt month after grouping)
     const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
-      where: emailSendWhere,
+      where: {
+        hotelName: {
+          not: null,
+        },
+      },
       include: {
         dailySheet: {
           include: {
@@ -105,7 +82,7 @@ export async function GET(request: NextRequest) {
       (es) => normalizeHotel(es.hotelName) === normalizedHotelName
     );
 
-    // Group invoices by month based on createdAt date
+    // Group invoices by month based on sentAt (invoice sending date)
     const monthlyData = new Map<string, {
       month: string;
       totalAmount: number;
@@ -136,14 +113,25 @@ export async function GET(request: NextRequest) {
     const invoiceEmailSendMap = new Map<string, string[]>(); // invoiceId -> emailSendIds[]
     
     // First, match invoices to emailSends to track relationships
+    // Primary method: Use confirmedAt to identify which emailSends were sent (confirmed when invoice was sent)
     invoices.forEach((invoice) => {
       const invoiceDate = new Date(invoice.createdAt);
       const invoiceAmount = invoice.totalAmount ?? invoice.amount ?? 0;
-      const invoiceWeight = invoice.totalWeightKg || 0;
-      const invoiceProtectors = invoice.protectorsAmount || 0;
       
       // Find emailSends that match this invoice
+      // Priority 1: Match by confirmedAt (emailSend was confirmed when invoice was sent)
+      // Priority 2: Match by date and amount (fallback)
       const matchingEmailSends = emailSends.filter((es) => {
+        // Primary: Check if emailSend was confirmed around the same time as invoice was created
+        if (es.confirmedAt) {
+          const confirmedDate = new Date(es.confirmedAt);
+          const dateDiff = Math.abs((confirmedDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (dateDiff <= 1) { // Within 1 day - this emailSend was likely part of this invoice
+            return true;
+          }
+        }
+        
+        // Fallback: Match by date and amount (for older invoices that might not have confirmedAt set correctly)
         const esDate = new Date(es.date);
         const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
         if (dateDiff > 30) return false;
@@ -166,17 +154,44 @@ export async function GET(request: NextRequest) {
       emailSendIds.forEach((id) => sentEmailSendIds.add(id));
     });
     
+    // Also include emailSends that are confirmed but not yet matched to an invoice
+    // This handles cases where invoice exists but matching didn't work perfectly
+    emailSends.forEach((es) => {
+      if (es.confirmedAt && !sentEmailSendIds.has(es.id)) {
+        // Check if there's an invoice created around the same time
+        const confirmedDate = new Date(es.confirmedAt);
+        const matchingInvoice = invoices.find((inv) => {
+          const invDate = new Date(inv.createdAt);
+          const dateDiff = Math.abs((confirmedDate.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
+          return dateDiff <= 1; // Within 1 day
+        });
+        
+        if (matchingInvoice) {
+          sentEmailSendIds.add(es.id);
+          // Add to map if not already there
+          if (!invoiceEmailSendMap.has(matchingInvoice.id)) {
+            invoiceEmailSendMap.set(matchingInvoice.id, []);
+          }
+          invoiceEmailSendMap.get(matchingInvoice.id)!.push(es.id);
+        }
+      }
+    });
+    
     // Now create one row per emailSend (like PDF structure)
     // BUT ONLY for emailSends that are associated with a PhysicalInvoice (sent by admin/manager)
     emailSends
       .filter((emailSend) => sentEmailSendIds.has(emailSend.id))
       .forEach((emailSend) => {
-      const esDate = new Date(emailSend.date);
+      // Group by sentAt (invoice sending date) instead of emailSend.date
+      // If sentAt is not available, fallback to date
+      const groupingDate = emailSend.sentAt || emailSend.date;
+      const esDate = new Date(groupingDate);
       const year = esDate.getUTCFullYear();
       const month = String(esDate.getUTCMonth() + 1).padStart(2, "0");
       const monthKey = `${year}-${month}`;
       
-      const dateKey = emailSend.date.toISOString().split("T")[0];
+      // Use sentAt for date field as well (invoice sending date)
+      const dateKey = groupingDate.toISOString().split("T")[0];
       
       // Calculate amount for this emailSend (like PDF does)
       const weight = emailSend.totalWeight ?? 0;
@@ -341,7 +356,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Build result with confirmation status
-    const result = Array.from(monthlyData.values()).map((data) => {
+    let result = Array.from(monthlyData.values()).map((data) => {
       // Check if ALL invoice details are confirmed
       const allDetailsConfirmed = data.invoices.length > 0 && data.invoices.every(inv => inv.confirmedAt !== null && inv.confirmedAt !== undefined);
       
@@ -373,6 +388,11 @@ export async function GET(request: NextRequest) {
         totalRevenueAmount: totalRevenueAmount,
       };
     });
+
+    // If month filter is specified, filter result by month
+    if (month) {
+      result = result.filter((data) => data.month === month);
+    }
 
     return NextResponse.json(result);
   } catch (error) {
@@ -431,15 +451,12 @@ export async function PUT(request: NextRequest) {
       const hotel = user.hotels[0];
       const normalizedHotelName = normalizeHotel(hotel.hotelName);
 
-      // Get all daily sheets for this hotel and month
+      // Get all daily sheets for this hotel and month (filter by sentAt)
+      // Fetch all emailSends and filter by sentAt month in JavaScript
       const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
             not: null,
-          },
-          date: {
-            gte: startOfMonth,
-            lte: endOfMonth,
           },
         },
         include: {
@@ -447,9 +464,15 @@ export async function PUT(request: NextRequest) {
         },
       });
 
-      const emailSends = allEmailSends.filter(
-        (es) => normalizeHotel(es.hotelName) === normalizedHotelName
-      );
+      // Filter by hotel name and by sentAt month (or date if sentAt is null)
+      const emailSends = allEmailSends.filter((es) => {
+        if (normalizeHotel(es.hotelName) !== normalizedHotelName) {
+          return false;
+        }
+        const groupingDate = es.sentAt || es.date;
+        const esDate = new Date(groupingDate);
+        return esDate >= startOfMonth && esDate <= endOfMonth;
+      });
 
       // Check if there are any email sends for this month
       if (emailSends.length === 0) {
@@ -522,26 +545,30 @@ export async function PUT(request: NextRequest) {
     const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
     const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
 
+    // Filter by sentAt (invoice sending date) instead of date
+    // Fetch all emailSends and filter by sentAt month in JavaScript
     const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
       where: {
         hotelName: {
           not: null,
         },
-        date: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
       },
     });
 
     const normalizedHotelName = normalizeHotel(hotel.hotelName);
-    const emailSends = allEmailSends.filter(
-      (es) => normalizeHotel(es.hotelName) === normalizedHotelName
-    );
+    // Filter by hotel name and by sentAt month (or date if sentAt is null)
+    const emailSends = allEmailSends.filter((es) => {
+      if (normalizeHotel(es.hotelName) !== normalizedHotelName) {
+        return false;
+      }
+      const groupingDate = es.sentAt || es.date;
+      const esDate = new Date(groupingDate);
+      return esDate >= startOfMonth && esDate <= endOfMonth;
+    });
 
     // Count each email send separately - if same sheet was sent multiple times, count each time
     const totalAmount = emailSends.reduce((sum, send) => sum + (send.totalAmount || 0), 0);
-    const isPaid = paid >= totalAmount && totalAmount > 0;
+    const isMonthPaid = paid >= totalAmount && totalAmount > 0;
 
     // Upsert payment record
     const payment = await prisma.physicalInvoicePayment.upsert({
@@ -553,13 +580,13 @@ export async function PUT(request: NextRequest) {
       },
       update: {
         paidAmount: paid,
-        isPaid: isPaid,
+        isPaid: isMonthPaid,
       },
       create: {
         userId: session.user.id,
         month: month,
         paidAmount: paid,
-        isPaid: isPaid,
+        isPaid: isMonthPaid,
       },
     });
 
