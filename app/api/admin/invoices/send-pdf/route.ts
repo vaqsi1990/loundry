@@ -865,33 +865,13 @@ export async function POST(request: NextRequest) {
 
     console.log("Invoice email sent successfully to:", recipientEmail);
     
-    // After successful email send, confirm emailSends that were included in the PDF
-    // NOTE: For PHYSICAL hotels, do NOT auto-confirm - physical user must confirm manually
-    // For LEGAL hotels, auto-confirm is allowed
-    if (hotel.type !== "PHYSICAL") {
-      const emailSendIdsToConfirm = emailSends
-        .filter((es) => es.confirmedAt === null || es.confirmedAt === undefined)
-        .map((es) => es.id);
-      
-      if (emailSendIdsToConfirm.length > 0) {
-        // Update only legal email sends (physical requires manual confirmation)
-        const legalUpdateResult = await prisma.legalDailySheetEmailSend.updateMany({
-          where: {
-            id: {
-              in: emailSendIdsToConfirm,
-            },
-            confirmedAt: null, // Only update email sends that are not already confirmed
-          },
-          data: {
-            confirmedBy: session.user.id,
-            confirmedAt: new Date(),
-          },
-        });
-        console.log(`Confirmed ${legalUpdateResult.count} legal email sends after PDF send`);
-      }
-    } else {
-      // For PHYSICAL hotels, do not auto-confirm - user must confirm manually in /physical/invoices
+    // After successful email send, do NOT auto-confirm emailSends
+    // Both PHYSICAL and LEGAL users must confirm invoices manually in their respective invoice pages
+    // This ensures users have control over invoice confirmation
+    if (hotel.type === "PHYSICAL") {
       console.log("Physical invoice sent - user must confirm manually in /physical/invoices");
+    } else if (hotel.type === "LEGAL") {
+      console.log("Legal invoice sent - user must confirm manually in /legal/invoices");
     }
     
     return NextResponse.json({ message: "PDF ინვოისი წარმატებით გაიგზავნა" });

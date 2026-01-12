@@ -44,6 +44,7 @@ export default function LegalInvoicesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<InvoiceMonth[]>([]);
+  const [allMonths, setAllMonths] = useState<string[]>([]); // Store all available months for dropdown
   const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -57,6 +58,32 @@ export default function LegalInvoicesPage() {
       fetchInvoices();
     }
   }, [status, session, router, selectedInvoiceMonth]);
+
+  // Fetch all months once when component mounts (for dropdown)
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.id) {
+      fetchAllMonths();
+    }
+  }, [status, session]);
+
+  const fetchAllMonths = async () => {
+    try {
+      const response = await fetch("/api/legal/invoices");
+      if (!response.ok) return;
+      const data = await response.json() as InvoiceMonth[];
+      // Extract unique months from all invoices
+      const uniqueMonths = new Set<string>();
+      data.forEach((inv) => {
+        if (inv.month) {
+          uniqueMonths.add(inv.month);
+        }
+      });
+      const months = Array.from(uniqueMonths).sort().reverse();
+      setAllMonths(months);
+    } catch (err) {
+      console.error("Error fetching all months:", err);
+    }
+  };
 
   const fetchInvoices = async () => {
     try {
@@ -136,19 +163,59 @@ export default function LegalInvoicesPage() {
     let invoice: InvoiceMonth | undefined;
     
     if (uniqueKey) {
-      // uniqueKey could be invoiceId, emailSendId, or fallback string
+      // uniqueKey format: `${month}-${invoiceId}` or `${month}-${emailSendId}` or `${month}-${amount}-${idx}`
+      // Extract the actual ID from uniqueKey (remove month prefix)
+      const parts = uniqueKey.split('-');
+      const actualKey = parts.length > 1 ? parts.slice(1).join('-') : uniqueKey; // Handle cases with multiple dashes
+      
+      // First try to find by month (since uniqueKey includes month)
       invoice = invoices.find((inv) => {
-        return inv.invoices && inv.invoices.some((invDetail) => 
-          invDetail.invoiceId === uniqueKey || 
-          (invDetail.emailSendIds && invDetail.emailSendIds.includes(uniqueKey))
-        );
+        if (inv.month !== month) return false;
+        
+        // Check if any invoice detail matches
+        if (inv.invoices && inv.invoices.length > 0) {
+          return inv.invoices.some((invDetail) => {
+            // Check if invoiceId matches (without month prefix)
+            if (invDetail.invoiceId && invDetail.invoiceId === actualKey) {
+              return true;
+            }
+            // Check if any emailSendId matches (without month prefix)
+            if (invDetail.emailSendIds && Array.isArray(invDetail.emailSendIds)) {
+              return invDetail.emailSendIds.some(id => id === actualKey);
+            }
+            return false;
+          });
+        }
+        return false;
       });
-    } else {
-      // Fallback: find by month
+      
+      // If not found, try fallback matching (in case uniqueKey format changed)
+      if (!invoice) {
+        invoice = invoices.find((inv) => {
+          return inv.invoices && inv.invoices.some((invDetail) => 
+            invDetail.invoiceId === uniqueKey || 
+            invDetail.invoiceId === actualKey ||
+            (invDetail.emailSendIds && (
+              invDetail.emailSendIds.includes(uniqueKey) || 
+              invDetail.emailSendIds.includes(actualKey)
+            ))
+          );
+        });
+      }
+    }
+    
+    // Fallback: find by month if still not found
+    if (!invoice) {
       invoice = invoices.find((inv) => inv.month === month);
     }
     
     if (!invoice) {
+      console.error("Invoice not found. Debug:", {
+        month,
+        uniqueKey,
+        invoicesCount: invoices.length,
+        invoiceMonths: invoices.map(inv => inv.month),
+      });
       alert("ინვოისი ვერ მოიძებნა");
       return;
     }
@@ -161,7 +228,7 @@ export default function LegalInvoicesPage() {
     // Collect all invoiceIds and emailSendIds from all invoices in this invoice group
     const allInvoiceIds: string[] = [];
     const allEmailSendIds: string[] = [];
-    if (invoice.invoices) {
+    if (invoice.invoices && invoice.invoices.length > 0) {
       invoice.invoices.forEach((inv) => {
         if (inv.invoiceId) {
           allInvoiceIds.push(inv.invoiceId);
@@ -170,11 +237,21 @@ export default function LegalInvoicesPage() {
           allEmailSendIds.push(...inv.emailSendIds);
         }
       });
+    } else {
+      // If invoice.invoices is empty, try to find invoiceId from the month data
+      // This might happen if the invoice structure is different
+      console.warn("Invoice.invoices is empty or undefined. Invoice:", invoice);
     }
 
     // Prefer invoiceId if available, otherwise use emailSendIds
     if (allInvoiceIds.length === 0 && allEmailSendIds.length === 0) {
-      alert("ინვოისის ID-ები არ მოიძებნა");
+      console.error("No invoice IDs found. Invoice data:", {
+        month: invoice.month,
+        hasInvoices: !!invoice.invoices,
+        invoicesLength: invoice.invoices?.length || 0,
+        invoiceDetails: invoice.invoices,
+      });
+      alert("ინვოისის ID-ები არ მოიძებნა. გთხოვთ განაახლოთ გვერდი და სცადოთ კვლავ.");
       return;
     }
 
@@ -358,7 +435,7 @@ export default function LegalInvoicesPage() {
               className="w-full md:w-1/3 px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
             >
               <option value="">ყველა თვე</option>
-              {Array.from(new Set(invoices.map(inv => inv.month))).map((month) => (
+              {allMonths.map((month) => (
                 <option key={month} value={month}>
                   {formatMonthGe(month)}
                 </option>
@@ -390,13 +467,14 @@ export default function LegalInvoicesPage() {
                   
                   // Use status from API (already calculated correctly)
                   const displayStatus = invoice.status || "PENDING";
-                  // Create unique key using invoiceId if available, otherwise use emailSendIds or fallback
+                  // Create unique key that includes month to ensure uniqueness across different months
+                  // Even if two months have the same emailSend ID, they should have different keys
                   const firstInvoice = invoice.invoices && invoice.invoices.length > 0 ? invoice.invoices[0] : null;
                   const uniqueKey = firstInvoice?.invoiceId 
-                    ? firstInvoice.invoiceId
+                    ? `${invoice.month}-${firstInvoice.invoiceId}` // Include month to ensure uniqueness
                     : (firstInvoice?.emailSendIds && firstInvoice.emailSendIds.length > 0
-                      ? firstInvoice.emailSendIds[0]
-                      : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}-${Date.now()}`);
+                      ? `${invoice.month}-${firstInvoice.emailSendIds[0]}` // Include month to ensure uniqueness
+                      : `${invoice.month}-${invoice.totalAmount.toFixed(2)}-${invoiceIdx}`);
                   const isExpanded = expandedRows.has(uniqueKey);
                   const hasDetails = invoice.invoices && invoice.invoices.length > 0;
                   
