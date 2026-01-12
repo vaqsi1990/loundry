@@ -541,23 +541,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
     }
 
-    // Generate sequential invoice number starting from 1
-    const lastInvoice = await prisma.adminInvoice.findFirst({
-      orderBy: {
-        createdAt: "desc",
-      },
-      select: {
-        invoiceNumber: true,
-      },
-    });
-    
+    // Generate sequential invoice number based on hotel type
+    // We'll generate it in the LegalInvoice or PhysicalInvoice section below
     let invoiceNumber = "1";
-    if (lastInvoice && lastInvoice.invoiceNumber) {
-      const lastNumber = parseInt(lastInvoice.invoiceNumber);
-      if (!isNaN(lastNumber) && lastNumber > 0) {
-        invoiceNumber = (lastNumber + 1).toString();
-      }
-    }
     
     // Calculate dates
     const issueDate = new Date();
@@ -663,55 +649,152 @@ export async function POST(request: NextRequest) {
     }, 0);
     const protectorsAmount = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
 
-    // Save invoice to AdminInvoice table (with retry if duplicate)
-    let savedInvoice;
-    try {
-      savedInvoice = await prisma.adminInvoice.create({
-        data: {
-          invoiceNumber,
-          customerName: hotel.hotelName,
-          customerEmail: email,
-          amount: totalAmount,
-          totalWeightKg,
-          protectorsAmount,
-          totalAmount,
-          status: "PENDING",
-          dueDate: dueDate,
+    // Create LegalInvoice or PhysicalInvoice based on hotel type
+    // Note: We don't create AdminInvoice anymore to avoid duplicates
+    if (hotel.type === "LEGAL") {
+      // Get last LegalInvoice to generate next invoice number
+      const lastLegalInvoice = await prisma.legalInvoice.findFirst({
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          invoiceNumber: true,
         },
       });
-    } catch (error: any) {
-      // If invoice number already exists, get next number from AdminInvoice
-      if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
-        const lastInvoice = await prisma.adminInvoice.findFirst({
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            invoiceNumber: true,
-          },
-        });
-        if (lastInvoice && lastInvoice.invoiceNumber) {
-          const lastNumber = parseInt(lastInvoice.invoiceNumber);
-          if (!isNaN(lastNumber) && lastNumber > 0) {
-            invoiceNumber = (lastNumber + 1).toString();
-          }
+
+      let legalInvoiceNumber = "1";
+      if (lastLegalInvoice && lastLegalInvoice.invoiceNumber) {
+        const lastNumber = parseInt(lastLegalInvoice.invoiceNumber);
+        if (!isNaN(lastNumber) && lastNumber > 0) {
+          legalInvoiceNumber = (lastNumber + 1).toString();
         }
-        // Retry with new number
-        savedInvoice = await prisma.adminInvoice.create({
+      }
+
+      // Create LegalInvoice with retry if duplicate
+      try {
+        await prisma.legalInvoice.create({
           data: {
-            invoiceNumber,
+            invoiceNumber: legalInvoiceNumber,
             customerName: hotel.hotelName,
             customerEmail: email,
             amount: totalAmount,
             totalWeightKg,
             protectorsAmount,
             totalAmount,
+            paidAmount: 0,
             status: "PENDING",
             dueDate: dueDate,
           },
         });
-      } else {
-        throw error;
+        invoiceNumber = legalInvoiceNumber; // Set invoiceNumber for PDF generation
+      } catch (error: any) {
+        // If invoice number already exists, get next number
+        if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
+          const lastLegalInvoice = await prisma.legalInvoice.findFirst({
+            orderBy: {
+              createdAt: "desc",
+            },
+            select: {
+              invoiceNumber: true,
+            },
+          });
+          if (lastLegalInvoice && lastLegalInvoice.invoiceNumber) {
+            const lastNumber = parseInt(lastLegalInvoice.invoiceNumber);
+            if (!isNaN(lastNumber) && lastNumber > 0) {
+              legalInvoiceNumber = (lastNumber + 1).toString();
+            }
+          }
+          // Retry with new number
+          await prisma.legalInvoice.create({
+            data: {
+              invoiceNumber: legalInvoiceNumber,
+              customerName: hotel.hotelName,
+              customerEmail: email,
+              amount: totalAmount,
+              totalWeightKg,
+              protectorsAmount,
+              totalAmount,
+              paidAmount: 0,
+              status: "PENDING",
+              dueDate: dueDate,
+            },
+          });
+        } else {
+          console.error("Error creating LegalInvoice:", error);
+          // Don't throw - continue even if LegalInvoice creation fails
+        }
+      }
+    } else if (hotel.type === "PHYSICAL") {
+      // Get last PhysicalInvoice to generate next invoice number
+      const lastPhysicalInvoice = await prisma.physicalInvoice.findFirst({
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          invoiceNumber: true,
+        },
+      });
+
+      let physicalInvoiceNumber = "1";
+      if (lastPhysicalInvoice && lastPhysicalInvoice.invoiceNumber) {
+        const lastNumber = parseInt(lastPhysicalInvoice.invoiceNumber);
+        if (!isNaN(lastNumber) && lastNumber > 0) {
+          physicalInvoiceNumber = (lastNumber + 1).toString();
+        }
+      }
+
+      // Create PhysicalInvoice with retry if duplicate
+      try {
+        await prisma.physicalInvoice.create({
+          data: {
+            invoiceNumber: physicalInvoiceNumber,
+            customerName: hotel.hotelName,
+            customerEmail: email,
+            amount: totalAmount,
+            totalWeightKg,
+            protectorsAmount,
+            totalAmount,
+            paidAmount: 0,
+            status: "PENDING",
+            dueDate: dueDate,
+          },
+        });
+      } catch (error: any) {
+        // If invoice number already exists, get next number
+        if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
+          const lastPhysicalInvoice = await prisma.physicalInvoice.findFirst({
+            orderBy: {
+              createdAt: "desc",
+            },
+            select: {
+              invoiceNumber: true,
+            },
+          });
+          if (lastPhysicalInvoice && lastPhysicalInvoice.invoiceNumber) {
+            const lastNumber = parseInt(lastPhysicalInvoice.invoiceNumber);
+            if (!isNaN(lastNumber) && lastNumber > 0) {
+              physicalInvoiceNumber = (lastNumber + 1).toString();
+            }
+          }
+          // Retry with new number
+          await prisma.physicalInvoice.create({
+            data: {
+              invoiceNumber: physicalInvoiceNumber,
+              customerName: hotel.hotelName,
+              customerEmail: email,
+              amount: totalAmount,
+              totalWeightKg,
+              protectorsAmount,
+              totalAmount,
+              paidAmount: 0,
+              status: "PENDING",
+              dueDate: dueDate,
+            },
+          });
+        } else {
+          console.error("Error creating PhysicalInvoice:", error);
+          // Don't throw - continue even if PhysicalInvoice creation fails
+        }
       }
     }
 

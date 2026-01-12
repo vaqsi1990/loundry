@@ -33,7 +33,7 @@ export default function RevenuesSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
+  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "all">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
@@ -56,7 +56,9 @@ export default function RevenuesSection() {
       setError("");
       const params = viewMode === "daily" 
         ? `?view=daily&date=${selectedDate}`
-        : `?view=monthly&month=${selectedMonth}`;
+        : viewMode === "monthly"
+        ? `?view=monthly&month=${selectedMonth}`
+        : `?view=all`;
       
       const response = await fetch(`/api/admin/revenues${params}`);
       const data = await response.json();
@@ -342,6 +344,14 @@ export default function RevenuesSection() {
           >
             ყოველთვიური
           </button>
+          <button
+            onClick={() => setViewMode("all")}
+            className={`px-4 py-2 rounded-lg ${
+              viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+            }`}
+          >
+            ყველა
+          </button>
         </div>
         {viewMode === "daily" ? (
           <input
@@ -350,14 +360,14 @@ export default function RevenuesSection() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-black"
           />
-        ) : (
+        ) : viewMode === "monthly" ? (
           <input
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-black"
           />
-        )}
+        ) : null}
       </div>
 
       {/* Summary */}

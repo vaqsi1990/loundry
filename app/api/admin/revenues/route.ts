@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
 
     let revenueWhere: any = {};
 
-    if (view === "daily" && date) {
+    if (view === "all") {
+      // Show all revenues - no filter
+      revenueWhere = {};
+    } else if (view === "daily" && date) {
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) {
         return NextResponse.json(
@@ -77,7 +80,10 @@ export async function GET(request: NextRequest) {
     // Fetch invoices that have been sent to hotels (have customerEmail)
     // Apply date filter only if view mode is set, otherwise show all sent invoices
     let invoiceDateFilter: any = {};
-    if (view === "daily" && date) {
+    if (view === "all") {
+      // Show all invoices - no filter
+      invoiceDateFilter = {};
+    } else if (view === "daily" && date) {
       // Parse date string and create proper date range
       const dateObj = new Date(date + "T00:00:00");
       const startOfDay = new Date(dateObj);

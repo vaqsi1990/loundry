@@ -160,8 +160,17 @@ export async function GET(request: NextRequest) {
       }
     });
     
+    // Collect all emailSendIds that are associated with invoices (sent by admin/manager)
+    const sentEmailSendIds = new Set<string>();
+    invoiceEmailSendMap.forEach((emailSendIds) => {
+      emailSendIds.forEach((id) => sentEmailSendIds.add(id));
+    });
+    
     // Now create one row per emailSend (like PDF structure)
-    emailSends.forEach((emailSend) => {
+    // BUT ONLY for emailSends that are associated with a PhysicalInvoice (sent by admin/manager)
+    emailSends
+      .filter((emailSend) => sentEmailSendIds.has(emailSend.id))
+      .forEach((emailSend) => {
       const esDate = new Date(emailSend.date);
       const year = esDate.getUTCFullYear();
       const month = String(esDate.getUTCMonth() + 1).padStart(2, "0");
