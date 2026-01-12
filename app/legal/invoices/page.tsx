@@ -210,6 +210,7 @@ export default function LegalInvoicesPage() {
     }
   };
 
+
   const confirmSingleInvoice = async (date: string, month: string, amount: number, weightKg: number, protectorsAmount: number, emailSendIds: string[], invoiceId?: string) => {
     try {
       const response = await fetch(`/api/legal/invoices/confirm`, {
@@ -317,7 +318,7 @@ export default function LegalInvoicesPage() {
       alert("PDF-ის გადმოწერისას მოხდა შეცდომა");
     }
   };
-
+  console.log(invoices);
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -528,7 +529,7 @@ export default function LegalInvoicesPage() {
                                 <thead>
                                   <tr className="bg-gray-100">
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">თარიღი</th>
-                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გაგზავნის თარიღი</th>
+                                    <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">მომსახურების პერიოდი</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">გაგზავნილი რაოდენობა</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">წონა (კგ)</th>
                                     <th className="border border-gray-300 px-2 py-1 text-black text-center font-semibold">დამცავები (₾)</th>
