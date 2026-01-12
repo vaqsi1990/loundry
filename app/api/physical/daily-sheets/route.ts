@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get daily sheets with their email sends to show confirmation status per email send
-    const sheets = await prisma.dailySheet.findMany({
+    const sheets = await prisma.physicalDailySheet.findMany({
       where,
       include: {
         items: {
@@ -140,7 +140,7 @@ export async function PUT(request: NextRequest) {
     const hotel = user.hotels[0];
 
     // Check if sheet belongs to this hotel
-    const sheet = await prisma.dailySheet.findUnique({
+    const sheet = await prisma.physicalDailySheet.findUnique({
       where: { id: sheetId },
     });
 
@@ -161,7 +161,7 @@ export async function PUT(request: NextRequest) {
 
     // Confirm only the daily sheet (NOT the email sends/invoices)
     // Daily sheet confirmation and invoice confirmation are separate
-    const updated = await prisma.dailySheet.update({
+    const updated = await prisma.physicalDailySheet.update({
       where: { id: sheetId },
       data: {
         confirmedBy: session.user.id,

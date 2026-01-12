@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     const hotel = user.hotels[0];
 
-    const requests = await (prisma as any).pickupDeliveryRequest.findMany({
+    const requests = await prisma.legalPickupDeliveryRequest.findMany({
       where: {
         hotelId: hotel.id,
         userId: session.user.id,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     const hotel = user.hotels[0];
 
-    const pickupRequest = await (prisma as any).pickupDeliveryRequest.create({
+    const pickupRequest = await prisma.legalPickupDeliveryRequest.create({
       data: {
         hotelId: hotel.id,
         userId: session.user.id,

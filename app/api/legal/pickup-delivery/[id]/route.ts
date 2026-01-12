@@ -48,7 +48,7 @@ export async function PUT(
     const { id } = await params;
 
     // Check if request exists and belongs to user
-    const existingRequest = await (prisma as any).pickupDeliveryRequest.findUnique({
+    const existingRequest = await prisma.legalPickupDeliveryRequest.findUnique({
       where: { id },
     });
 
@@ -74,7 +74,7 @@ export async function PUT(
       );
     }
 
-    const updatedRequest = await (prisma as any).pickupDeliveryRequest.update({
+    const updatedRequest = await prisma.legalPickupDeliveryRequest.update({
       where: { id },
       data: {
         requestType,
@@ -130,7 +130,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Check if request exists and belongs to user
-    const existingRequest = await (prisma as any).pickupDeliveryRequest.findUnique({
+    const existingRequest = await prisma.legalPickupDeliveryRequest.findUnique({
       where: { id },
     });
 
@@ -148,7 +148,7 @@ export async function DELETE(
       );
     }
 
-    await (prisma as any).pickupDeliveryRequest.delete({
+    await prisma.legalPickupDeliveryRequest.delete({
       where: { id },
     });
 

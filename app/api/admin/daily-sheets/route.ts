@@ -27,18 +27,34 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const sheets = await prisma.dailySheet.findMany({
-        include: {
-          items: {
-            orderBy: {
-              category: "asc",
+      // Fetch from both legal and physical daily sheets
+      const [legalSheets, physicalSheets] = await Promise.all([
+        prisma.legalDailySheet.findMany({
+          include: {
+            items: {
+              orderBy: {
+                category: "asc",
+              },
             },
           },
-        },
-        orderBy: {
-          date: "desc",
-        },
-      });
+          orderBy: {
+            date: "desc",
+          },
+        }),
+        prisma.physicalDailySheet.findMany({
+          include: {
+            items: {
+              orderBy: {
+                category: "asc",
+              },
+            },
+          },
+          orderBy: {
+            date: "desc",
+          },
+        }),
+      ]);
+      const sheets = [...legalSheets, ...physicalSheets];
 
       console.log("Fetched sheets count:", sheets.length);
 
@@ -207,15 +223,19 @@ export async function POST(request: NextRequest) {
     const cleanHotelName = hotelName && String(hotelName).trim() ? String(hotelName).trim() : null;
     
     // Get pricePerKg from body if provided, otherwise from hotel
+    // Also determine hotel type to use correct model
     let finalPricePerKg: number | null = null;
+    let hotelType: 'LEGAL' | 'PHYSICAL' | null = null;
     if (pricePerKg !== undefined && pricePerKg !== null) {
       finalPricePerKg = typeof pricePerKg === 'number' ? pricePerKg : parseFloat(pricePerKg);
-    } else if (cleanHotelName) {
+    }
+    if (cleanHotelName) {
       const hotel = await prisma.hotel.findFirst({
         where: { hotelName: cleanHotelName },
-        select: { pricePerKg: true },
+        select: { pricePerKg: true, type: true },
       });
-      finalPricePerKg = hotel?.pricePerKg ?? null;
+      finalPricePerKg = hotel?.pricePerKg ?? finalPricePerKg;
+      hotelType = hotel?.type ?? null;
     }
     
     const prismaData = {
@@ -314,15 +334,33 @@ export async function POST(request: NextRequest) {
       })),
     }, null, 2));
 
-    // Try to create the sheet
+    // Try to create the sheet in the appropriate table based on hotel type
     let sheet;
     try {
-      sheet = await prisma.dailySheet.create({
-        data: prismaData,
-        include: {
-          items: true,
-        },
-      });
+      if (hotelType === 'LEGAL') {
+        sheet = await prisma.legalDailySheet.create({
+          data: prismaData,
+          include: {
+            items: true,
+          },
+        });
+      } else if (hotelType === 'PHYSICAL') {
+        sheet = await prisma.physicalDailySheet.create({
+          data: prismaData,
+          include: {
+            items: true,
+          },
+        });
+      } else {
+        // Fallback: try to find hotel or default to physical
+        // This handles cases where hotel might not exist yet
+        sheet = await prisma.physicalDailySheet.create({
+          data: prismaData,
+          include: {
+            items: true,
+          },
+        });
+      }
     } catch (createError: any) {
       console.error("Prisma create error details:");
       console.error("- Error code:", createError?.code);

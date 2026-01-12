@@ -34,36 +34,70 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const requests = await (prisma as any).pickupDeliveryRequest.findMany({
-      where: {
-        OR: [
-          { hiddenFromManager: false },
-          { hiddenFromManager: null },
-        ],
-      },
-      include: {
-        hotel: {
-          select: {
-            id: true,
-            hotelName: true,
-            type: true,
-            email: true,
-            mobileNumber: true,
+    // Get requests from both legal and physical tables
+    const [legalRequests, physicalRequests] = await Promise.all([
+      prisma.legalPickupDeliveryRequest.findMany({
+        where: {
+          OR: [
+            { hiddenFromManager: false },
+            { hiddenFromManager: null },
+          ],
+        },
+        include: {
+          hotel: {
+            select: {
+              id: true,
+              hotelName: true,
+              type: true,
+              email: true,
+              mobileNumber: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              mobileNumber: true,
+            },
           },
         },
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            mobileNumber: true,
+        orderBy: {
+          requestedAt: "desc",
+        },
+      }),
+      prisma.physicalPickupDeliveryRequest.findMany({
+        where: {
+          OR: [
+            { hiddenFromManager: false },
+            { hiddenFromManager: null },
+          ],
+        },
+        include: {
+          hotel: {
+            select: {
+              id: true,
+              hotelName: true,
+              type: true,
+              email: true,
+              mobileNumber: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              mobileNumber: true,
+            },
           },
         },
-      },
-      orderBy: {
-        requestedAt: "desc",
-      },
-    });
+        orderBy: {
+          requestedAt: "desc",
+        },
+      }),
+    ]);
+    const requests = [...legalRequests, ...physicalRequests];
 
     return NextResponse.json(requests);
   } catch (error) {

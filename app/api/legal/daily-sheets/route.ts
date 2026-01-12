@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const sheets = await prisma.dailySheet.findMany({
+    const sheets = await prisma.legalDailySheet.findMany({
       where,
       include: {
         items: {
@@ -126,7 +126,7 @@ export async function PUT(request: NextRequest) {
     const hotel = user.hotels[0];
 
     // Check if sheet belongs to this hotel
-    const sheet = await prisma.dailySheet.findUnique({
+    const sheet = await prisma.legalDailySheet.findUnique({
       where: { id: sheetId },
     });
 
@@ -138,7 +138,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Confirm the sheet
-    const updated = await prisma.dailySheet.update({
+    const updated = await prisma.legalDailySheet.update({
       where: { id: sheetId },
       data: {
         confirmedBy: session.user.id,

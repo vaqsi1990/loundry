@@ -44,16 +44,27 @@ export async function GET(request: NextRequest) {
     const searchQuery = searchParams.get("search");
     const emailSendsMonthParam = searchParams.get("emailSendsMonth"); // For filtering email sends by month
 
-    // If months=true, return all available months with email send counts (from DailySheetEmailSend)
+    // If months=true, return all available months with email send counts (from both Legal and Physical DailySheetEmailSend)
     if (monthsOnly) {
-      const emailSends = await prisma.dailySheetEmailSend.findMany({
-        select: {
-          sentAt: true,
-        },
-        orderBy: {
-          sentAt: "desc",
-        },
-      });
+      const [legalEmailSends, physicalEmailSends] = await Promise.all([
+        prisma.legalDailySheetEmailSend.findMany({
+          select: {
+            sentAt: true,
+          },
+          orderBy: {
+            sentAt: "desc",
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.findMany({
+          select: {
+            sentAt: true,
+          },
+          orderBy: {
+            sentAt: "desc",
+          },
+        }),
+      ]);
+      const emailSends = [...legalEmailSends, ...physicalEmailSends];
 
       // Group by month (YYYY-MM) based on sentAt
       const monthMap = new Map<string, number>();
@@ -90,17 +101,31 @@ export async function GET(request: NextRequest) {
       const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
       const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 
-      const invoices = await prisma.invoice.findMany({
-        where: {
-          createdAt: {
-            gte: start,
-            lte: end,
+      const [legalInvoices, physicalInvoices] = await Promise.all([
+        prisma.legalInvoice.findMany({
+          where: {
+            createdAt: {
+              gte: start,
+              lte: end,
+            },
           },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+          orderBy: {
+            createdAt: "desc",
+          },
+        }),
+        prisma.physicalInvoice.findMany({
+          where: {
+            createdAt: {
+              gte: start,
+              lte: end,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        }),
+      ]);
+      const invoices = [...legalInvoices, ...physicalInvoices];
 
       const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
       const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
@@ -119,24 +144,45 @@ export async function GET(request: NextRequest) {
     // If search query is provided, search by customer name across all invoices
     if (searchQuery) {
       // Use raw query for case-insensitive search in PostgreSQL
-      const invoices = await prisma.$queryRaw<Array<{
-        id: string;
-        invoiceNumber: string;
-        customerName: string;
-        customerEmail: string | null;
-        amount: number;
-        totalWeightKg: number | null;
-        protectorsAmount: number | null;
-        totalAmount: number | null;
-        status: string;
-        dueDate: Date;
-        createdAt: Date;
-        updatedAt: Date;
-      }>>`
-        SELECT * FROM "Invoice"
-        WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
-        ORDER BY "createdAt" DESC
-      `;
+      const [legalInvoices, physicalInvoices] = await Promise.all([
+        prisma.$queryRaw<Array<{
+          id: string;
+          invoiceNumber: string;
+          customerName: string;
+          customerEmail: string | null;
+          amount: number;
+          totalWeightKg: number | null;
+          protectorsAmount: number | null;
+          totalAmount: number | null;
+          status: string;
+          dueDate: Date;
+          createdAt: Date;
+          updatedAt: Date;
+        }>>`
+          SELECT * FROM "LegalInvoice"
+          WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
+          ORDER BY "createdAt" DESC
+        `,
+        prisma.$queryRaw<Array<{
+          id: string;
+          invoiceNumber: string;
+          customerName: string;
+          customerEmail: string | null;
+          amount: number;
+          totalWeightKg: number | null;
+          protectorsAmount: number | null;
+          totalAmount: number | null;
+          status: string;
+          dueDate: Date;
+          createdAt: Date;
+          updatedAt: Date;
+        }>>`
+          SELECT * FROM "PhysicalInvoice"
+          WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
+          ORDER BY "createdAt" DESC
+        `,
+      ]);
+      const invoices = [...legalInvoices, ...physicalInvoices];
 
       const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
       const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
@@ -208,19 +254,35 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const emailSends = await prisma.dailySheetEmailSend.findMany({
-      where: emailSendsWhere,
-      include: {
-        dailySheet: {
-          include: {
-            items: true,
+    const [legalEmailSends, physicalEmailSends] = await Promise.all([
+      prisma.legalDailySheetEmailSend.findMany({
+        where: emailSendsWhere,
+        include: {
+          dailySheet: {
+            include: {
+              items: true,
+            },
           },
         },
-      },
-      orderBy: {
-        sentAt: "desc",
-      },
-    });
+        orderBy: {
+          sentAt: "desc",
+        },
+      }),
+      prisma.physicalDailySheetEmailSend.findMany({
+        where: emailSendsWhere,
+        include: {
+          dailySheet: {
+            include: {
+              items: true,
+            },
+          },
+        },
+        orderBy: {
+          sentAt: "desc",
+        },
+      }),
+    ]);
+    const emailSends = [...legalEmailSends, ...physicalEmailSends];
 
     // Normalize hotel name function
     const normalizeHotel = (name: string | null) => {
@@ -490,18 +552,32 @@ export async function DELETE(request: NextRequest) {
       // Use case-insensitive search to match hotel names regardless of case/spacing
       const normalizedSearchName = normalizeHotel(hotelNameParam);
       
-      // Find all matching email sends with case-insensitive hotel name
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
-        where: {
-          hotelName: {
-            not: null,
+      // Find all matching email sends with case-insensitive hotel name (both legal and physical)
+      const [legalEmailSends, physicalEmailSends] = await Promise.all([
+        prisma.legalDailySheetEmailSend.findMany({
+          where: {
+            hotelName: {
+              not: null,
+            },
           },
-        },
-        select: {
-          id: true,
-          hotelName: true,
-        },
-      });
+          select: {
+            id: true,
+            hotelName: true,
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.findMany({
+          where: {
+            hotelName: {
+              not: null,
+            },
+          },
+          select: {
+            id: true,
+            hotelName: true,
+          },
+        }),
+      ]);
+      const allEmailSends = [...legalEmailSends, ...physicalEmailSends];
       
       // Find IDs of records that match after normalization
       matchingEmailSendIds = allEmailSends
@@ -522,21 +598,38 @@ export async function DELETE(request: NextRequest) {
         },
       };
 
-      // Also find matching sheets for updating
-      const allSheets = await prisma.dailySheet.findMany({
-        where: {
-          hotelName: {
-            not: null,
+      // Also find matching sheets for updating (both legal and physical)
+      const [legalSheets, physicalSheets] = await Promise.all([
+        prisma.legalDailySheet.findMany({
+          where: {
+            hotelName: {
+              not: null,
+            },
+            emailedAt: {
+              not: null,
+            },
           },
-          emailedAt: {
-            not: null,
+          select: {
+            id: true,
+            hotelName: true,
           },
-        },
-        select: {
-          id: true,
-          hotelName: true,
-        },
-      });
+        }),
+        prisma.physicalDailySheet.findMany({
+          where: {
+            hotelName: {
+              not: null,
+            },
+            emailedAt: {
+              not: null,
+            },
+          },
+          select: {
+            id: true,
+            hotelName: true,
+          },
+        }),
+      ]);
+      const allSheets = [...legalSheets, ...physicalSheets];
 
       matchingSheetIds = allSheets
         .filter((sheet) => normalizeHotel(sheet.hotelName) === normalizedSearchName)
@@ -602,10 +695,20 @@ export async function DELETE(request: NextRequest) {
       };
     }
 
-    const sheetUpdateResult = await prisma.dailySheet.updateMany({
-      where: sheetWhereClause,
-      data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
-    });
+    // Update both legal and physical daily sheets
+    const [legalSheetUpdateResult, physicalSheetUpdateResult] = await Promise.all([
+      prisma.legalDailySheet.updateMany({
+        where: sheetWhereClause,
+        data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
+      }),
+      prisma.physicalDailySheet.updateMany({
+        where: sheetWhereClause,
+        data: { emailedAt: null, emailedTo: null, emailSendCount: 0 },
+      }),
+    ]);
+    const sheetUpdateResult = {
+      count: legalSheetUpdateResult.count + physicalSheetUpdateResult.count,
+    };
 
     console.log("Delete invoices - Sheets updated:", sheetUpdateResult.count, "Where clause:", JSON.stringify(sheetWhereClause));
 
@@ -648,28 +751,47 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { invoiceNumber, customerName, customerEmail, amount, status, dueDate } = body;
 
-    // Check if invoice number already exists
-    const existing = await prisma.invoice.findUnique({
-      where: { invoiceNumber },
+    // Find hotel by customerName to determine type
+    const hotel = await prisma.hotel.findFirst({
+      where: {
+        hotelName: {
+          equals: customerName,
+          mode: 'insensitive',
+        },
+      },
+      select: { type: true },
     });
 
-    if (existing) {
+    // Check if invoice number already exists in both tables
+    const [existingLegal, existingPhysical] = await Promise.all([
+      prisma.legalInvoice.findUnique({
+        where: { invoiceNumber },
+      }),
+      prisma.physicalInvoice.findUnique({
+        where: { invoiceNumber },
+      }),
+    ]);
+
+    if (existingLegal || existingPhysical) {
       return NextResponse.json(
         { error: "ინვოისის ნომერი უკვე არსებობს" },
         { status: 400 }
       );
     }
 
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        customerName,
-        customerEmail: customerEmail || null,
-        amount,
-        status,
-        dueDate: new Date(dueDate),
-      },
-    });
+    // Create invoice in the appropriate table based on hotel type
+    const invoiceData = {
+      invoiceNumber,
+      customerName,
+      customerEmail: customerEmail || null,
+      amount,
+      status,
+      dueDate: new Date(dueDate),
+    };
+
+    const invoice = hotel?.type === 'LEGAL'
+      ? await prisma.legalInvoice.create({ data: invoiceData })
+      : await prisma.physicalInvoice.create({ data: invoiceData });
 
     return NextResponse.json(invoice, { status: 201 });
   } catch (error) {

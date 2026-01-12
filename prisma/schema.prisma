@@ -58,7 +58,8 @@ model User {
   accounts      Account[]
   sessions      Session[]
   hotels        Hotel[]
-  pickupDeliveryRequests PickupDeliveryRequest[]
+  legalPickupDeliveryRequests LegalPickupDeliveryRequest[]
+  physicalPickupDeliveryRequests PhysicalPickupDeliveryRequest[]
   physicalInvoicePayments PhysicalInvoicePayment[]
   legalInvoicePayments LegalInvoicePayment[]
 }
@@ -130,7 +131,8 @@ model Hotel {
   createdAt                DateTime   @default(now())
   updatedAt                DateTime   @updatedAt
 
-  pickupDeliveryRequests   PickupDeliveryRequest[]
+  legalPickupDeliveryRequests   LegalPickupDeliveryRequest[]
+  physicalPickupDeliveryRequests PhysicalPickupDeliveryRequest[]
 
   @@index([userId])
   @@index([email])
@@ -180,7 +182,7 @@ model EmployeeTableConfiguration {
   @@index([order])
 }
 
-model Invoice {
+model LegalInvoice {
   id              String        @id @default(cuid())
   invoiceNumber   String        @unique
   customerName    String
@@ -199,7 +201,26 @@ model Invoice {
   @@index([dueDate])
 }
 
-model DailySheet {
+model PhysicalInvoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  customerName    String
+  customerEmail   String?
+  amount          Float
+  totalWeightKg   Float?        @default(0)
+  protectorsAmount Float?       @default(0)
+  totalAmount     Float?        @default(0)
+  paidAmount     Float?        @default(0)
+  status          String        // PENDING, PAID, CANCELLED
+  dueDate         DateTime
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model LegalDailySheet {
   id              String        @id @default(cuid())
   date            DateTime      @db.Date
   hotelName       String?
@@ -218,8 +239,8 @@ model DailySheet {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  items           DailySheetItem[]
-  emailSends      DailySheetEmailSend[]
+  items           LegalDailySheetItem[]
+  emailSends      LegalDailySheetEmailSend[]
 
   @@index([date])
   @@index([hotelName])
@@ -227,10 +248,38 @@ model DailySheet {
   @@index([confirmedAt])
 }
 
-model DailySheetEmailSend {
+model PhysicalDailySheet {
+  id              String        @id @default(cuid())
+  date            DateTime      @db.Date
+  hotelName       String?
+  roomNumber      String?
+  description     String?
+  notes           String?
+  pricePerKg      Float?        // Price per kg from hotel
+  sheetType       String        @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
+  totalWeight     Float?        // Total weight for STANDARD type
+  totalPrice      Float?        // Total price for PROTECTORS (manual entry)
+  emailedAt       DateTime?
+  emailedTo       String?
+  emailSendCount  Int           @default(0)
+  confirmedBy     String?       // User ID who confirmed the sheet
+  confirmedAt     DateTime?     // When the sheet was confirmed
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items           PhysicalDailySheetItem[]
+  emailSends      PhysicalDailySheetEmailSend[]
+
+  @@index([date])
+  @@index([hotelName])
+  @@index([emailedAt])
+  @@index([confirmedAt])
+}
+
+model LegalDailySheetEmailSend {
   id             String     @id @default(cuid())
   dailySheetId   String
-  dailySheet     DailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  dailySheet     LegalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
   hotelName      String?
   date           DateTime   @db.Date
   sentTo         String
@@ -251,10 +300,57 @@ model DailySheetEmailSend {
   @@index([confirmedAt])
 }
 
-model DailySheetItem {
+model PhysicalDailySheetEmailSend {
+  id             String     @id @default(cuid())
+  dailySheetId   String
+  dailySheet     PhysicalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  hotelName      String?
+  date           DateTime   @db.Date
+  sentTo         String
+  subject        String?
+  sheetType      String?
+  pricePerKg     Float?
+  totalWeight    Float?
+  protectorsAmount Float?
+  totalAmount    Float?
+  payload        Json?
+  sentAt         DateTime   @default(now())
+  confirmedBy    String?    // User ID who confirmed the invoice
+  confirmedAt    DateTime?  // When the invoice was confirmed
+
+  @@index([dailySheetId])
+  @@index([date])
+  @@index([hotelName])
+  @@index([confirmedAt])
+}
+
+model LegalDailySheetItem {
   id              String        @id @default(cuid())
   dailySheetId    String
-  dailySheet      DailySheet    @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  dailySheet      LegalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  
+  category        String        // TOWELS, LINEN
+  itemNameKa      String        // Georgian name
+  weight          Float         // Weight in KG
+  received        Int           @default(0) // Received in pieces
+  washCount       Int           @default(0) // Wash count in pieces
+  dispatched      Int           @default(0) // Dispatched in pieces
+  shortage        Int           @default(0) // Shortage in pieces
+  totalWeight     Float         // Total weight in KG (same as weight)
+  price           Float?        // Price per item for PROTECTORS
+  comment         String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([dailySheetId])
+  @@index([category])
+}
+
+model PhysicalDailySheetItem {
+  id              String        @id @default(cuid())
+  dailySheetId    String
+  dailySheet      PhysicalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
   
   category        String        // TOWELS, LINEN
   itemNameKa      String        // Georgian name
@@ -391,7 +487,30 @@ model Blacklist {
   @@index([contactPhone])
 }
 
-model PickupDeliveryRequest {
+model LegalPickupDeliveryRequest {
+  id              String        @id @default(cuid())
+  hotelId         String
+  hotel           Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestType     String        // PICKUP, DELIVERY, BOTH
+  notes           String?
+  status          String        @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  requestedAt     DateTime      @default(now())
+  confirmedAt     DateTime?
+  completedAt     DateTime?
+  hiddenFromAdmin Boolean       @default(false)
+  hiddenFromManager Boolean     @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([hotelId])
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+model PhysicalPickupDeliveryRequest {
   id              String        @id @default(cuid())
   hotelId         String
   hotel           Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)

@@ -40,10 +40,28 @@ export async function PUT(
       );
     }
 
-    // Delete existing items and create new ones
-    await prisma.dailySheetItem.deleteMany({
-      where: { dailySheetId: id },
-    });
+    // Find which table the sheet belongs to
+    const [legalSheet, physicalSheet] = await Promise.all([
+      prisma.legalDailySheet.findUnique({ where: { id } }),
+      prisma.physicalDailySheet.findUnique({ where: { id } }),
+    ]);
+    
+    const isLegal = !!legalSheet;
+    
+    if (!legalSheet && !physicalSheet) {
+      return NextResponse.json({ error: "დღის ფურცელი ვერ მოიძებნა" }, { status: 404 });
+    }
+
+    // Delete existing items from the appropriate table
+    if (isLegal) {
+      await prisma.legalDailySheetItem.deleteMany({
+        where: { dailySheetId: id },
+      });
+    } else {
+      await prisma.physicalDailySheetItem.deleteMany({
+        where: { dailySheetId: id },
+      });
+    }
 
     // Format date properly to avoid timezone issues
     let dateObj: Date;
@@ -82,37 +100,47 @@ export async function PUT(
       finalPricePerKg = hotel?.pricePerKg ?? null;
     }
 
-    const sheet = await prisma.dailySheet.update({
-      where: { id },
-      data: {
-        date: dateObj,
-        hotelName: hotelName,
-        roomNumber: roomNumber || null,
-        description: description || null,
-        notes: notes || null,
-        pricePerKg: finalPricePerKg,
-        sheetType: sheetType || "INDIVIDUAL",
-        totalWeight: totalWeight ? parseFloat(totalWeight) : null,
-        totalPrice: totalPrice ? parseFloat(totalPrice) : null,
-        items: {
-          create: items?.map((item: any) => ({
-            category: item.category,
-            itemNameKa: item.itemNameKa,
-            weight: item.weight,
-            received: item.received || 0,
-            washCount: item.washCount || 0,
-            dispatched: item.dispatched || 0,
-            shortage: item.shortage || 0,
-            totalWeight: item.totalWeight || 0,
-            price: item.price !== undefined && item.price !== null ? (typeof item.price === 'number' ? item.price : Number(item.price) || null) : null,
-            comment: item.comment || null,
-          })) || [],
-        },
+    const updateData = {
+      date: dateObj,
+      hotelName: hotelName,
+      roomNumber: roomNumber || null,
+      description: description || null,
+      notes: notes || null,
+      pricePerKg: finalPricePerKg,
+      sheetType: sheetType || "INDIVIDUAL",
+      totalWeight: totalWeight ? parseFloat(totalWeight) : null,
+      totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+      items: {
+        create: items?.map((item: any) => ({
+          category: item.category,
+          itemNameKa: item.itemNameKa,
+          weight: item.weight,
+          received: item.received || 0,
+          washCount: item.washCount || 0,
+          dispatched: item.dispatched || 0,
+          shortage: item.shortage || 0,
+          totalWeight: item.totalWeight || 0,
+          price: item.price !== undefined && item.price !== null ? (typeof item.price === 'number' ? item.price : Number(item.price) || null) : null,
+          comment: item.comment || null,
+        })) || [],
       },
-      include: {
-        items: true,
-      },
-    });
+    };
+
+    const sheet = isLegal
+      ? await prisma.legalDailySheet.update({
+          where: { id },
+          data: updateData,
+          include: {
+            items: true,
+          },
+        })
+      : await prisma.physicalDailySheet.update({
+          where: { id },
+          data: updateData,
+          include: {
+            items: true,
+          },
+        });
 
     return NextResponse.json(sheet);
   } catch (error) {
@@ -152,9 +180,21 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.dailySheet.delete({
-      where: { id },
-    });
+    // Try to delete from both tables (one will succeed)
+    try {
+      await prisma.legalDailySheet.delete({
+        where: { id },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        // Not found in legal, try physical
+        await prisma.physicalDailySheet.delete({
+          where: { id },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     return NextResponse.json({ message: "დღის ფურცელი წაიშალა" });
   } catch (error) {

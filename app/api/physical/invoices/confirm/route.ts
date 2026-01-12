@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       const invoiceProtectors = parseFloat((invoice.protectorsAmount || 0).toFixed(2));
 
       // Get all email sends for this hotel
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
             not: null,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     // Priority 2: If emailSendIds are provided, use them directly
     else if (emailSendIds && Array.isArray(emailSendIds) && emailSendIds.length > 0) {
       // Use specific emailSend IDs - confirm only these exact ones
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
         where: {
           id: {
             in: emailSendIds,
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
       const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
 
       // Get all email sends for this hotel and month
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
             not: null,
@@ -190,13 +190,13 @@ export async function POST(request: NextRequest) {
     // If no matching emailSends found but invoiceId was provided, try to find any emailSends
     // that were sent around the same time (they might have been confirmed already when invoice was sent)
     if (matchingEmailSends.length === 0 && invoiceId) {
-      const invoice = await prisma.invoice.findUnique({
+      const invoice = await prisma.physicalInvoice.findUnique({
         where: { id: invoiceId },
       });
       
       if (invoice) {
         const invoiceDate = new Date(invoice.createdAt);
-        const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+        const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
           where: {
             hotelName: {
               not: null,
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const confirmedCount = await prisma.dailySheetEmailSend.updateMany({
+    const confirmedCount = await prisma.physicalDailySheetEmailSend.updateMany({
       where: {
         id: {
           in: emailSendIdsToConfirm,

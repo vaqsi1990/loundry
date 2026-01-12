@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Get all Invoice records and filter by normalized hotel name (case-insensitive)
-    const allInvoices = await prisma.invoice.findMany({
+    // Get all PhysicalInvoice records and filter by normalized hotel name (case-insensitive)
+    const allInvoices = await prisma.physicalInvoice.findMany({
       where: invoiceWhere,
       orderBy: {
         createdAt: "desc",
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+    const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
       where: emailSendWhere,
       include: {
         dailySheet: {
@@ -423,7 +423,7 @@ export async function PUT(request: NextRequest) {
       const normalizedHotelName = normalizeHotel(hotel.hotelName);
 
       // Get all daily sheets for this hotel and month
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
             not: null,
@@ -472,7 +472,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Confirm all email sends for this month (only those that are not already confirmed)
-      const confirmedCount = await prisma.dailySheetEmailSend.updateMany({
+      const confirmedCount = await prisma.physicalDailySheetEmailSend.updateMany({
         where: {
           id: {
             in: emailSendIds,
@@ -513,7 +513,7 @@ export async function PUT(request: NextRequest) {
     const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
     const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
 
-    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+    const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
       where: {
         hotelName: {
           not: null,

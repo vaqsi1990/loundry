@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Priority 1: If invoiceId is provided, find Invoice record and match emailSends
     if (invoiceId) {
-      const invoice = await prisma.invoice.findUnique({
+      const invoice = await prisma.legalInvoice.findUnique({
         where: { id: invoiceId },
       });
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       const invoiceProtectors = parseFloat((invoice.protectorsAmount || 0).toFixed(2));
 
       // Get all email sends for this hotel
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.legalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
             not: null,
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     // Priority 2: If emailSendIds are provided, use them directly
     else if (emailSendIds && Array.isArray(emailSendIds) && emailSendIds.length > 0) {
       // Use specific emailSend IDs - confirm only these exact ones
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.legalDailySheetEmailSend.findMany({
         where: {
           id: {
             in: emailSendIds,
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
       const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
 
       // Get all email sends for this hotel and month
-      const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+      const allEmailSends = await prisma.legalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
             not: null,
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const confirmedCount = await prisma.dailySheetEmailSend.updateMany({
+    const confirmedCount = await prisma.legalDailySheetEmailSend.updateMany({
       where: {
         id: {
           in: emailSendIdsToConfirm,

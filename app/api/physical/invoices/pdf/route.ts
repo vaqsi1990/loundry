@@ -405,7 +405,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const allEmailSends = await prisma.dailySheetEmailSend.findMany({
+    const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
       where: {
         hotelName: {
           not: null,
@@ -454,8 +454,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate invoice number
-    const lastInvoice = await prisma.invoice.findFirst({
+    // Generate invoice number from physical invoices
+    const lastInvoice = await prisma.physicalInvoice.findFirst({
       orderBy: {
         createdAt: "desc",
       },

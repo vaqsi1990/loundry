@@ -77,21 +77,38 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.invoice.findMany({
-            where: {
-              createdAt: {
-                gte: startOfMonth,
-                lte: endOfMonth,
+          Promise.all([
+            prisma.legalInvoice.findMany({
+              where: {
+                createdAt: {
+                  gte: startOfMonth,
+                  lte: endOfMonth,
+                },
+                paidAmount: {
+                  not: null,
+                  gt: 0,
+                },
               },
-              paidAmount: {
-                not: null,
-                gt: 0,
+              select: {
+                paidAmount: true,
               },
-            },
-            select: {
-              paidAmount: true,
-            },
-          }),
+            }),
+            prisma.physicalInvoice.findMany({
+              where: {
+                createdAt: {
+                  gte: startOfMonth,
+                  lte: endOfMonth,
+                },
+                paidAmount: {
+                  not: null,
+                  gt: 0,
+                },
+              },
+              select: {
+                paidAmount: true,
+              },
+            }),
+          ]).then(([legal, physical]) => [...legal, ...physical]),
         ]);
 
         const monthNames = [
@@ -140,21 +157,38 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          prisma.invoice.findMany({
-            where: {
-              createdAt: {
-                gte: startOfYear,
-                lte: endOfYear,
+          Promise.all([
+            prisma.legalInvoice.findMany({
+              where: {
+                createdAt: {
+                  gte: startOfYear,
+                  lte: endOfYear,
+                },
+                paidAmount: {
+                  not: null,
+                  gt: 0,
+                },
               },
-              paidAmount: {
-                not: null,
-                gt: 0,
+              select: {
+                paidAmount: true,
               },
-            },
-            select: {
-              paidAmount: true,
-            },
-          }),
+            }),
+            prisma.physicalInvoice.findMany({
+              where: {
+                createdAt: {
+                  gte: startOfYear,
+                  lte: endOfYear,
+                },
+                paidAmount: {
+                  not: null,
+                  gt: 0,
+                },
+              },
+              select: {
+                paidAmount: true,
+              },
+            }),
+          ]).then(([legal, physical]) => [...legal, ...physical]),
         ]);
 
         const totalRevenues = (revenues._sum.amount || 0) + 

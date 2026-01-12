@@ -39,10 +39,13 @@ export async function PUT(
 
     const { id } = await params;
 
-    // Check if request exists
-    const existingRequest = await (prisma as any).pickupDeliveryRequest.findUnique({
-      where: { id },
-    });
+    // Check if request exists in either table
+    const [legalRequest, physicalRequest] = await Promise.all([
+      prisma.legalPickupDeliveryRequest.findUnique({ where: { id } }),
+      prisma.physicalPickupDeliveryRequest.findUnique({ where: { id } }),
+    ]);
+
+    const existingRequest = legalRequest || physicalRequest;
 
     if (!existingRequest) {
       return NextResponse.json(
@@ -59,14 +62,22 @@ export async function PUT(
       );
     }
 
-    // Update status to CONFIRMED
-    const updatedRequest = await (prisma as any).pickupDeliveryRequest.update({
-      where: { id },
-      data: {
-        status: "CONFIRMED",
-        confirmedAt: new Date(),
-      },
-    });
+    // Update status to CONFIRMED in the appropriate table
+    const updatedRequest = legalRequest
+      ? await prisma.legalPickupDeliveryRequest.update({
+          where: { id },
+          data: {
+            status: "CONFIRMED",
+            confirmedAt: new Date(),
+          },
+        })
+      : await prisma.physicalPickupDeliveryRequest.update({
+          where: { id },
+          data: {
+            status: "CONFIRMED",
+            confirmedAt: new Date(),
+          },
+        });
 
     return NextResponse.json(
       { message: "მოთხოვნა წარმატებით დაადასტურა", request: updatedRequest },

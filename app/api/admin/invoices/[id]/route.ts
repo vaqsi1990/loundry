@@ -31,9 +31,13 @@ export async function GET(
 
     const { id } = await params;
 
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
-    });
+    // Try to find invoice in both tables
+    const [legalInvoice, physicalInvoice] = await Promise.all([
+      prisma.legalInvoice.findUnique({ where: { id } }),
+      prisma.physicalInvoice.findUnique({ where: { id } }),
+    ]);
+
+    const invoice = legalInvoice || physicalInvoice;
 
     if (!invoice) {
       return NextResponse.json({ error: "ინვოისი არ მოიძებნა" }, { status: 404 });
@@ -145,21 +149,25 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if invoice exists first
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
-    });
+    // Check if invoice exists in either table
+    const [legalInvoice, physicalInvoice] = await Promise.all([
+      prisma.legalInvoice.findUnique({ where: { id } }),
+      prisma.physicalInvoice.findUnique({ where: { id } }),
+    ]);
 
-    if (!invoice) {
+    if (!legalInvoice && !physicalInvoice) {
       return NextResponse.json(
         { error: "ინვოისი არ მოიძებნა" },
         { status: 404 }
       );
     }
 
-    await prisma.invoice.delete({
-      where: { id },
-    });
+    // Delete from the appropriate table
+    if (legalInvoice) {
+      await prisma.legalInvoice.delete({ where: { id } });
+    } else {
+      await prisma.physicalInvoice.delete({ where: { id } });
+    }
 
     return NextResponse.json({ message: "ინვოისი წაიშალა" });
   } catch (error) {

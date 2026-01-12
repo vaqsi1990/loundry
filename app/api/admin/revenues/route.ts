@@ -107,33 +107,64 @@ export async function GET(request: NextRequest) {
       ...invoiceDateFilter,
     };
 
-    // Debug: Check total invoices
-    const totalInvoices = await prisma.invoice.count();
-    const totalInvoicesInRange = await prisma.invoice.count({
-      where: invoiceWhere,
-    });
+    // Debug: Check total invoices from both tables
+    const [totalLegalInvoices, totalPhysicalInvoices] = await Promise.all([
+      prisma.legalInvoice.count(),
+      prisma.physicalInvoice.count(),
+    ]);
+    const totalInvoices = totalLegalInvoices + totalPhysicalInvoices;
+    
+    const [legalInvoicesInRange, physicalInvoicesInRange] = await Promise.all([
+      prisma.legalInvoice.count({ where: invoiceWhere }),
+      prisma.physicalInvoice.count({ where: invoiceWhere }),
+    ]);
+    const totalInvoicesInRange = legalInvoicesInRange + physicalInvoicesInRange;
+    
     console.log("Revenues API - Total invoices:", totalInvoices, "Total in date range:", totalInvoicesInRange);
 
-    const allInvoices = await prisma.invoice.findMany({
-      where: invoiceWhere,
-      orderBy: {
-        createdAt: "desc", // Order by newest first
-      },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        customerName: true,
-        totalAmount: true,
-        amount: true,
-        totalWeightKg: true,
-        protectorsAmount: true,
-        paidAmount: true,
-        status: true,
-        createdAt: true,
-        dueDate: true,
-        customerEmail: true, // Include for debugging
-      },
-    });
+    const [legalInvoices, physicalInvoices] = await Promise.all([
+      prisma.legalInvoice.findMany({
+        where: invoiceWhere,
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          customerName: true,
+          totalAmount: true,
+          amount: true,
+          totalWeightKg: true,
+          protectorsAmount: true,
+          paidAmount: true,
+          status: true,
+          createdAt: true,
+          dueDate: true,
+          customerEmail: true,
+        },
+      }),
+      prisma.physicalInvoice.findMany({
+        where: invoiceWhere,
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          customerName: true,
+          totalAmount: true,
+          amount: true,
+          totalWeightKg: true,
+          protectorsAmount: true,
+          paidAmount: true,
+          status: true,
+          createdAt: true,
+          dueDate: true,
+          customerEmail: true,
+        },
+      }),
+    ]);
+    const allInvoices = [...legalInvoices, ...physicalInvoices];
 
     // Show each invoice separately - no deduplication
     // Each invoice is unique by its ID, even if it has the same customerName, amount, weight, and protectors

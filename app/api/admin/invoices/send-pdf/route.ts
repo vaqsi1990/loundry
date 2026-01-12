@@ -460,41 +460,81 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "ინვოისის ID-ები არ მოიძებნა" }, { status: 400 });
       }
       
-      emailSends = await prisma.dailySheetEmailSend.findMany({
-        where: {
-          id: {
-            in: emailSendIds,
+      // Query from both legal and physical tables
+      const [legalEmailSends, physicalEmailSends] = await Promise.all([
+        prisma.legalDailySheetEmailSend.findMany({
+          where: {
+            id: {
+              in: emailSendIds,
+            },
+            hotelName: hotelName,
           },
-          hotelName: hotelName,
-        },
-        include: {
-          dailySheet: {
-            include: {
-              items: true,
+          include: {
+            dailySheet: {
+              include: {
+                items: true,
+              },
             },
           },
-        },
-        orderBy: {
-          date: "asc",
-        },
-      });
+          orderBy: {
+            date: "asc",
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.findMany({
+          where: {
+            id: {
+              in: emailSendIds,
+            },
+            hotelName: hotelName,
+          },
+          include: {
+            dailySheet: {
+              include: {
+                items: true,
+              },
+            },
+          },
+          orderBy: {
+            date: "asc",
+          },
+        }),
+      ]);
+      emailSends = [...legalEmailSends, ...physicalEmailSends];
     } else {
-      // Get all emailSends for this hotel (legacy behavior)
-      emailSends = await prisma.dailySheetEmailSend.findMany({
-        where: {
-          hotelName: hotelName,
-        },
-        include: {
-          dailySheet: {
-            include: {
-              items: true,
+      // Get all emailSends for this hotel from both legal and physical tables
+      const [legalEmailSends, physicalEmailSends] = await Promise.all([
+        prisma.legalDailySheetEmailSend.findMany({
+          where: {
+            hotelName: hotelName,
+          },
+          include: {
+            dailySheet: {
+              include: {
+                items: true,
+              },
             },
           },
-        },
-        orderBy: {
-          date: "asc",
-        },
-      });
+          orderBy: {
+            date: "asc",
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.findMany({
+          where: {
+            hotelName: hotelName,
+          },
+          include: {
+            dailySheet: {
+              include: {
+                items: true,
+              },
+            },
+          },
+          orderBy: {
+            date: "asc",
+          },
+        }),
+      ]);
+      emailSends = [...legalEmailSends, ...physicalEmailSends];
     }
 
     if (emailSends.length === 0) {

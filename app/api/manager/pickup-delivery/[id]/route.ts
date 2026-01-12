@@ -39,12 +39,13 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if request exists
-    const existingRequest = await (prisma as any).pickupDeliveryRequest.findUnique({
-      where: { id },
-    });
+    // Check if request exists in either table
+    const [legalRequest, physicalRequest] = await Promise.all([
+      prisma.legalPickupDeliveryRequest.findUnique({ where: { id } }),
+      prisma.physicalPickupDeliveryRequest.findUnique({ where: { id } }),
+    ]);
 
-    if (!existingRequest) {
+    if (!legalRequest && !physicalRequest) {
       return NextResponse.json(
         { error: "მოთხოვნა არ მოიძებნა" },
         { status: 404 }
@@ -52,10 +53,17 @@ export async function DELETE(
     }
 
     // Mark as hidden from manager (soft delete - hotel can still see it)
-    await (prisma as any).pickupDeliveryRequest.update({
-      where: { id },
-      data: { hiddenFromManager: true },
-    });
+    if (legalRequest) {
+      await prisma.legalPickupDeliveryRequest.update({
+        where: { id },
+        data: { hiddenFromManager: true },
+      });
+    } else {
+      await prisma.physicalPickupDeliveryRequest.update({
+        where: { id },
+        data: { hiddenFromManager: true },
+      });
+    }
 
     return NextResponse.json(
       { message: "მოთხოვნა წარმატებით წაიშალა (მხოლოდ მენეჯერის ხედვიდან)" },

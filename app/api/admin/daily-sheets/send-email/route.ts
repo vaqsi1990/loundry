@@ -264,10 +264,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "sheetId სავალდებულოა" }, { status: 400 });
     }
 
-    const sheet = await prisma.dailySheet.findUnique({
-      where: { id: sheetId },
-      include: { items: true },
-    });
+    // Try to find sheet in both legal and physical tables
+    const [legalSheet, physicalSheet] = await Promise.all([
+      prisma.legalDailySheet.findUnique({
+        where: { id: sheetId },
+        include: { items: true },
+      }),
+      prisma.physicalDailySheet.findUnique({
+        where: { id: sheetId },
+        include: { items: true },
+      }),
+    ]);
+    
+    const sheet = legalSheet || physicalSheet;
+    const isLegal = !!legalSheet;
 
     if (!sheet) {
       return NextResponse.json({ error: "ფურცელი ვერ მოიძებნა" }, { status: 404 });
@@ -369,41 +379,76 @@ export async function POST(req: NextRequest) {
         : [],
     });
 
-    // Mark sheet as emailed
-    await prisma.$transaction([
-      prisma.dailySheet.update({
-        where: { id: sheetId },
-        data: {
-          emailedAt: new Date(),
-          emailedTo: recipientEmail,
-          emailSendCount: { increment: 1 },
-        },
-      }),
-     
-      prisma.dailySheetEmailSend.create({
-        data: {
-          dailySheetId: sheet.id,
-          hotelName: sheet.hotelName,
-          date: sheet.date,
-          sentTo: recipientEmail,
-          subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
-          sheetType: sheet.sheetType,
-          pricePerKg: sheet.pricePerKg,
-          totalWeight: sheet.totalWeight ?? totalsForSend.totalWeight ?? null,
-          protectorsAmount: protectorsTotal,
-          totalAmount: totalPrice,
-          payload: {
-            sheet,
-            totals: totalsForSend,
-            weightForPrice,
-            linenTowelsPrice,
-            protectorsTotal,
-            totalPrice,
-            companyName,
+    // Mark sheet as emailed and create email send record in the appropriate table
+    if (isLegal) {
+      await prisma.$transaction([
+        prisma.legalDailySheet.update({
+          where: { id: sheetId },
+          data: {
+            emailedAt: new Date(),
+            emailedTo: recipientEmail,
+            emailSendCount: { increment: 1 },
           },
-        },
-      }),
-    ]);
+        }),
+        prisma.legalDailySheetEmailSend.create({
+          data: {
+            dailySheetId: sheet.id,
+            hotelName: sheet.hotelName,
+            date: sheet.date,
+            sentTo: recipientEmail,
+            subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+            sheetType: sheet.sheetType,
+            pricePerKg: sheet.pricePerKg,
+            totalWeight: sheet.totalWeight ?? totalsForSend.totalWeight ?? null,
+            protectorsAmount: protectorsTotal,
+            totalAmount: totalPrice,
+            payload: {
+              sheet,
+              totals: totalsForSend,
+              weightForPrice,
+              linenTowelsPrice,
+              protectorsTotal,
+              totalPrice,
+              companyName,
+            },
+          },
+        }),
+      ]);
+    } else {
+      await prisma.$transaction([
+        prisma.physicalDailySheet.update({
+          where: { id: sheetId },
+          data: {
+            emailedAt: new Date(),
+            emailedTo: recipientEmail,
+            emailSendCount: { increment: 1 },
+          },
+        }),
+        prisma.physicalDailySheetEmailSend.create({
+          data: {
+            dailySheetId: sheet.id,
+            hotelName: sheet.hotelName,
+            date: sheet.date,
+            sentTo: recipientEmail,
+            subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+            sheetType: sheet.sheetType,
+            pricePerKg: sheet.pricePerKg,
+            totalWeight: sheet.totalWeight ?? totalsForSend.totalWeight ?? null,
+            protectorsAmount: protectorsTotal,
+            totalAmount: totalPrice,
+            payload: {
+              sheet,
+              totals: totalsForSend,
+              weightForPrice,
+              linenTowelsPrice,
+              protectorsTotal,
+              totalPrice,
+              companyName,
+            },
+          },
+        }),
+      ]);
+    }
 
     return NextResponse.json({ message: "გაგზავნილია" });
   } catch (error) {
