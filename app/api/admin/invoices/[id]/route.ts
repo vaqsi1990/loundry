@@ -106,10 +106,29 @@ export async function PATCH(
       updateData.paidAmount = paid;
     }
 
-    const invoice = await prisma.invoice.update({
-      where: { id },
-      data: updateData,
-    });
+    // Check which table the invoice belongs to
+    const [legalInvoice, physicalInvoice] = await Promise.all([
+      prisma.legalInvoice.findUnique({ where: { id } }),
+      prisma.physicalInvoice.findUnique({ where: { id } }),
+    ]);
+
+    if (!legalInvoice && !physicalInvoice) {
+      return NextResponse.json(
+        { error: "ინვოისი არ მოიძებნა" },
+        { status: 404 }
+      );
+    }
+
+    // Update in the appropriate table
+    const invoice = legalInvoice
+      ? await prisma.legalInvoice.update({
+          where: { id },
+          data: updateData,
+        })
+      : await prisma.physicalInvoice.update({
+          where: { id },
+          data: updateData,
+        });
 
     return NextResponse.json(invoice);
   } catch (error) {
