@@ -163,19 +163,59 @@ export default function PhysicalInvoicesPage() {
     let invoice: InvoiceMonth | undefined;
     
     if (uniqueKey) {
-      // uniqueKey could be invoiceId, emailSendId, or fallback string
+      // uniqueKey format: `${month}-${invoiceId}` or `${month}-${emailSendId}` or `${month}-${amount}-${idx}`
+      // Extract the actual ID from uniqueKey (remove month prefix)
+      const parts = uniqueKey.split('-');
+      const actualKey = parts.length > 1 ? parts.slice(1).join('-') : uniqueKey; // Handle cases with multiple dashes
+      
+      // First try to find by month (since uniqueKey includes month)
       invoice = invoices.find((inv) => {
-        return inv.invoices && inv.invoices.some((invDetail) => 
-          invDetail.invoiceId === uniqueKey || 
-          (invDetail.emailSendIds && invDetail.emailSendIds.includes(uniqueKey))
-        );
+        if (inv.month !== month) return false;
+        
+        // Check if any invoice detail matches
+        if (inv.invoices && inv.invoices.length > 0) {
+          return inv.invoices.some((invDetail) => {
+            // Check if invoiceId matches (without month prefix)
+            if (invDetail.invoiceId && invDetail.invoiceId === actualKey) {
+              return true;
+            }
+            // Check if any emailSendId matches (without month prefix)
+            if (invDetail.emailSendIds && Array.isArray(invDetail.emailSendIds)) {
+              return invDetail.emailSendIds.some(id => id === actualKey);
+            }
+            return false;
+          });
+        }
+        return false;
       });
-    } else {
-      // Fallback: find by month
+      
+      // If not found, try fallback matching (in case uniqueKey format changed)
+      if (!invoice) {
+        invoice = invoices.find((inv) => {
+          return inv.invoices && inv.invoices.some((invDetail) => 
+            invDetail.invoiceId === uniqueKey || 
+            invDetail.invoiceId === actualKey ||
+            (invDetail.emailSendIds && (
+              invDetail.emailSendIds.includes(uniqueKey) || 
+              invDetail.emailSendIds.includes(actualKey)
+            ))
+          );
+        });
+      }
+    }
+    
+    // Fallback: find by month if still not found
+    if (!invoice) {
       invoice = invoices.find((inv) => inv.month === month);
     }
     
     if (!invoice) {
+      console.error("Invoice not found. Debug:", {
+        month,
+        uniqueKey,
+        invoicesCount: invoices.length,
+        invoiceMonths: invoices.map(inv => inv.month),
+      });
       alert("ინვოისი ვერ მოიძებნა");
       return;
     }
@@ -188,7 +228,7 @@ export default function PhysicalInvoicesPage() {
     // Collect all invoiceIds and emailSendIds from all invoices in this invoice group
     const allInvoiceIds: string[] = [];
     const allEmailSendIds: string[] = [];
-    if (invoice.invoices) {
+    if (invoice.invoices && invoice.invoices.length > 0) {
       invoice.invoices.forEach((inv) => {
         if (inv.invoiceId) {
           allInvoiceIds.push(inv.invoiceId);
@@ -197,11 +237,21 @@ export default function PhysicalInvoicesPage() {
           allEmailSendIds.push(...inv.emailSendIds);
         }
       });
+    } else {
+      // If invoice.invoices is empty, try to find invoiceId from the month data
+      // This might happen if the invoice structure is different
+      console.warn("Invoice.invoices is empty or undefined. Invoice:", invoice);
     }
 
     // Prefer invoiceId if available, otherwise use emailSendIds
     if (allInvoiceIds.length === 0 && allEmailSendIds.length === 0) {
-      alert("ინვოისის ID-ები არ მოიძებნა");
+      console.error("No invoice IDs found. Invoice data:", {
+        month: invoice.month,
+        hasInvoices: !!invoice.invoices,
+        invoicesLength: invoice.invoices?.length || 0,
+        invoiceDetails: invoice.invoices,
+      });
+      alert("ინვოისის ID-ები არ მოიძებნა. გთხოვთ განაახლოთ გვერდი და სცადოთ კვლავ.");
       return;
     }
 

@@ -865,15 +865,17 @@ export async function POST(request: NextRequest) {
 
     console.log("Invoice email sent successfully to:", recipientEmail);
     
-    // After successful email send, confirm all emailSends that were included in the PDF
-    const emailSendIdsToConfirm = emailSends
-      .filter((es) => es.confirmedAt === null || es.confirmedAt === undefined)
-      .map((es) => es.id);
-    
-    if (emailSendIdsToConfirm.length > 0) {
-      // Update both legal and physical email sends
-      const [legalUpdateResult, physicalUpdateResult] = await Promise.all([
-        prisma.legalDailySheetEmailSend.updateMany({
+    // After successful email send, confirm emailSends that were included in the PDF
+    // NOTE: For PHYSICAL hotels, do NOT auto-confirm - physical user must confirm manually
+    // For LEGAL hotels, auto-confirm is allowed
+    if (hotel.type !== "PHYSICAL") {
+      const emailSendIdsToConfirm = emailSends
+        .filter((es) => es.confirmedAt === null || es.confirmedAt === undefined)
+        .map((es) => es.id);
+      
+      if (emailSendIdsToConfirm.length > 0) {
+        // Update only legal email sends (physical requires manual confirmation)
+        const legalUpdateResult = await prisma.legalDailySheetEmailSend.updateMany({
           where: {
             id: {
               in: emailSendIdsToConfirm,
@@ -884,22 +886,12 @@ export async function POST(request: NextRequest) {
             confirmedBy: session.user.id,
             confirmedAt: new Date(),
           },
-        }),
-        prisma.physicalDailySheetEmailSend.updateMany({
-          where: {
-            id: {
-              in: emailSendIdsToConfirm,
-            },
-            confirmedAt: null, // Only update email sends that are not already confirmed
-          },
-          data: {
-            confirmedBy: session.user.id,
-            confirmedAt: new Date(),
-          },
-        }),
-      ]);
-      const totalConfirmed = legalUpdateResult.count + physicalUpdateResult.count;
-      console.log(`Confirmed ${totalConfirmed} email sends after PDF send`);
+        });
+        console.log(`Confirmed ${legalUpdateResult.count} legal email sends after PDF send`);
+      }
+    } else {
+      // For PHYSICAL hotels, do not auto-confirm - user must confirm manually in /physical/invoices
+      console.log("Physical invoice sent - user must confirm manually in /physical/invoices");
     }
     
     return NextResponse.json({ message: "PDF ინვოისი წარმატებით გაიგზავნა" });
