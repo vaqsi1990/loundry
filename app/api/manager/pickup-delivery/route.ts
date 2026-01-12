@@ -38,10 +38,7 @@ export async function GET(request: NextRequest) {
     const [legalRequests, physicalRequests] = await Promise.all([
       prisma.legalPickupDeliveryRequest.findMany({
         where: {
-          OR: [
-            { hiddenFromManager: false },
-            { hiddenFromManager: null },
-          ],
+          hiddenFromManager: false,
         },
         include: {
           hotel: {
@@ -68,10 +65,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.physicalPickupDeliveryRequest.findMany({
         where: {
-          OR: [
-            { hiddenFromManager: false },
-            { hiddenFromManager: null },
-          ],
+          hiddenFromManager: false,
         },
         include: {
           hotel: {
