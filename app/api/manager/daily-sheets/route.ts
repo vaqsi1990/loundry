@@ -1,0 +1,341 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    try {
+      // Fetch from both legal and physical daily sheets
+      const [legalSheets, physicalSheets] = await Promise.all([
+        prisma.legalDailySheet.findMany({
+          include: {
+            items: {
+              orderBy: {
+                category: "asc",
+              },
+            },
+          },
+          orderBy: {
+            date: "desc",
+          },
+        }),
+        prisma.physicalDailySheet.findMany({
+          include: {
+            items: {
+              orderBy: {
+                category: "asc",
+              },
+            },
+          },
+          orderBy: {
+            date: "desc",
+          },
+        }),
+      ]);
+      const sheets = [...legalSheets, ...physicalSheets];
+
+      console.log("Fetched sheets count:", sheets.length);
+
+      // Get all unique confirmedBy user IDs
+      const confirmedByUserIds = [...new Set(sheets.map((s: any) => s.confirmedBy).filter(Boolean))];
+      
+      // Fetch user information for confirmedBy users
+      const confirmedByUsers = confirmedByUserIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: confirmedByUserIds } },
+            select: { id: true, name: true, email: true, role: true },
+          })
+        : [];
+
+      // Create a map for quick lookup
+      const userMap = new Map(confirmedByUsers.map((u: any) => [u.id, u]));
+
+      // Map sheets to include confirmedBy and confirmedAt with user info
+      const sheetsWithConfirmation = sheets.map((sheet: any) => {
+        const confirmedByUser = sheet.confirmedBy ? userMap.get(sheet.confirmedBy) : null;
+        return {
+          ...sheet,
+          confirmedBy: sheet.confirmedBy || null,
+          confirmedAt: sheet.confirmedAt || null,
+          confirmedByUser: confirmedByUser ? {
+            name: confirmedByUser.name,
+            email: confirmedByUser.email,
+            role: confirmedByUser.role,
+          } : null,
+        };
+      });
+
+      return NextResponse.json(sheetsWithConfirmation);
+    } catch (dbError: any) {
+      console.error("Database query error:", dbError);
+      console.error("Error code:", dbError?.code);
+      console.error("Error message:", dbError?.message);
+      throw dbError;
+    }
+  } catch (error) {
+    console.error("Daily sheets fetch error:", error);
+    const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
+    return NextResponse.json(
+      { error: `დღის ფურცლების ჩატვირთვისას მოხდა შეცდომა: ${errorMessage}` },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  let body: any = null;
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    body = await request.json();
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items } = body;
+
+    if (!date) {
+      return NextResponse.json(
+        { error: "თარიღი აუცილებელია" },
+        { status: 400 }
+      );
+    }
+
+    if (!hotelName) {
+      return NextResponse.json(
+        { error: "სასტუმროს სახელი აუცილებელია" },
+        { status: 400 }
+      );
+    }
+
+    // Validate and format date for Prisma (Date only, no time)
+    // Use UTC to avoid timezone issues - we want to store the exact date without time conversion
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      // Parse date string (YYYY-MM-DD format)
+      const dateStr = date.split('T')[0]; // Get only the date part
+      const dateParts = dateStr.split('-');
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed
+        const day = parseInt(dateParts[2], 10);
+        // Create date in UTC to avoid timezone conversion issues
+        dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0)); // Use noon UTC to avoid day shift
+      } else {
+        // Fallback: parse the date string
+        const parsed = new Date(date);
+        if (!isNaN(parsed.getTime())) {
+          // Extract date parts and create UTC date
+          const year = parsed.getUTCFullYear();
+          const month = parsed.getUTCMonth();
+          const day = parsed.getUTCDate();
+          dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+        } else {
+          dateObj = new Date(date);
+        }
+      }
+    } else if (date instanceof Date) {
+      // Extract date parts from existing Date object and create UTC date
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth();
+      const day = date.getUTCDate();
+      dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+    } else {
+      dateObj = new Date(date);
+    }
+    
+    if (isNaN(dateObj.getTime())) {
+      return NextResponse.json(
+        { error: "არასწორი თარიღის ფორმატი" },
+        { status: 400 }
+      );
+    }
+
+    // Validate items if provided
+    if (items && Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        if (!item.category) {
+          return NextResponse.json(
+            { error: "ყველა ნივთს უნდა ჰქონდეს კატეგორია" },
+            { status: 400 }
+          );
+        }
+        if (!item.itemNameKa) {
+          return NextResponse.json(
+            { error: "ყველა ნივთს უნდა ჰქონდეს სახელი" },
+            { status: 400 }
+          );
+        }
+        if (item.weight === undefined || item.weight === null) {
+          return NextResponse.json(
+            { error: "ყველა ნივთს უნდა ჰქონდეს წონა" },
+            { status: 400 }
+          );
+        }
+        if (item.totalWeight === undefined || item.totalWeight === null) {
+          return NextResponse.json(
+            { error: "ყველა ნივთს უნდა ჰქონდეს მთლიანი წონა" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Prepare data for Prisma - convert empty strings to null
+    // Ensure hotelName is not empty (it's required in validation but optional in schema)
+    const cleanHotelName = hotelName && String(hotelName).trim() ? String(hotelName).trim() : null;
+    
+    // Get pricePerKg from body if provided, otherwise from hotel
+    // Also determine hotel type to use correct model
+    let finalPricePerKg: number | null = null;
+    let hotelType: 'LEGAL' | 'PHYSICAL' | null = null;
+    if (pricePerKg !== undefined && pricePerKg !== null) {
+      finalPricePerKg = typeof pricePerKg === 'number' ? pricePerKg : parseFloat(pricePerKg);
+    }
+    if (cleanHotelName) {
+      const hotel = await prisma.hotel.findFirst({
+        where: { hotelName: cleanHotelName },
+        select: { pricePerKg: true, type: true },
+      });
+      finalPricePerKg = hotel?.pricePerKg ?? finalPricePerKg;
+      hotelType = hotel?.type ?? null;
+    }
+    
+    const prismaData = {
+      date: dateObj,
+      hotelName: cleanHotelName,
+      roomNumber: (roomNumber && String(roomNumber).trim()) ? String(roomNumber).trim() : null,
+      description: (description && String(description).trim()) ? String(description).trim() : null,
+      notes: (notes && String(notes).trim()) ? String(notes).trim() : null,
+      pricePerKg: finalPricePerKg,
+      sheetType: sheetType || "INDIVIDUAL",
+      totalWeight: totalWeight ? parseFloat(totalWeight) : null,
+      totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+      items: {
+        create: (items && Array.isArray(items) ? items : [])
+        .filter((item: any) => {
+          // Filter out invalid items
+          if (!item || !item.category || !item.itemNameKa) {
+            console.warn("Filtering out invalid item:", item);
+            return false;
+          }
+          return true;
+        })
+        .map((item: any) => {
+          // Ensure all required fields are present and valid
+          const weight = typeof item.weight === 'number' ? item.weight : (Number(item.weight) || 0);
+          const totalWeight = typeof item.totalWeight === 'number' ? item.totalWeight : (Number(item.totalWeight) || 0);
+          
+          if (isNaN(weight) || isNaN(totalWeight)) {
+            throw new Error(`Invalid numeric value for item ${item.itemNameKa}: weight=${item.weight}, totalWeight=${item.totalWeight}`);
+          }
+          
+          return {
+            category: String(item.category).trim(),
+            itemNameKa: String(item.itemNameKa).trim(),
+            weight: weight,
+            received: typeof item.received === 'number' ? item.received : (Number(item.received) || 0),
+            washCount: typeof item.washCount === 'number' ? item.washCount : (Number(item.washCount) || 0),
+            dispatched: typeof item.dispatched === 'number' ? item.dispatched : (Number(item.dispatched) || 0),
+            shortage: typeof item.shortage === 'number' ? item.shortage : (Number(item.shortage) || 0),
+            totalWeight: totalWeight,
+            price: item.price !== undefined && item.price !== null ? (typeof item.price === 'number' ? item.price : Number(item.price) || null) : null,
+            comment: (item.comment && String(item.comment).trim()) ? String(item.comment).trim() : null,
+          };
+        }),
+      },
+    };
+
+    // Try to create the sheet in the appropriate table based on hotel type
+    let sheet;
+    try {
+      if (hotelType === 'LEGAL') {
+        sheet = await prisma.legalDailySheet.create({
+          data: prismaData,
+          include: {
+            items: true,
+          },
+        });
+      } else if (hotelType === 'PHYSICAL') {
+        sheet = await prisma.physicalDailySheet.create({
+          data: prismaData,
+          include: {
+            items: true,
+          },
+        });
+      } else {
+        // Fallback: try to find hotel or default to physical
+        // This handles cases where hotel might not exist yet
+        sheet = await prisma.physicalDailySheet.create({
+          data: prismaData,
+          include: {
+            items: true,
+          },
+        });
+      }
+    } catch (createError: any) {
+      console.error("Prisma create error details:", createError);
+      throw createError;
+    }
+
+    return NextResponse.json(sheet, { status: 201 });
+  } catch (error) {
+    console.error("Daily sheet create error:", error);
+    console.error("Request body:", body);
+    
+    // Provide more specific error messages
+    if (error instanceof Error && 'code' in error) {
+      const prismaError = error as any;
+      if (prismaError.code === 'P2011') {
+        return NextResponse.json(
+          { error: "დაკარგულია სავალდებულო ველი. გთხოვთ შეამოწმოთ, რომ ყველა ველი შევსებულია." },
+          { status: 400 }
+        );
+      }
+    }
+    
+    return NextResponse.json(
+      { error: "დღის ფურცლის დამატებისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}

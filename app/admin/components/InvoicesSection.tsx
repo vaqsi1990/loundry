@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { getApiPath } from "@/lib/api-helper";
 
 interface Hotel {
   id: string;
@@ -46,12 +47,7 @@ export default function InvoicesSection() {
   const [pdfModal, setPdfModal] = useState<{ 
     open: boolean; 
     hotelName: string | null;
-    dateDetails?: Array<{
-      date: string;
-      totalAmount: number;
-      weightKg: number;
-      protectorsAmount: number;
-    }>;
+    dateDetails?: DateDetail[];
   }>({
     open: false,
     hotelName: null,
@@ -85,7 +81,8 @@ export default function InvoicesSection() {
 
   const fetchAvailableMonths = async () => {
     try {
-      const response = await fetch("/api/admin/invoices?months=true");
+      const apiPath = getApiPath("invoices");
+      const response = await fetch(`${apiPath}?months=true`);
       if (!response.ok) {
         throw new Error("თვეების ჩატვირთვა ვერ მოხერხდა");
       }
@@ -99,9 +96,10 @@ export default function InvoicesSection() {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
+      const apiPath = getApiPath("invoices");
       const url = selectedMonth 
-        ? `/api/admin/invoices?emailSendsMonth=${selectedMonth}`
-        : "/api/admin/invoices";
+        ? `${apiPath}?emailSendsMonth=${selectedMonth}`
+        : apiPath;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error("ინვოისების ჩატვირთვა ვერ მოხერხდა");
@@ -117,7 +115,8 @@ export default function InvoicesSection() {
 
   const fetchHotels = async () => {
     try {
-      const response = await fetch("/api/admin/our-hotels");
+      const apiPath = getApiPath("our-hotels");
+      const response = await fetch(apiPath);
       if (!response.ok) {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
       }
@@ -146,7 +145,8 @@ export default function InvoicesSection() {
       try {
         // Ensure date is in YYYY-MM-DD format
         const dateStr = date.includes("T") ? date.split("T")[0] : date;
-        const res = await fetch(`/api/admin/invoices?date=${dateStr}`, { method: "DELETE" });
+        const apiPath = getApiPath("invoices");
+        const res = await fetch(`${apiPath}?date=${dateStr}`, { method: "DELETE" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
         setSuccessMessage(`წაიშალა ${formatDate(date)}-ის ინვოისები`);
@@ -165,7 +165,8 @@ export default function InvoicesSection() {
       setError("");
       setSuccessMessage("");
       try {
-        const res = await fetch(`/api/admin/invoices`, {
+        const apiPath = getApiPath("invoices");
+        const res = await fetch(apiPath, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -209,7 +210,8 @@ export default function InvoicesSection() {
       setError("");
       setSuccessMessage("");
       try {
-        const res = await fetch(`/api/admin/invoices`, {
+        const apiPath = getApiPath("invoices");
+        const res = await fetch(apiPath, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -236,7 +238,8 @@ export default function InvoicesSection() {
       setError("");
       setSuccessMessage("");
       try {
-        const res = await fetch(`/api/admin/invoices?hotelName=${encodeURIComponent(hotelName)}`, { method: "DELETE" });
+        const apiPath = getApiPath("invoices");
+        const res = await fetch(`${apiPath}?hotelName=${encodeURIComponent(hotelName)}`, { method: "DELETE" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
         setSuccessMessage(`${formatHotel(hotelName)}-ის ინვოისები წაიშალა`);
@@ -256,7 +259,8 @@ export default function InvoicesSection() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/admin/invoices?all=true`, { method: "DELETE" });
+      const apiPath = getApiPath("invoices");
+      const res = await fetch(`${apiPath}?all=true`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
       await fetchInvoices();
@@ -337,12 +341,7 @@ export default function InvoicesSection() {
     return name.trim().replace(/\s+/g, " ").toLowerCase();
   };
 
-  const openPdfModal = (hotelName: string | null, dateDetails?: Array<{
-    date: string;
-    totalAmount: number;
-    weightKg: number;
-    protectorsAmount: number;
-  }>) => {
+  const openPdfModal = (hotelName: string | null, dateDetails?: DateDetail[]) => {
     setSuccessMessage("");
     setPdfModal({ open: true, hotelName, dateDetails });
     if (hotelName) {
@@ -384,13 +383,29 @@ export default function InvoicesSection() {
     setError("");
 
     try {
-      const response = await fetch("/api/admin/invoices/send-pdf", {
+      const apiPath = getApiPath("invoices", "send-pdf");
+      const requestBody: {
+        hotelName: string | null;
+        dateDetails?: DateDetail[];
+        email?: string | null;
+      } = {
+        hotelName: pdfModal.hotelName,
+        dateDetails: pdfModal.dateDetails, // Send specific invoices to include
+        email: modalEmail, // Include email if available
+      };
+      
+      console.log("Sending invoice request:", {
+        apiPath,
+        hotelName: requestBody.hotelName,
+        dateDetailsCount: requestBody.dateDetails?.length || 0,
+        emailSendIdsCount: requestBody.dateDetails?.flatMap((d: DateDetail) => d.emailSendIds || []).length || 0,
+        email: requestBody.email,
+      });
+      
+      const response = await fetch(apiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          hotelName: pdfModal.hotelName,
-          dateDetails: pdfModal.dateDetails, // Send specific invoices to include
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

@@ -1,0 +1,209 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items } = body;
+
+    if (!hotelName) {
+      return NextResponse.json(
+        { error: "სასტუმროს სახელი აუცილებელია" },
+        { status: 400 }
+      );
+    }
+
+    // Find which table the sheet belongs to
+    const [legalSheet, physicalSheet] = await Promise.all([
+      prisma.legalDailySheet.findUnique({ where: { id } }),
+      prisma.physicalDailySheet.findUnique({ where: { id } }),
+    ]);
+    
+    const isLegal = !!legalSheet;
+    
+    if (!legalSheet && !physicalSheet) {
+      return NextResponse.json({ error: "დღის ფურცელი ვერ მოიძებნა" }, { status: 404 });
+    }
+
+    // Delete existing items from the appropriate table
+    if (isLegal) {
+      await prisma.legalDailySheetItem.deleteMany({
+        where: { dailySheetId: id },
+      });
+    } else {
+      await prisma.physicalDailySheetItem.deleteMany({
+        where: { dailySheetId: id },
+      });
+    }
+
+    // Format date properly to avoid timezone issues
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      const dateStr = date.split('T')[0];
+      const dateParts = dateStr.split('-');
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1;
+        const day = parseInt(dateParts[2], 10);
+        dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+      } else {
+        const parsed = new Date(date);
+        const year = parsed.getUTCFullYear();
+        const month = parsed.getUTCMonth();
+        const day = parsed.getUTCDate();
+        dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+      }
+    } else {
+      const parsed = new Date(date);
+      const year = parsed.getUTCFullYear();
+      const month = parsed.getUTCMonth();
+      const day = parsed.getUTCDate();
+      dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+    }
+
+    // Get pricePerKg from body if provided, otherwise from hotel
+    let finalPricePerKg: number | null = null;
+    if (pricePerKg !== undefined && pricePerKg !== null) {
+      finalPricePerKg = typeof pricePerKg === 'number' ? pricePerKg : parseFloat(pricePerKg);
+    } else if (hotelName) {
+      const hotel = await prisma.hotel.findFirst({
+        where: { hotelName: hotelName },
+        select: { pricePerKg: true },
+      });
+      finalPricePerKg = hotel?.pricePerKg ?? null;
+    }
+
+    const updateData = {
+      date: dateObj,
+      hotelName: hotelName,
+      roomNumber: roomNumber || null,
+      description: description || null,
+      notes: notes || null,
+      pricePerKg: finalPricePerKg,
+      sheetType: sheetType || "INDIVIDUAL",
+      totalWeight: totalWeight ? parseFloat(totalWeight) : null,
+      totalPrice: totalPrice ? parseFloat(totalPrice) : null,
+      items: {
+        create: items?.map((item: any) => ({
+          category: item.category,
+          itemNameKa: item.itemNameKa,
+          weight: item.weight,
+          received: item.received || 0,
+          washCount: item.washCount || 0,
+          dispatched: item.dispatched || 0,
+          shortage: item.shortage || 0,
+          totalWeight: item.totalWeight || 0,
+          price: item.price !== undefined && item.price !== null ? (typeof item.price === 'number' ? item.price : Number(item.price) || null) : null,
+          comment: item.comment || null,
+        })) || [],
+      },
+    };
+
+    const sheet = isLegal
+      ? await prisma.legalDailySheet.update({
+          where: { id },
+          data: updateData,
+          include: {
+            items: true,
+          },
+        })
+      : await prisma.physicalDailySheet.update({
+          where: { id },
+          data: updateData,
+          include: {
+            items: true,
+          },
+        });
+
+    return NextResponse.json(sheet);
+  } catch (error) {
+    console.error("Daily sheet update error:", error);
+    return NextResponse.json(
+      { error: "დღის ფურცლის განახლებისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "არ არის ავტორიზებული" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+      return NextResponse.json(
+        { error: "დაუშვებელია" },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await params;
+
+    // Try to delete from both tables (one will succeed)
+    try {
+      await prisma.legalDailySheet.delete({
+        where: { id },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        // Not found in legal, try physical
+        await prisma.physicalDailySheet.delete({
+          where: { id },
+        });
+      } else {
+        throw error;
+      }
+    }
+
+    return NextResponse.json({ message: "დღის ფურცელი წაიშალა" });
+  } catch (error) {
+    console.error("Daily sheet delete error:", error);
+    return NextResponse.json(
+      { error: "დღის ფურცლის წაშლისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}

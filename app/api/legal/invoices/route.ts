@@ -143,9 +143,18 @@ export async function GET(request: NextRequest) {
       const candidateEmailSends = emailSends.filter((es) => {
         if (usedEmailSendIds.has(es.id)) return false; // Already assigned to another invoice
         
+        // Primary: Match by confirmedAt (if set)
         if (es.confirmedAt) {
           const confirmedDate = new Date(es.confirmedAt);
           const timeDiffMinutes = Math.abs((confirmedDate.getTime() - invoiceDate.getTime()) / (1000 * 60));
+          // Allow up to 10 minutes difference (in case of multiple invoices sent close together)
+          return timeDiffMinutes <= 10;
+        }
+        
+        // Secondary: Match by sentAt (when invoice was sent from admin)
+        if (es.sentAt) {
+          const sentDate = new Date(es.sentAt);
+          const timeDiffMinutes = Math.abs((sentDate.getTime() - invoiceDate.getTime()) / (1000 * 60));
           // Allow up to 10 minutes difference (in case of multiple invoices sent close together)
           return timeDiffMinutes <= 10;
         }
@@ -160,13 +169,18 @@ export async function GET(request: NextRequest) {
         return; // No matching emailSends for this invoice
       }
       
-      // Group candidate emailSends by confirmedAt timestamp (within 1 minute)
-      // This groups emailSends that were confirmed together (same invoice send)
+      // Group candidate emailSends by confirmedAt or sentAt timestamp (within 1 minute)
+      // This groups emailSends that were confirmed/sent together (same invoice send)
       const emailSendGroups = new Map<string, typeof candidateEmailSends>();
       
       candidateEmailSends.forEach((es) => {
-        if (!es.confirmedAt) {
-          // If no confirmedAt, create a group based on invoice date
+        // Use confirmedAt if available, otherwise use sentAt, otherwise fallback
+        const referenceDate = es.confirmedAt 
+          ? new Date(es.confirmedAt)
+          : (es.sentAt ? new Date(es.sentAt) : null);
+        
+        if (!referenceDate) {
+          // If no confirmedAt or sentAt, create a group based on invoice date
           const groupKey = `fallback-${invoice.id}`;
           if (!emailSendGroups.has(groupKey)) {
             emailSendGroups.set(groupKey, []);
@@ -175,9 +189,8 @@ export async function GET(request: NextRequest) {
           return;
         }
         
-        const confirmedDate = new Date(es.confirmedAt);
-        // Round to nearest minute to group emailSends confirmed at the same time
-        const roundedTime = new Date(confirmedDate);
+        // Round to nearest minute to group emailSends confirmed/sent at the same time
+        const roundedTime = new Date(referenceDate);
         roundedTime.setSeconds(0, 0);
         const groupKey = roundedTime.toISOString();
         
@@ -262,15 +275,18 @@ export async function GET(request: NextRequest) {
       emailSendIds.forEach((id) => sentEmailSendIds.add(id));
     });
     
-    // Also include emailSends that are confirmed but not yet matched to an invoice
+    // Also include emailSends that are confirmed or sent but not yet matched to an invoice
     // This handles cases where invoice exists but matching didn't work perfectly
     emailSends.forEach((es) => {
-      if (es.confirmedAt && !sentEmailSendIds.has(es.id)) {
+      const referenceDate = es.confirmedAt 
+        ? new Date(es.confirmedAt)
+        : (es.sentAt ? new Date(es.sentAt) : null);
+      
+      if (referenceDate && !sentEmailSendIds.has(es.id)) {
         // Check if there's an invoice created around the same time
-        const confirmedDate = new Date(es.confirmedAt);
         const matchingInvoice = invoices.find((inv) => {
           const invDate = new Date(inv.createdAt);
-          const dateDiff = Math.abs((confirmedDate.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
+          const dateDiff = Math.abs((referenceDate.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
           return dateDiff <= 1; // Within 1 day
         });
         
@@ -405,12 +421,92 @@ export async function GET(request: NextRequest) {
             }, 0);
             
             // Distribute paid amount proportionally based on actual emailSends total
-            const invoicePaid = invoice.paidAmount ?? 0;
+            const invoicePaid = Number(invoice.paidAmount ?? 0);
             if (invoiceEmailSendsTotal > 0) {
               paidAmount = (itemAmount / invoiceEmailSendsTotal) * invoicePaid;
+            } else {
+              // If total is 0, use invoice paid amount directly
+              paidAmount = invoicePaid;
             }
           }
           break;
+        }
+      }
+      
+      // Fallback: If invoice not found via mapping, try to find by date and hotel
+      // This handles cases where invoice exists but matching logic didn't connect them
+      if (!invoiceId) {
+        // Use confirmedAt if available, otherwise use sentAt or date
+        const referenceDate = emailSend.confirmedAt 
+          ? new Date(emailSend.confirmedAt)
+          : (emailSend.sentAt ? new Date(emailSend.sentAt) : new Date(emailSend.date));
+        
+        // Find invoice created around the same time (within 1 day)
+        const matchingInvoice = invoices.find(inv => {
+          const invDate = new Date(inv.createdAt);
+          const dateDiff = Math.abs((referenceDate.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
+          return dateDiff <= 1;
+        });
+        
+        if (matchingInvoice) {
+          invoiceId = matchingInvoice.id;
+          // Calculate total for all emailSends that might belong to this invoice
+          const invoiceEmailSends = emailSends.filter(es => {
+            const esReferenceDate = es.confirmedAt 
+              ? new Date(es.confirmedAt)
+              : (es.sentAt ? new Date(es.sentAt) : new Date(es.date));
+            const invDate = new Date(matchingInvoice.createdAt);
+            const dateDiff = Math.abs((esReferenceDate.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
+            return dateDiff <= 1;
+          });
+          
+          const invoiceEmailSendsTotal = invoiceEmailSends.reduce((sum, es) => {
+            const weight = es.totalWeight ?? 0;
+            const protectorsAmount = es.protectorsAmount ?? 0;
+            let esItemAmount = 0;
+            
+            if (weight > 0) {
+              const hasTablecloths = es.dailySheet?.items?.some(
+                (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+              ) || false;
+              
+              if (hasTablecloths) {
+                const tableclothsItems = es.dailySheet?.items?.filter(
+                  (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+                ) || [];
+                const regularItems = es.dailySheet?.items?.filter(
+                  (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
+                ) || [];
+                
+                const tableclothsWeight = tableclothsItems.reduce(
+                  (sum: number, item: any) => sum + (item.totalWeight || item.weight || 0), 
+                  0
+                );
+                const regularWeight = regularItems.reduce(
+                  (sum: number, item: any) => sum + (item.totalWeight || item.weight || 0), 
+                  0
+                );
+                
+                if (regularWeight > 0) {
+                  esItemAmount += regularWeight * pricePerKg;
+                }
+                if (tableclothsWeight > 0) {
+                  esItemAmount += tableclothsWeight * 3.00;
+                }
+              } else {
+                esItemAmount = weight * pricePerKg;
+              }
+            }
+            esItemAmount += protectorsAmount;
+            return sum + esItemAmount;
+          }, 0);
+          
+          const invoicePaid = Number(matchingInvoice.paidAmount ?? 0);
+          if (invoiceEmailSendsTotal > 0) {
+            paidAmount = (itemAmount / invoiceEmailSendsTotal) * invoicePaid;
+          } else {
+            paidAmount = invoicePaid;
+          }
         }
       }
       

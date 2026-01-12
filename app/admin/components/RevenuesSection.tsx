@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiPath } from "@/lib/api-helper";
 
 interface Revenue {
   id: string;
@@ -215,7 +216,8 @@ export default function RevenuesSection() {
     }
 
     try {
-      const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
+      const apiPath = getApiPath("invoices");
+      const response = await fetch(`${apiPath}/${invoiceId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -252,13 +254,55 @@ export default function RevenuesSection() {
     }
 
     try {
-      const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
+      const apiPath = getApiPath("invoices");
+      const response = await fetch(`${apiPath}/${invoiceId}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "წაშლა ვერ მოხერხდა");
+      }
+
+      await fetchRevenues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
+  const handleDeleteAllInvoices = async () => {
+    if (!confirm(`დარწმუნებული ხართ რომ გსურთ ყველა ინვოისის წაშლა? (სულ: ${sentInvoices.length})`)) {
+      return;
+    }
+
+    try {
+      setError(""); // Clear previous errors
+      
+      // Delete all invoices in parallel
+      const apiPath = getApiPath("invoices");
+      const deletePromises = sentInvoices.map(async (invoice) => {
+        try {
+          const response = await fetch(`${apiPath}/${invoice.id}`, {
+            method: "DELETE",
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            console.error(`Failed to delete invoice ${invoice.id}:`, data.error);
+            return { success: false, id: invoice.id, error: data.error };
+          }
+          return { success: true, id: invoice.id };
+        } catch (err) {
+          console.error(`Error deleting invoice ${invoice.id}:`, err);
+          return { success: false, id: invoice.id, error: err instanceof Error ? err.message : "უცნობი შეცდომა" };
+        }
+      });
+
+      const results = await Promise.all(deletePromises);
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      if (failed > 0) {
+        setError(`${successful} ინვოისი წაიშალა, ${failed} ინვოისის წაშლა ვერ მოხერხდა`);
       }
 
       await fetchRevenues();
@@ -302,7 +346,8 @@ export default function RevenuesSection() {
       // Use the specific invoice ID to update only this invoice
       // This ensures that even if multiple invoices have the same customerName,
       // only the specific invoice with this ID will be updated
-      const response = await fetch(`/api/admin/invoices/${invoiceId}`, {
+      const apiPath = getApiPath("invoices");
+      const response = await fetch(`${apiPath}/${invoiceId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -516,7 +561,15 @@ export default function RevenuesSection() {
       {/* Sent Invoices Section */}
       {sentInvoices.length > 0 ? (
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-black mb-4">გაგზავნილი ინვოისები</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-bold text-black">გაგზავნილი ინვოისები</h3>
+            <button
+              onClick={handleDeleteAllInvoices}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-[16px]"
+            >
+              წაშლა ყველას
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">

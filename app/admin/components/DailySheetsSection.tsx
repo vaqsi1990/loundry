@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { getApiPath } from "@/lib/api-helper";
 
 interface Hotel {
   id: string;
@@ -167,7 +168,8 @@ export default function DailySheetsSection() {
 
   const fetchHotels = async () => {
     try {
-      const response = await fetch("/api/admin/our-hotels");
+      const apiPath = getApiPath("our-hotels");
+      const response = await fetch(apiPath);
       if (!response.ok) {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
       }
@@ -211,7 +213,8 @@ export default function DailySheetsSection() {
     try {
       setLoading(true);
       setError("");
-      const response = await fetch("/api/admin/daily-sheets");
+      const apiPath = getApiPath("daily-sheets");
+      const response = await fetch(apiPath);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -326,7 +329,8 @@ export default function DailySheetsSection() {
     }
     setError("");
     try {
-      const res = await fetch("/api/admin/daily-sheets/send-email", {
+      const apiPath = getApiPath("daily-sheets", "send-email");
+      const res = await fetch(apiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sheetId: emailModal.sheetId }),
@@ -382,7 +386,8 @@ export default function DailySheetsSection() {
     }
 
     try {
-      const response = await fetch(`/api/admin/daily-sheets/${id}`, {
+      const apiPath = getApiPath("daily-sheets");
+      const response = await fetch(`${apiPath}/${id}`, {
         method: "DELETE",
       });
 

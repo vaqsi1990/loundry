@@ -414,7 +414,8 @@ export async function POST(request: NextRequest) {
       select: { role: true },
     });
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
 
@@ -759,7 +760,6 @@ export async function POST(request: NextRequest) {
             dueDate: dueDate,
           },
         });
-        invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
       } catch (error: any) {
         // If invoice number already exists, get next number
         if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
@@ -792,7 +792,6 @@ export async function POST(request: NextRequest) {
               dueDate: dueDate,
             },
           });
-          invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
         } else {
           console.error("Error creating PhysicalInvoice:", error);
           // Don't throw - continue even if PhysicalInvoice creation fails
@@ -867,41 +866,14 @@ export async function POST(request: NextRequest) {
 
     console.log("Invoice email sent successfully to:", recipientEmail);
     
-    // Update sentAt on all emailSends so they appear in legal/physical invoice pages
-    const sentAt = new Date();
-    const emailSendIds = emailSends.map(es => es.id);
-    
-    if (hotel.type === "PHYSICAL") {
-      // Update physical emailSends
-      await prisma.physicalDailySheetEmailSend.updateMany({
-        where: {
-          id: {
-            in: emailSendIds,
-          },
-        },
-        data: {
-          sentAt: sentAt,
-        },
-      });
-      console.log("Physical invoice sent - user must confirm manually in /physical/invoices");
-    } else if (hotel.type === "LEGAL") {
-      // Update legal emailSends
-      await prisma.legalDailySheetEmailSend.updateMany({
-        where: {
-          id: {
-            in: emailSendIds,
-          },
-        },
-        data: {
-          sentAt: sentAt,
-        },
-      });
-      console.log("Legal invoice sent - user must confirm manually in /legal/invoices");
-    }
-    
     // After successful email send, do NOT auto-confirm emailSends
     // Both PHYSICAL and LEGAL users must confirm invoices manually in their respective invoice pages
     // This ensures users have control over invoice confirmation
+    if (hotel.type === "PHYSICAL") {
+      console.log("Physical invoice sent - user must confirm manually in /physical/invoices");
+    } else if (hotel.type === "LEGAL") {
+      console.log("Legal invoice sent - user must confirm manually in /legal/invoices");
+    }
     
     return NextResponse.json({ message: "PDF ინვოისი წარმატებით გაიგზავნა" });
   } catch (error: any) {

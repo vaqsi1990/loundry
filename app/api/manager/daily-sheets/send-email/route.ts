@@ -253,7 +253,8 @@ export async function POST(req: NextRequest) {
       select: { role: true },
     });
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
 
@@ -456,4 +457,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "გაგზავნისას მოხდა შეცდომა" }, { status: 500 });
   }
 }
-
