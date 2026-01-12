@@ -35,12 +35,12 @@ enum EmployeeRole {
 }
 
 enum InventoryCategory {
-  KALMEBI        // კალმები
-  SKOCHI         // სკოჩი
-  PKHVNILI       // ფხვნილი
-  KLORI          // ქლორი
+  KALMEBI // კალმები
+  SKOCHI // სკოჩი
+  PKHVNILI // ფხვნილი
+  KLORI // ქლორი
   PERADI_STIKERI // ფერადი სტიკერი
-  TETRI_STIKERI  // თეთრი სტიკერი
+  TETRI_STIKERI // თეთრი სტიკერი
 }
 
 model User {
@@ -55,30 +55,30 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  hotels        Hotel[]
-  legalPickupDeliveryRequests LegalPickupDeliveryRequest[]
+  accounts                       Account[]
+  sessions                       Session[]
+  hotels                         Hotel[]
+  legalPickupDeliveryRequests    LegalPickupDeliveryRequest[]
   physicalPickupDeliveryRequests PhysicalPickupDeliveryRequest[]
-  physicalInvoicePayments PhysicalInvoicePayment[]
-  legalInvoicePayments LegalInvoicePayment[]
+  physicalInvoicePayments        PhysicalInvoicePayment[]
+  legalInvoicePayments           LegalInvoicePayment[]
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id     String @id @default(cuid())
+  userId String
 
   type              String
   provider          String
   providerAccountId String
 
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
+  refresh_token String? @db.Text
+  access_token  String? @db.Text
+  expires_at    Int?
+  token_type    String?
+  scope         String?
+  id_token      String? @db.Text
+  session_state String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -91,47 +91,47 @@ model Session {
   userId       String
   expires      DateTime
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
-  identifier   String
-  token        String   @unique
-  expires      DateTime
+  identifier String
+  token      String   @unique
+  expires    DateTime
 
   @@unique([identifier, token])
 }
 
 model Hotel {
-  id                       String     @id @default(cuid())
-  type                     HotelType
-  userId                   String?
-  user                     User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id     String    @id @default(cuid())
+  type   HotelType
+  userId String?
+  user   User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Common fields
-  hotelName                String
-  hotelRegistrationNumber  String
-  numberOfRooms            Int
-  email                    String
-  mobileNumber             String
-  pricePerKg               Float      @default(0)
-  companyName              String?
-  address                  String?
+  hotelName               String
+  hotelRegistrationNumber String
+  numberOfRooms           Int
+  email                   String
+  mobileNumber            String
+  pricePerKg              Float   @default(0)
+  companyName             String?
+  address                 String?
 
   // Physical person
-  firstName                String?
-  lastName                 String?
-  personalId               String?
+  firstName  String?
+  lastName   String?
+  personalId String?
 
   // Legal entity
-  legalEntityName          String?
-  identificationCode       String?
-  responsiblePersonName    String?
+  legalEntityName       String?
+  identificationCode    String?
+  responsiblePersonName String?
 
-  createdAt                DateTime   @default(now())
-  updatedAt                DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  legalPickupDeliveryRequests   LegalPickupDeliveryRequest[]
+  legalPickupDeliveryRequests    LegalPickupDeliveryRequest[]
   physicalPickupDeliveryRequests PhysicalPickupDeliveryRequest[]
 
   @@index([userId])
@@ -139,31 +139,31 @@ model Hotel {
 }
 
 model Employee {
-  id              String        @id @default(cuid())
-  name            String
-  email           String?       @unique
-  personalId      String?       // პირადობის ნომერი
-  phone           String
-  position        EmployeeRole
-  contractFile    String?       // File path for contract
-  canLogin        Boolean       @default(false) // Only MANAGER, MANAGER_ASSISTANT, COURIER can login
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id           String       @id @default(cuid())
+  name         String
+  email        String?      @unique
+  personalId   String? // პირადობის ნომერი
+  phone        String
+  position     EmployeeRole
+  contractFile String? // File path for contract
+  canLogin     Boolean      @default(false) // Only MANAGER, MANAGER_ASSISTANT, COURIER can login
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  timeEntries     EmployeeTimeEntry[]
-  tableConfigs    EmployeeTableConfiguration[]
+  timeEntries  EmployeeTimeEntry[]
+  tableConfigs EmployeeTableConfiguration[]
 }
 
 model EmployeeTimeEntry {
-  id              String        @id @default(cuid())
-  employeeId      String
-  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  date            DateTime      @db.Date
-  arrivalTime     String?       // მოსვლის საათი (format: HH:mm)
-  departureTime   String?       // გამოსვლის საათი (format: HH:mm)
-  dailySalary     Float?        // დღეში დარიცხული ხელფასი
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id            String   @id @default(cuid())
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+  arrivalTime   String? // მოსვლის საათი (format: HH:mm)
+  departureTime String? // გამოსვლის საათი (format: HH:mm)
+  dailySalary   Float? // დღეში დარიცხული ხელფასი
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([employeeId, date])
   @@index([employeeId])
@@ -171,76 +171,95 @@ model EmployeeTimeEntry {
 }
 
 model EmployeeTableConfiguration {
-  id              String        @id @default(cuid())
-  employeeId      String
-  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  order           Int           @default(0) // რიგითობა ტაბელში
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  order      Int      @default(0) // რიგითობა ტაბელში
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([employeeId])
   @@index([order])
 }
 
 model LegalInvoice {
-  id              String        @id @default(cuid())
-  invoiceNumber   String        @unique
-  customerName    String
-  customerEmail   String?
-  amount          Float
-  totalWeightKg   Float?        @default(0)
-  protectorsAmount Float?       @default(0)
-  totalAmount     Float?        @default(0)
-  paidAmount     Float?        @default(0)
-  status          String        // PENDING, PAID, CANCELLED
-  dueDate         DateTime
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id               String   @id @default(cuid())
+  invoiceNumber    String   @unique
+  customerName     String
+  customerEmail    String?
+  amount           Float
+  totalWeightKg    Float?   @default(0)
+  protectorsAmount Float?   @default(0)
+  totalAmount      Float?   @default(0)
+  paidAmount       Float?   @default(0)
+  status           String // PENDING, PAID, CANCELLED
+  dueDate          DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([status])
   @@index([dueDate])
 }
 
 model PhysicalInvoice {
-  id              String        @id @default(cuid())
-  invoiceNumber   String        @unique
-  customerName    String
-  customerEmail   String?
-  amount          Float
-  totalWeightKg   Float?        @default(0)
-  protectorsAmount Float?       @default(0)
-  totalAmount     Float?        @default(0)
-  paidAmount     Float?        @default(0)
-  status          String        // PENDING, PAID, CANCELLED
-  dueDate         DateTime
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id               String   @id @default(cuid())
+  invoiceNumber    String   @unique
+  customerName     String
+  customerEmail    String?
+  amount           Float
+  totalWeightKg    Float?   @default(0)
+  protectorsAmount Float?   @default(0)
+  totalAmount      Float?   @default(0)
+  paidAmount       Float?   @default(0)
+  status           String // PENDING, PAID, CANCELLED
+  dueDate          DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model AdminInvoice {
+  id               String   @id @default(cuid())
+  invoiceNumber    String   @unique
+  customerName     String
+  customerEmail    String?
+  amount           Float
+  totalWeightKg    Float?   @default(0)
+  protectorsAmount Float?   @default(0)
+  totalAmount      Float?   @default(0)
+  paidAmount       Float?   @default(0)
+  status           String // PENDING, PAID, CANCELLED
+  dueDate          DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([status])
   @@index([dueDate])
 }
 
 model LegalDailySheet {
-  id              String        @id @default(cuid())
-  date            DateTime      @db.Date
-  hotelName       String?
-  roomNumber      String?
-  description     String?
-  notes           String?
-  pricePerKg      Float?        // Price per kg from hotel
-  sheetType       String        @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
-  totalWeight     Float?        // Total weight for STANDARD type
-  totalPrice      Float?        // Total price for PROTECTORS (manual entry)
-  emailedAt       DateTime?
-  emailedTo       String?
-  emailSendCount  Int           @default(0)
-  confirmedBy     String?       // User ID who confirmed the sheet
-  confirmedAt     DateTime?     // When the sheet was confirmed
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String    @id @default(cuid())
+  date           DateTime  @db.Date
+  hotelName      String?
+  roomNumber     String?
+  description    String?
+  notes          String?
+  pricePerKg     Float? // Price per kg from hotel
+  sheetType      String    @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
+  totalWeight    Float? // Total weight for STANDARD type
+  totalPrice     Float? // Total price for PROTECTORS (manual entry)
+  emailedAt      DateTime?
+  emailedTo      String?
+  emailSendCount Int       @default(0)
+  confirmedBy    String? // User ID who confirmed the sheet
+  confirmedAt    DateTime? // When the sheet was confirmed
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  items           LegalDailySheetItem[]
-  emailSends      LegalDailySheetEmailSend[]
+  items      LegalDailySheetItem[]
+  emailSends LegalDailySheetEmailSend[]
 
   @@index([date])
   @@index([hotelName])
@@ -249,26 +268,26 @@ model LegalDailySheet {
 }
 
 model PhysicalDailySheet {
-  id              String        @id @default(cuid())
-  date            DateTime      @db.Date
-  hotelName       String?
-  roomNumber      String?
-  description     String?
-  notes           String?
-  pricePerKg      Float?        // Price per kg from hotel
-  sheetType       String        @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
-  totalWeight     Float?        // Total weight for STANDARD type
-  totalPrice      Float?        // Total price for PROTECTORS (manual entry)
-  emailedAt       DateTime?
-  emailedTo       String?
-  emailSendCount  Int           @default(0)
-  confirmedBy     String?       // User ID who confirmed the sheet
-  confirmedAt     DateTime?     // When the sheet was confirmed
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String    @id @default(cuid())
+  date           DateTime  @db.Date
+  hotelName      String?
+  roomNumber     String?
+  description    String?
+  notes          String?
+  pricePerKg     Float? // Price per kg from hotel
+  sheetType      String    @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
+  totalWeight    Float? // Total weight for STANDARD type
+  totalPrice     Float? // Total price for PROTECTORS (manual entry)
+  emailedAt      DateTime?
+  emailedTo      String?
+  emailSendCount Int       @default(0)
+  confirmedBy    String? // User ID who confirmed the sheet
+  confirmedAt    DateTime? // When the sheet was confirmed
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  items           PhysicalDailySheetItem[]
-  emailSends      PhysicalDailySheetEmailSend[]
+  items      PhysicalDailySheetItem[]
+  emailSends PhysicalDailySheetEmailSend[]
 
   @@index([date])
   @@index([hotelName])
@@ -277,22 +296,22 @@ model PhysicalDailySheet {
 }
 
 model LegalDailySheetEmailSend {
-  id             String     @id @default(cuid())
-  dailySheetId   String
-  dailySheet     LegalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
-  hotelName      String?
-  date           DateTime   @db.Date
-  sentTo         String
-  subject        String?
-  sheetType      String?
-  pricePerKg     Float?
-  totalWeight    Float?
+  id               String          @id @default(cuid())
+  dailySheetId     String
+  dailySheet       LegalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  hotelName        String?
+  date             DateTime        @db.Date
+  sentTo           String
+  subject          String?
+  sheetType        String?
+  pricePerKg       Float?
+  totalWeight      Float?
   protectorsAmount Float?
-  totalAmount    Float?
-  payload        Json?
-  sentAt         DateTime   @default(now())
-  confirmedBy    String?    // User ID who confirmed the invoice
-  confirmedAt    DateTime?  // When the invoice was confirmed
+  totalAmount      Float?
+  payload          Json?
+  sentAt           DateTime        @default(now())
+  confirmedBy      String? // User ID who confirmed the invoice
+  confirmedAt      DateTime? // When the invoice was confirmed
 
   @@index([dailySheetId])
   @@index([date])
@@ -301,22 +320,22 @@ model LegalDailySheetEmailSend {
 }
 
 model PhysicalDailySheetEmailSend {
-  id             String     @id @default(cuid())
-  dailySheetId   String
-  dailySheet     PhysicalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
-  hotelName      String?
-  date           DateTime   @db.Date
-  sentTo         String
-  subject        String?
-  sheetType      String?
-  pricePerKg     Float?
-  totalWeight    Float?
+  id               String             @id @default(cuid())
+  dailySheetId     String
+  dailySheet       PhysicalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+  hotelName        String?
+  date             DateTime           @db.Date
+  sentTo           String
+  subject          String?
+  sheetType        String?
+  pricePerKg       Float?
+  totalWeight      Float?
   protectorsAmount Float?
-  totalAmount    Float?
-  payload        Json?
-  sentAt         DateTime   @default(now())
-  confirmedBy    String?    // User ID who confirmed the invoice
-  confirmedAt    DateTime?  // When the invoice was confirmed
+  totalAmount      Float?
+  payload          Json?
+  sentAt           DateTime           @default(now())
+  confirmedBy      String? // User ID who confirmed the invoice
+  confirmedAt      DateTime? // When the invoice was confirmed
 
   @@index([dailySheetId])
   @@index([date])
@@ -325,80 +344,80 @@ model PhysicalDailySheetEmailSend {
 }
 
 model LegalDailySheetItem {
-  id              String        @id @default(cuid())
-  dailySheetId    String
-  dailySheet      LegalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
-  
-  category        String        // TOWELS, LINEN
-  itemNameKa      String        // Georgian name
-  weight          Float         // Weight in KG
-  received        Int           @default(0) // Received in pieces
-  washCount       Int           @default(0) // Wash count in pieces
-  dispatched      Int           @default(0) // Dispatched in pieces
-  shortage        Int           @default(0) // Shortage in pieces
-  totalWeight     Float         // Total weight in KG (same as weight)
-  price           Float?        // Price per item for PROTECTORS
-  comment         String?
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id           String          @id @default(cuid())
+  dailySheetId String
+  dailySheet   LegalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+
+  category    String // TOWELS, LINEN
+  itemNameKa  String // Georgian name
+  weight      Float // Weight in KG
+  received    Int     @default(0) // Received in pieces
+  washCount   Int     @default(0) // Wash count in pieces
+  dispatched  Int     @default(0) // Dispatched in pieces
+  shortage    Int     @default(0) // Shortage in pieces
+  totalWeight Float // Total weight in KG (same as weight)
+  price       Float? // Price per item for PROTECTORS
+  comment     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([dailySheetId])
   @@index([category])
 }
 
 model PhysicalDailySheetItem {
-  id              String        @id @default(cuid())
-  dailySheetId    String
-  dailySheet      PhysicalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
-  
-  category        String        // TOWELS, LINEN
-  itemNameKa      String        // Georgian name
-  weight          Float         // Weight in KG
-  received        Int           @default(0) // Received in pieces
-  washCount       Int           @default(0) // Wash count in pieces
-  dispatched      Int           @default(0) // Dispatched in pieces
-  shortage        Int           @default(0) // Shortage in pieces
-  totalWeight     Float         // Total weight in KG (same as weight)
-  price           Float?        // Price per item for PROTECTORS
-  comment         String?
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id           String             @id @default(cuid())
+  dailySheetId String
+  dailySheet   PhysicalDailySheet @relation(fields: [dailySheetId], references: [id], onDelete: Cascade)
+
+  category    String // TOWELS, LINEN
+  itemNameKa  String // Georgian name
+  weight      Float // Weight in KG
+  received    Int     @default(0) // Received in pieces
+  washCount   Int     @default(0) // Wash count in pieces
+  dispatched  Int     @default(0) // Dispatched in pieces
+  shortage    Int     @default(0) // Shortage in pieces
+  totalWeight Float // Total weight in KG (same as weight)
+  price       Float? // Price per item for PROTECTORS
+  comment     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([dailySheetId])
   @@index([category])
 }
 
 model Inventory {
-  id              String            @id @default(cuid())
-  itemName        String
-  category        InventoryCategory?
-  quantity        Int
-  unit            String            // kg, piece, liter, etc.
-  unitPrice       Float?
-  supplier        String?
-  lastRestocked   DateTime?
-  receiptDate     DateTime?         // მიღების თარიღი
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id            String             @id @default(cuid())
+  itemName      String
+  category      InventoryCategory?
+  quantity      Int
+  unit          String // kg, piece, liter, etc.
+  unitPrice     Float?
+  supplier      String?
+  lastRestocked DateTime?
+  receiptDate   DateTime? // მიღების თარიღი
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  movements       InventoryMovement[]
-  expenses        Expense[]
+  movements InventoryMovement[]
+  expenses  Expense[]
 
   @@index([category])
 }
 
 model InventoryMovement {
-  id              String        @id @default(cuid())
-  inventoryId     String
-  inventory       Inventory     @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
-  type            String        // RECEIPT, REMOVAL
-  quantity        Int
-  date            DateTime      @db.Date
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id          String    @id @default(cuid())
+  inventoryId String
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  type        String // RECEIPT, REMOVAL
+  quantity    Int
+  date        DateTime  @db.Date
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([inventoryId])
   @@index([type])
@@ -406,17 +425,17 @@ model InventoryMovement {
 }
 
 model Expense {
-  id                  String        @id @default(cuid())
-  category            String        // Utilities, Rent, Salaries, Supplies, etc.
-  description         String
-  amount              Float
-  date                DateTime      @db.Date
-  isRecurring         Boolean       @default(false)
-  excludeFromCalculator Boolean     @default(false) // Exclude from calculator calculations
-  inventoryId         String?       // Reference to Inventory if expense is from inventory removal
-  inventory           Inventory?    @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                    String     @id @default(cuid())
+  category              String // Utilities, Rent, Salaries, Supplies, etc.
+  description           String
+  amount                Float
+  date                  DateTime   @db.Date
+  isRecurring           Boolean    @default(false)
+  excludeFromCalculator Boolean    @default(false) // Exclude from calculator calculations
+  inventoryId           String? // Reference to Inventory if expense is from inventory removal
+  inventory             Inventory? @relation(fields: [inventoryId], references: [id], onDelete: SetNull)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
   @@index([date])
   @@index([category])
@@ -424,85 +443,85 @@ model Expense {
 }
 
 model Salary {
-  id              String        @id @default(cuid())
-  employeeId      String?       // Reference to Employee if exists
-  employeeName    String        // Employee name (can be from Employee or manual)
-  firstName       String?       // სახელი
-  lastName        String?       // გვარი
-  personalId      String?       // პირადობის ნომერი (პ/ნ)
-  accruedAmount   Float?        // დარიცხული თანხა
-  issuedAmount    Float?        // გაცემული თანხა
-  remainingAmount Float?        // დარჩენილი თანხა
+  id              String   @id @default(cuid())
+  employeeId      String? // Reference to Employee if exists
+  employeeName    String // Employee name (can be from Employee or manual)
+  firstName       String? // სახელი
+  lastName        String? // გვარი
+  personalId      String? // პირადობის ნომერი (პ/ნ)
+  accruedAmount   Float? // დარიცხული თანხა
+  issuedAmount    Float? // გაცემული თანხა
+  remainingAmount Float? // დარჩენილი თანხა
   amount          Float
-  month           Int           // 1-12
+  month           Int // 1-12
   year            Int
-  status          String        // PENDING, PAID, CANCELLED
+  status          String // PENDING, PAID, CANCELLED
   notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([year, month])
   @@index([status])
 }
 
 model Revenue {
-  id              String        @id @default(cuid())
-  source          String        // Service, Invoice, Other
-  description     String
-  amount          Float
-  date            DateTime      @db.Date
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id          String   @id @default(cuid())
+  source      String // Service, Invoice, Other
+  description String
+  amount      Float
+  date        DateTime @db.Date
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([date])
   @@index([source])
 }
 
 model HotelDatabase {
-  id              String        @id @default(cuid())
-  hotelName       String
-  contactPhone    String
-  email           String?
-  address         String?
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id           String   @id @default(cuid())
+  hotelName    String
+  contactPhone String
+  email        String?
+  address      String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([hotelName])
 }
 
 model Blacklist {
-  id              String        @id @default(cuid())
-  hotelName       String
+  id                      String   @id @default(cuid())
+  hotelName               String
   hotelRegistrationNumber String?
-  contactPhone    String
-  email           String?
-  address         String?
-  reason          String?       // მიზეზი რატომ დაემატა შავ სიაში
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  contactPhone            String
+  email                   String?
+  address                 String?
+  reason                  String? // მიზეზი რატომ დაემატა შავ სიაში
+  notes                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@index([hotelName])
   @@index([contactPhone])
 }
 
 model LegalPickupDeliveryRequest {
-  id              String        @id @default(cuid())
-  hotelId         String
-  hotel           Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  requestType     String        // PICKUP, DELIVERY, BOTH
-  notes           String?
-  status          String        @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
-  requestedAt     DateTime      @default(now())
-  confirmedAt     DateTime?
-  completedAt     DateTime?
-  hiddenFromAdmin Boolean       @default(false)
-  hiddenFromManager Boolean     @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                String    @id @default(cuid())
+  hotelId           String
+  hotel             Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestType       String // PICKUP, DELIVERY, BOTH
+  notes             String?
+  status            String    @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  requestedAt       DateTime  @default(now())
+  confirmedAt       DateTime?
+  completedAt       DateTime?
+  hiddenFromAdmin   Boolean   @default(false)
+  hiddenFromManager Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([hotelId])
   @@index([userId])
@@ -511,21 +530,21 @@ model LegalPickupDeliveryRequest {
 }
 
 model PhysicalPickupDeliveryRequest {
-  id              String        @id @default(cuid())
-  hotelId         String
-  hotel           Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  requestType     String        // PICKUP, DELIVERY, BOTH
-  notes           String?
-  status          String        @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
-  requestedAt     DateTime      @default(now())
-  confirmedAt     DateTime?
-  completedAt     DateTime?
-  hiddenFromAdmin Boolean       @default(false)
-  hiddenFromManager Boolean     @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                String    @id @default(cuid())
+  hotelId           String
+  hotel             Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestType       String // PICKUP, DELIVERY, BOTH
+  notes             String?
+  status            String    @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  requestedAt       DateTime  @default(now())
+  confirmedAt       DateTime?
+  completedAt       DateTime?
+  hiddenFromAdmin   Boolean   @default(false)
+  hiddenFromManager Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([hotelId])
   @@index([userId])
@@ -534,14 +553,14 @@ model PhysicalPickupDeliveryRequest {
 }
 
 model PhysicalInvoicePayment {
-  id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  month           String        // YYYY-MM format
-  paidAmount      Float         @default(0)
-  isPaid          Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month      String // YYYY-MM format
+  paidAmount Float    @default(0)
+  isPaid     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([userId, month])
   @@index([userId])
@@ -549,14 +568,14 @@ model PhysicalInvoicePayment {
 }
 
 model LegalInvoicePayment {
-  id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  month           String        // YYYY-MM format
-  paidAmount      Float         @default(0)
-  isPaid          Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month      String // YYYY-MM format
+  paidAmount Float    @default(0)
+  isPaid     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([userId, month])
   @@index([userId])

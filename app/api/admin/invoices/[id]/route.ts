@@ -31,13 +31,8 @@ export async function GET(
 
     const { id } = await params;
 
-    // Try to find invoice in both tables
-    const [legalInvoice, physicalInvoice] = await Promise.all([
-      prisma.legalInvoice.findUnique({ where: { id } }),
-      prisma.physicalInvoice.findUnique({ where: { id } }),
-    ]);
-
-    const invoice = legalInvoice || physicalInvoice;
+    // Find invoice in AdminInvoice table
+    const invoice = await prisma.adminInvoice.findUnique({ where: { id } });
 
     if (!invoice) {
       return NextResponse.json({ error: "ინვოისი არ მოიძებნა" }, { status: 404 });
@@ -106,29 +101,21 @@ export async function PATCH(
       updateData.paidAmount = paid;
     }
 
-    // Check which table the invoice belongs to
-    const [legalInvoice, physicalInvoice] = await Promise.all([
-      prisma.legalInvoice.findUnique({ where: { id } }),
-      prisma.physicalInvoice.findUnique({ where: { id } }),
-    ]);
+    // Check if invoice exists
+    const existingInvoice = await prisma.adminInvoice.findUnique({ where: { id } });
 
-    if (!legalInvoice && !physicalInvoice) {
+    if (!existingInvoice) {
       return NextResponse.json(
         { error: "ინვოისი არ მოიძებნა" },
         { status: 404 }
       );
     }
 
-    // Update in the appropriate table
-    const invoice = legalInvoice
-      ? await prisma.legalInvoice.update({
-          where: { id },
-          data: updateData,
-        })
-      : await prisma.physicalInvoice.update({
-          where: { id },
-          data: updateData,
-        });
+    // Update AdminInvoice
+    const invoice = await prisma.adminInvoice.update({
+      where: { id },
+      data: updateData,
+    });
 
     return NextResponse.json(invoice);
   } catch (error) {
@@ -168,25 +155,18 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if invoice exists in either table
-    const [legalInvoice, physicalInvoice] = await Promise.all([
-      prisma.legalInvoice.findUnique({ where: { id } }),
-      prisma.physicalInvoice.findUnique({ where: { id } }),
-    ]);
+    // Check if invoice exists
+    const invoice = await prisma.adminInvoice.findUnique({ where: { id } });
 
-    if (!legalInvoice && !physicalInvoice) {
+    if (!invoice) {
       return NextResponse.json(
         { error: "ინვოისი არ მოიძებნა" },
         { status: 404 }
       );
     }
 
-    // Delete from the appropriate table
-    if (legalInvoice) {
-      await prisma.legalInvoice.delete({ where: { id } });
-    } else {
-      await prisma.physicalInvoice.delete({ where: { id } });
-    }
+    // Delete AdminInvoice
+    await prisma.adminInvoice.delete({ where: { id } });
 
     return NextResponse.json({ message: "ინვოისი წაიშალა" });
   } catch (error) {

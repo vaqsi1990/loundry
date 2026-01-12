@@ -101,31 +101,17 @@ export async function GET(request: NextRequest) {
       const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
       const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 
-      const [legalInvoices, physicalInvoices] = await Promise.all([
-        prisma.legalInvoice.findMany({
-          where: {
-            createdAt: {
-              gte: start,
-              lte: end,
-            },
+      const invoices = await prisma.adminInvoice.findMany({
+        where: {
+          createdAt: {
+            gte: start,
+            lte: end,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
-        }),
-        prisma.physicalInvoice.findMany({
-          where: {
-            createdAt: {
-              gte: start,
-              lte: end,
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        }),
-      ]);
-      const invoices = [...legalInvoices, ...physicalInvoices];
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
       const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
       const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
@@ -144,45 +130,24 @@ export async function GET(request: NextRequest) {
     // If search query is provided, search by customer name across all invoices
     if (searchQuery) {
       // Use raw query for case-insensitive search in PostgreSQL
-      const [legalInvoices, physicalInvoices] = await Promise.all([
-        prisma.$queryRaw<Array<{
-          id: string;
-          invoiceNumber: string;
-          customerName: string;
-          customerEmail: string | null;
-          amount: number;
-          totalWeightKg: number | null;
-          protectorsAmount: number | null;
-          totalAmount: number | null;
-          status: string;
-          dueDate: Date;
-          createdAt: Date;
-          updatedAt: Date;
-        }>>`
-          SELECT * FROM "LegalInvoice"
-          WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
-          ORDER BY "createdAt" DESC
-        `,
-        prisma.$queryRaw<Array<{
-          id: string;
-          invoiceNumber: string;
-          customerName: string;
-          customerEmail: string | null;
-          amount: number;
-          totalWeightKg: number | null;
-          protectorsAmount: number | null;
-          totalAmount: number | null;
-          status: string;
-          dueDate: Date;
-          createdAt: Date;
-          updatedAt: Date;
-        }>>`
-          SELECT * FROM "PhysicalInvoice"
-          WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
-          ORDER BY "createdAt" DESC
-        `,
-      ]);
-      const invoices = [...legalInvoices, ...physicalInvoices];
+      const invoices = await prisma.$queryRaw<Array<{
+        id: string;
+        invoiceNumber: string;
+        customerName: string;
+        customerEmail: string | null;
+        amount: number;
+        totalWeightKg: number | null;
+        protectorsAmount: number | null;
+        totalAmount: number | null;
+        status: string;
+        dueDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
+      }>>`
+        SELECT * FROM "AdminInvoice"
+        WHERE LOWER("customerName") LIKE LOWER(${`%${searchQuery}%`})
+        ORDER BY "createdAt" DESC
+      `;
 
       const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
       const totalWeightKg = invoices.reduce((sum, inv) => sum + (inv.totalWeightKg ?? 0), 0);
@@ -751,47 +716,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { invoiceNumber, customerName, customerEmail, amount, status, dueDate } = body;
 
-    // Find hotel by customerName to determine type
-    const hotel = await prisma.hotel.findFirst({
-      where: {
-        hotelName: {
-          equals: customerName,
-          mode: 'insensitive',
-        },
-      },
-      select: { type: true },
+    // Check if invoice number already exists in AdminInvoice table
+    const existing = await prisma.adminInvoice.findUnique({
+      where: { invoiceNumber },
     });
 
-    // Check if invoice number already exists in both tables
-    const [existingLegal, existingPhysical] = await Promise.all([
-      prisma.legalInvoice.findUnique({
-        where: { invoiceNumber },
-      }),
-      prisma.physicalInvoice.findUnique({
-        where: { invoiceNumber },
-      }),
-    ]);
-
-    if (existingLegal || existingPhysical) {
+    if (existing) {
       return NextResponse.json(
         { error: "ინვოისის ნომერი უკვე არსებობს" },
         { status: 400 }
       );
     }
 
-    // Create invoice in the appropriate table based on hotel type
-    const invoiceData = {
-      invoiceNumber,
-      customerName,
-      customerEmail: customerEmail || null,
-      amount,
-      status,
-      dueDate: new Date(dueDate),
-    };
-
-    const invoice = hotel?.type === 'LEGAL'
-      ? await prisma.legalInvoice.create({ data: invoiceData })
-      : await prisma.physicalInvoice.create({ data: invoiceData });
+    // Create AdminInvoice
+    const invoice = await prisma.adminInvoice.create({
+      data: {
+        invoiceNumber,
+        customerName,
+        customerEmail: customerEmail || null,
+        amount,
+        status,
+        dueDate: new Date(dueDate),
+      },
+    });
 
     return NextResponse.json(invoice, { status: 201 });
   } catch (error) {

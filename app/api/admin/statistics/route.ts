@@ -70,6 +70,21 @@ export async function GET(request: NextRequest) {
             },
           }),
           Promise.all([
+            prisma.adminInvoice.findMany({
+              where: {
+                createdAt: {
+                  gte: startOfMonth,
+                  lte: endOfMonth,
+                },
+                paidAmount: {
+                  not: null,
+                  gt: 0,
+                },
+              },
+              select: {
+                paidAmount: true,
+              },
+            }),
             prisma.legalInvoice.findMany({
               where: {
                 createdAt: {
@@ -100,7 +115,7 @@ export async function GET(request: NextRequest) {
                 paidAmount: true,
               },
             }),
-          ]).then(([legal, physical]) => [...legal, ...physical]),
+          ]).then(([admin, legal, physical]) => [...admin, ...legal, ...physical]),
         ]);
 
         const monthNames = [
@@ -156,6 +171,21 @@ export async function GET(request: NextRequest) {
             },
           }),
           Promise.all([
+            prisma.adminInvoice.findMany({
+              where: {
+                createdAt: {
+                  gte: startOfYear,
+                  lte: endOfYear,
+                },
+                paidAmount: {
+                  not: null,
+                  gt: 0,
+                },
+              },
+              select: {
+                paidAmount: true,
+              },
+            }),
             prisma.legalInvoice.findMany({
               where: {
                 createdAt: {
@@ -186,7 +216,7 @@ export async function GET(request: NextRequest) {
                 paidAmount: true,
               },
             }),
-          ]).then(([legal, physical]) => [...legal, ...physical]),
+          ]).then(([admin, legal, physical]) => [...admin, ...legal, ...physical]),
         ]);
 
         const yearRevenues = (revenues._sum.amount || 0) + 

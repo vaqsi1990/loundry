@@ -663,27 +663,26 @@ export async function POST(request: NextRequest) {
     }, 0);
     const protectorsAmount = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
 
-    // Save invoice to database to track the number (with retry if duplicate)
+    // Save invoice to AdminInvoice table (with retry if duplicate)
     let savedInvoice;
     try {
-      savedInvoice = await prisma.invoice.create({
+      savedInvoice = await prisma.adminInvoice.create({
         data: {
           invoiceNumber,
           customerName: hotel.hotelName,
           customerEmail: email,
           amount: totalAmount,
-          // new totals (schema updated)
           totalWeightKg,
           protectorsAmount,
           totalAmount,
           status: "PENDING",
           dueDate: dueDate,
-        } as any, // cast to allow newly added fields until prisma client is regenerated
+        },
       });
     } catch (error: any) {
-      // If invoice number already exists, get next number
+      // If invoice number already exists, get next number from AdminInvoice
       if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
-        const lastInvoice = await prisma.invoice.findFirst({
+        const lastInvoice = await prisma.adminInvoice.findFirst({
           orderBy: {
             createdAt: "desc",
           },
@@ -698,7 +697,7 @@ export async function POST(request: NextRequest) {
           }
         }
         // Retry with new number
-        savedInvoice = await prisma.invoice.create({
+        savedInvoice = await prisma.adminInvoice.create({
           data: {
             invoiceNumber,
             customerName: hotel.hotelName,
@@ -709,7 +708,7 @@ export async function POST(request: NextRequest) {
             totalAmount,
             status: "PENDING",
             dueDate: dueDate,
-          } as any,
+          },
         });
       } else {
         throw error;
