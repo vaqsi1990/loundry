@@ -38,6 +38,7 @@ export default function RevenuesSection() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     source: "",
@@ -132,7 +133,14 @@ export default function RevenuesSection() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
+    
     setError("");
+    setIsSubmitting(true);
 
     try {
       const response = await fetch("/api/admin/revenues", {
@@ -155,6 +163,8 @@ export default function RevenuesSection() {
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -189,6 +199,7 @@ export default function RevenuesSection() {
       date: new Date().toISOString().split("T")[0],
     });
     setShowAddForm(false);
+    setIsSubmitting(false);
   };
 
   const handlePaymentUpdate = async (invoiceId: string) => {
@@ -411,9 +422,12 @@ export default function RevenuesSection() {
               </label>
               <select
                 required
+                disabled={isSubmitting}
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
+                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
               >
                 <option value="">აირჩიეთ</option>
                 <option value="SERVICE">სერვისი</option>
@@ -428,9 +442,12 @@ export default function RevenuesSection() {
               <input
                 type="text"
                 required
+                disabled={isSubmitting}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
+                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
               />
             </div>
             <div>
@@ -441,9 +458,12 @@ export default function RevenuesSection() {
                 type="number"
                 step="0.01"
                 required
+                disabled={isSubmitting}
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
+                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
               />
             </div>
             <div>
@@ -453,22 +473,35 @@ export default function RevenuesSection() {
               <input
                 type="date"
                 required
+                disabled={isSubmitting}
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
+                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
               />
             </div>
             <div className="flex space-x-2">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                disabled={isSubmitting}
+                className={`px-4 py-2 rounded-lg ${
+                  isSubmitting 
+                    ? "bg-gray-400 text-white cursor-not-allowed" 
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
               >
-                დამატება
+                {isSubmitting ? "იტვირთება..." : "დამატება"}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-gray-300 text-black px-4 py-2 rounded-lg hover:bg-gray-400"
+                disabled={isSubmitting}
+                className={`px-4 py-2 rounded-lg ${
+                  isSubmitting 
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                    : "bg-gray-300 text-black hover:bg-gray-400"
+                }`}
               >
                 გაუქმება
               </button>
