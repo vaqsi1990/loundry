@@ -39,7 +39,7 @@ export async function DELETE(
     const hotel = user.hotels[0];
 
     // Check if sheet belongs to this hotel
-    const sheet = await prisma.dailySheet.findUnique({
+    const sheet = await prisma.physicalDailySheet.findUnique({
       where: { id },
     });
 
@@ -51,7 +51,7 @@ export async function DELETE(
     }
 
     // Delete the sheet (items will be deleted automatically due to cascade)
-    await prisma.dailySheet.delete({
+    await prisma.physicalDailySheet.delete({
       where: { id },
     });
 
