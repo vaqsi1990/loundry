@@ -125,37 +125,134 @@ export async function GET(request: NextRequest) {
     
     // First, match invoices to emailSends to track relationships
     // Primary method: Use confirmedAt to identify which emailSends were sent (confirmed when invoice was sent)
-    invoices.forEach((invoice) => {
+    // For multiple invoices on the same day, match by grouping emailSends by confirmedAt timestamp and amount
+    const usedEmailSendIds = new Set<string>();
+    
+    // Sort invoices by createdAt (oldest first) to process them in order
+    const sortedInvoices = [...invoices].sort((a, b) => 
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    
+    sortedInvoices.forEach((invoice) => {
       const invoiceDate = new Date(invoice.createdAt);
-      const invoiceAmount = invoice.totalAmount ?? invoice.amount ?? 0;
+      const invoiceAmount = parseFloat((invoice.totalAmount ?? invoice.amount ?? 0).toFixed(2));
       
       // Find emailSends that match this invoice
-      // Priority 1: Match by confirmedAt (emailSend was confirmed when invoice was sent)
-      // Priority 2: Match by date and amount (fallback)
-      const matchingEmailSends = emailSends.filter((es) => {
-        // Primary: Check if emailSend was confirmed around the same time as invoice was created
+      // Strategy: Find all emailSends confirmed around the same time as invoice creation,
+      // then group them by timestamp and match groups to invoices by total amount
+      const candidateEmailSends = emailSends.filter((es) => {
+        if (usedEmailSendIds.has(es.id)) return false; // Already assigned to another invoice
+        
         if (es.confirmedAt) {
           const confirmedDate = new Date(es.confirmedAt);
-          const dateDiff = Math.abs((confirmedDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (dateDiff <= 1) { // Within 1 day - this emailSend was likely part of this invoice
-            return true;
-          }
+          const timeDiffMinutes = Math.abs((confirmedDate.getTime() - invoiceDate.getTime()) / (1000 * 60));
+          // Allow up to 10 minutes difference (in case of multiple invoices sent close together)
+          return timeDiffMinutes <= 10;
         }
         
-        // Fallback: Match by date and amount (for older invoices that might not have confirmedAt set correctly)
+        // Fallback: Match by date (within 1 day)
         const esDate = new Date(es.date);
         const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (dateDiff > 30) return false;
-        
-        const esAmount = parseFloat((es.totalAmount || 0).toFixed(2));
-        const invAmount = parseFloat(invoiceAmount.toFixed(2));
-        if (Math.abs(esAmount - invAmount) > 0.01) return false;
-        
-        return true;
+        return dateDiff <= 1;
       });
       
-      if (matchingEmailSends.length > 0) {
-        invoiceEmailSendMap.set(invoice.id, matchingEmailSends.map(es => es.id));
+      if (candidateEmailSends.length === 0) {
+        return; // No matching emailSends for this invoice
+      }
+      
+      // Group candidate emailSends by confirmedAt timestamp (within 1 minute)
+      // This groups emailSends that were confirmed together (same invoice send)
+      const emailSendGroups = new Map<string, typeof candidateEmailSends>();
+      
+      candidateEmailSends.forEach((es) => {
+        if (!es.confirmedAt) {
+          // If no confirmedAt, create a group based on invoice date
+          const groupKey = `fallback-${invoice.id}`;
+          if (!emailSendGroups.has(groupKey)) {
+            emailSendGroups.set(groupKey, []);
+          }
+          emailSendGroups.get(groupKey)!.push(es);
+          return;
+        }
+        
+        const confirmedDate = new Date(es.confirmedAt);
+        // Round to nearest minute to group emailSends confirmed at the same time
+        const roundedTime = new Date(confirmedDate);
+        roundedTime.setSeconds(0, 0);
+        const groupKey = roundedTime.toISOString();
+        
+        if (!emailSendGroups.has(groupKey)) {
+          emailSendGroups.set(groupKey, []);
+        }
+        emailSendGroups.get(groupKey)!.push(es);
+      });
+      
+      // Find the group whose total amount matches this invoice
+      let bestMatch: { group: typeof candidateEmailSends; total: number } | null = null;
+      
+      for (const [groupKey, groupEmailSends] of emailSendGroups.entries()) {
+        // Calculate total amount for this group
+        const groupTotal = groupEmailSends.reduce((sum, es) => {
+          const weight = es.totalWeight ?? 0;
+          const protectorsAmount = es.protectorsAmount ?? 0;
+          let itemAmount = 0;
+          
+          if (weight > 0) {
+            const hasTablecloths = es.dailySheet?.items?.some(
+              (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+            ) || false;
+            
+            if (hasTablecloths) {
+              const tableclothsItems = es.dailySheet?.items?.filter(
+                (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+              ) || [];
+              const regularItems = es.dailySheet?.items?.filter(
+                (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
+              ) || [];
+              
+              const tableclothsWeight = tableclothsItems.reduce(
+                (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+                0
+              );
+              const regularWeight = regularItems.reduce(
+                (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+                0
+              );
+              
+              if (regularWeight > 0) {
+                itemAmount += regularWeight * pricePerKg;
+              }
+              if (tableclothsWeight > 0) {
+                itemAmount += tableclothsWeight * 3.00;
+              }
+            } else {
+              itemAmount = weight * pricePerKg;
+            }
+          }
+          itemAmount += protectorsAmount;
+          return sum + itemAmount;
+        }, 0);
+        
+        const groupTotalRounded = parseFloat(groupTotal.toFixed(2));
+        
+        // Check if this group's total matches the invoice amount
+        if (Math.abs(groupTotalRounded - invoiceAmount) < 0.01) {
+          bestMatch = { group: groupEmailSends, total: groupTotalRounded };
+          break; // Found exact match
+        }
+        
+        // Keep track of the closest match (in case no exact match)
+        if (!bestMatch || Math.abs(groupTotalRounded - invoiceAmount) < Math.abs(bestMatch.total - invoiceAmount)) {
+          bestMatch = { group: groupEmailSends, total: groupTotalRounded };
+        }
+      }
+      
+      // Assign the best matching group to this invoice
+      if (bestMatch && bestMatch.group.length > 0) {
+        const matchingEmailSendIds = bestMatch.group.map(es => es.id);
+        invoiceEmailSendMap.set(invoice.id, matchingEmailSendIds);
+        // Mark these emailSends as used
+        matchingEmailSendIds.forEach(id => usedEmailSendIds.add(id));
       }
     });
     
@@ -263,11 +360,54 @@ export async function GET(request: NextRequest) {
           invoiceId = invId;
           const invoice = invoices.find(inv => inv.id === invId);
           if (invoice) {
-            // Distribute paid amount proportionally
-            const invoiceTotal = invoice.totalAmount ?? invoice.amount ?? 0;
+            // Calculate total amount of all emailSends in this invoice group
+            // This ensures correct proportional distribution
+            const invoiceEmailSends = emailSends.filter(es => emailSendIds.includes(es.id));
+            const invoiceEmailSendsTotal = invoiceEmailSends.reduce((sum, es) => {
+              const weight = es.totalWeight ?? 0;
+              const protectorsAmount = es.protectorsAmount ?? 0;
+              let esItemAmount = 0;
+              
+              if (weight > 0) {
+                const hasTablecloths = es.dailySheet?.items?.some(
+                  (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+                ) || false;
+                
+                if (hasTablecloths) {
+                  const tableclothsItems = es.dailySheet?.items?.filter(
+                    (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+                  ) || [];
+                  const regularItems = es.dailySheet?.items?.filter(
+                    (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
+                  ) || [];
+                  
+                  const tableclothsWeight = tableclothsItems.reduce(
+                    (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+                    0
+                  );
+                  const regularWeight = regularItems.reduce(
+                    (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
+                    0
+                  );
+                  
+                  if (regularWeight > 0) {
+                    esItemAmount += regularWeight * pricePerKg;
+                  }
+                  if (tableclothsWeight > 0) {
+                    esItemAmount += tableclothsWeight * 3.00;
+                  }
+                } else {
+                  esItemAmount = weight * pricePerKg;
+                }
+              }
+              esItemAmount += protectorsAmount;
+              return sum + esItemAmount;
+            }, 0);
+            
+            // Distribute paid amount proportionally based on actual emailSends total
             const invoicePaid = invoice.paidAmount ?? 0;
-            if (invoiceTotal > 0) {
-              paidAmount = (itemAmount / invoiceTotal) * invoicePaid;
+            if (invoiceEmailSendsTotal > 0) {
+              paidAmount = (itemAmount / invoiceEmailSendsTotal) * invoicePaid;
             }
           }
           break;
