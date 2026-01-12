@@ -45,9 +45,9 @@ export async function POST(request: NextRequest) {
 
     let matchingEmailSends: any[] = [];
 
-    // Priority 1: If invoiceId is provided, find Invoice record and match emailSends
+    // Priority 1: If invoiceId is provided, find PhysicalInvoice record and match emailSends
     if (invoiceId) {
-      const invoice = await prisma.invoice.findUnique({
+      const invoice = await prisma.physicalInvoice.findUnique({
         where: { id: invoiceId },
       });
 
