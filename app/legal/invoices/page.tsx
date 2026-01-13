@@ -621,10 +621,10 @@ export default function LegalInvoicesPage() {
                                     return (
                                       <tr key={detailUniqueKey} className="hover:bg-gray-50">
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black">
-                                          {formatDate(inv.date)}
+                                          {inv.dailySheetDate ? formatDateGe(inv.dailySheetDate) : "-"}
                                         </td>
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black">
-                                          {inv.dailySheetDate ? formatDateGe(inv.dailySheetDate) : "-"}
+                                          {formatDate(inv.date)}
                                         </td>
                                         <td className="border border-gray-300 px-2 py-1 text-center text-black">
                                           {inv.emailSendCount}
