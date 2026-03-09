@@ -458,10 +458,16 @@ export default function PhysicalInvoicesPage() {
               </thead>
               <tbody>
                 {invoices.map((invoice, invoiceIdx) => {
-                  // Use amounts directly from API (already calculated correctly)
-                  const paidAmount = Number(invoice.paidAmount || 0);
-                  const totalAmount = Number(invoice.totalAmount || 0);
-                  const remainingAmount = Number(invoice.remainingAmount || 0);
+                  // Calculate month totals from invoice details to avoid any mismatches
+                  const totalAmount = invoice.invoices?.reduce(
+                    (sum, inv) => sum + (inv.amount || 0),
+                    0
+                  ) || 0;
+                  const paidAmount = invoice.invoices?.reduce(
+                    (sum, inv) => sum + (inv.paidAmount || 0),
+                    0
+                  ) || 0;
+                  const remainingAmount = totalAmount - paidAmount;
                   
                   // Use status from API (already calculated correctly)
                   const displayStatus = invoice.status || "PENDING";
@@ -521,7 +527,7 @@ export default function PhysicalInvoicesPage() {
                           </div>
                         </td>
                         <td className="border border-gray-300 px-2 py-1 text-center text-black">
-                          {invoice.totalAmount.toFixed(2)} ₾
+                          {totalAmount.toFixed(2)} ₾
                         </td>
                         <td className="border border-gray-300 px-2 py-1 text-center text-green-600 font-medium">
                           {paidAmount.toFixed(2)} ₾

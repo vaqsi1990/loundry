@@ -3,6 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
+// Normalize hotel name for case/spacing-insensitive matching
+const normalizeHotel = (name: string | null) => {
+  if (!name) return "";
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+};
+
 // Get daily sheets for physical person hotel
 export async function GET(request: NextRequest) {
   try {
@@ -32,12 +38,16 @@ export async function GET(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
+    const normalizedHotelName = normalizeHotel(hotel.hotelName);
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
     const day = searchParams.get("day"); // YYYY-MM-DD format
 
+    // Base where: only emailed sheets, any non-null hotelName (we'll normalize in JS)
     const where: any = {
-      hotelName: hotel.hotelName,
+      hotelName: {
+        not: null,
+      },
       emailedAt: { not: null }, // Only show sheets that have been emailed
     };
 
@@ -62,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get daily sheets with their email sends to show confirmation status per email send
-    const sheets = await prisma.physicalDailySheet.findMany({
+    const allSheets = await prisma.physicalDailySheet.findMany({
       where,
       include: {
         items: {
@@ -80,6 +90,12 @@ export async function GET(request: NextRequest) {
         date: "desc",
       },
     });
+
+    // Filter by normalized hotel name so that sheets with the same hotel
+    // (but different spacing/case) are all shown, including "similar" sheets.
+    const sheets = allSheets.filter(
+      (sheet) => normalizeHotel(sheet.hotelName) === normalizedHotelName
+    );
 
     // Return sheets with their email sends (but confirmation status is separate)
     // Daily sheet confirmation uses DailySheet.confirmedAt

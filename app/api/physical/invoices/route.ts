@@ -290,11 +290,39 @@ export async function GET(request: NextRequest) {
       }
     });
     
-    // Now create one row per emailSend (like PDF structure)
+    // Now create one row per unique daily sheet / service day (like PDF structure)
     // BUT ONLY for emailSends that are associated with a PhysicalInvoice (sent by admin/manager)
+    // If the same daily sheet was emailed multiple times, count it only once for the physical
+    // client view to avoid double-charging.
+    const uniqueEmailSendsMap = new Map<string, typeof emailSends[0]>();
+
     emailSends
       .filter((emailSend) => sentEmailSendIds.has(emailSend.id))
       .forEach((emailSend) => {
+        // Use dailySheetId as primary deduplication key; if missing, fall back to emailSend.id
+        const key = (emailSend.dailySheetId as string | null) || emailSend.id;
+        const existing = uniqueEmailSendsMap.get(key);
+
+        if (!existing) {
+          uniqueEmailSendsMap.set(key, emailSend);
+        } else {
+          // If there are multiple sends for the same sheet, keep the latest one
+          const existingRefDate =
+            (existing.sentAt as Date | null) || (existing.date as Date);
+          const currentRefDate =
+            (emailSend.sentAt as Date | null) || (emailSend.date as Date);
+
+          if (
+            existingRefDate &&
+            currentRefDate &&
+            currentRefDate.getTime() > existingRefDate.getTime()
+          ) {
+            uniqueEmailSendsMap.set(key, emailSend);
+          }
+        }
+      });
+
+    Array.from(uniqueEmailSendsMap.values()).forEach((emailSend) => {
       // Group by service date (daily sheet date) instead of invoice sending date
       // If dailySheet.date is not available, fallback to emailSend.date, then sentAt
       const groupingDate = (emailSend.dailySheet?.date as Date | undefined) || emailSend.date || emailSend.sentAt;
