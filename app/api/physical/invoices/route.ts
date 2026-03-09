@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       (es) => normalizeHotel(es.hotelName) === normalizedHotelName
     );
 
-    // Group invoices by month based on sentAt (invoice sending date)
+    // Group invoices by month based on service date (daily sheet date)
     const monthlyData = new Map<string, {
       month: string;
       totalAmount: number;
@@ -295,16 +295,16 @@ export async function GET(request: NextRequest) {
     emailSends
       .filter((emailSend) => sentEmailSendIds.has(emailSend.id))
       .forEach((emailSend) => {
-      // Group by sentAt (invoice sending date) instead of emailSend.date
-      // If sentAt is not available, fallback to date
-      const groupingDate = emailSend.sentAt || emailSend.date;
-      const esDate = new Date(groupingDate);
+      // Group by service date (daily sheet date) instead of invoice sending date
+      // If dailySheet.date is not available, fallback to emailSend.date, then sentAt
+      const groupingDate = (emailSend.dailySheet?.date as Date | undefined) || emailSend.date || emailSend.sentAt;
+      const esDate = new Date(groupingDate as Date);
       const year = esDate.getUTCFullYear();
       const month = String(esDate.getUTCMonth() + 1).padStart(2, "0");
       const monthKey = `${year}-${month}`;
       
-      // Use sentAt for date field as well (invoice sending date)
-      const dateKey = groupingDate.toISOString().split("T")[0];
+      // Use service date (daily sheet date) for the displayed period
+      const dateKey = (groupingDate as Date).toISOString().split("T")[0];
       
       // Calculate amount for this emailSend (like PDF does)
       const weight = emailSend.totalWeight ?? 0;
@@ -500,7 +500,7 @@ export async function GET(request: NextRequest) {
       }
       
       // Get confirmation status
-      if (emailSend.confirmedAt) {
+        if (emailSend.confirmedAt) {
         confirmedAt = emailSend.confirmedAt.toISOString();
       }
       
@@ -535,7 +535,7 @@ export async function GET(request: NextRequest) {
         remainingAmount,
         status: isPaid ? "PAID" : "PENDING",
         sentAt: emailSend.sentAt?.toISOString() || null,
-        dailySheetDate: emailSend.date.toISOString(), // Use emailSend date directly
+        dailySheetDate: (emailSend.dailySheet?.date as Date | undefined)?.toISOString() || emailSend.date.toISOString(),
         weightKg: weight,
         protectorsAmount,
         emailSendCount: 1, // Each row represents one emailSend
@@ -687,8 +687,8 @@ export async function PUT(request: NextRequest) {
       const hotel = user.hotels[0];
       const normalizedHotelName = normalizeHotel(hotel.hotelName);
 
-      // Get all daily sheets for this hotel and month (filter by sentAt)
-      // Fetch all emailSends and filter by sentAt month in JavaScript
+      // Get all daily sheets for this hotel and month (filter by daily sheet service date)
+      // Fetch all emailSends and filter by dailySheet.date month in JavaScript
       const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
         where: {
           hotelName: {
@@ -700,13 +700,13 @@ export async function PUT(request: NextRequest) {
         },
       });
 
-      // Filter by hotel name and by sentAt month (or date if sentAt is null)
+      // Filter by hotel name and by daily sheet month (fallback to emailSend.date if needed)
       const emailSends = allEmailSends.filter((es) => {
         if (normalizeHotel(es.hotelName) !== normalizedHotelName) {
           return false;
         }
-        const groupingDate = es.sentAt || es.date;
-        const esDate = new Date(groupingDate);
+        const groupingDate = (es.dailySheet?.date as Date | undefined) || es.date || es.sentAt;
+        const esDate = new Date(groupingDate as Date);
         return esDate >= startOfMonth && esDate <= endOfMonth;
       });
 
@@ -781,24 +781,27 @@ export async function PUT(request: NextRequest) {
     const startOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum) - 1, 1, 0, 0, 0, 0));
     const endOfMonth = new Date(Date.UTC(parseInt(year), parseInt(monthNum), 0, 23, 59, 59, 999));
 
-    // Filter by sentAt (invoice sending date) instead of date
-    // Fetch all emailSends and filter by sentAt month in JavaScript
+    // Filter by daily sheet service date instead of invoice sending date
+    // Fetch all emailSends and filter by dailySheet.date month in JavaScript
     const allEmailSends = await prisma.physicalDailySheetEmailSend.findMany({
       where: {
         hotelName: {
           not: null,
         },
       },
+      include: {
+        dailySheet: true,
+      },
     });
 
     const normalizedHotelName = normalizeHotel(hotel.hotelName);
-    // Filter by hotel name and by sentAt month (or date if sentAt is null)
+    // Filter by hotel name and by daily sheet month (fallback to emailSend.date if needed)
     const emailSends = allEmailSends.filter((es) => {
       if (normalizeHotel(es.hotelName) !== normalizedHotelName) {
         return false;
       }
-      const groupingDate = es.sentAt || es.date;
-      const esDate = new Date(groupingDate);
+      const groupingDate = (es.dailySheet?.date as Date | undefined) || es.date || es.sentAt;
+      const esDate = new Date(groupingDate as Date);
       return esDate >= startOfMonth && esDate <= endOfMonth;
     });
 

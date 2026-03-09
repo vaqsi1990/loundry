@@ -133,9 +133,11 @@ export default function DailySheetsSection() {
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedHotel, setSelectedHotel] = useState<string>("");
+  const [allMonths, setAllMonths] = useState<string[]>([]);
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set()); // Track which sheets are expanded
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null }>({
     open: false,
     sheetId: null,
@@ -235,7 +237,18 @@ export default function DailySheetsSection() {
         throw new Error("მონაცემები არასწორი ფორმატისაა");
       }
       
-      setSheets(data || []);
+      const sheetsData: DailySheet[] = data || [];
+      setSheets(sheetsData);
+
+      // Extract available months from daily sheet dates
+      const months = new Set<string>();
+      sheetsData.forEach((sheet) => {
+        const d = new Date(sheet.date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        months.add(`${year}-${month}`);
+      });
+      setAllMonths(Array.from(months).sort().reverse());
     } catch (err) {
       console.error("Fetch sheets error:", err);
       const errorMessage = err instanceof Error ? err.message : "დაფიქსირდა შეცდომა";
@@ -445,11 +458,40 @@ export default function DailySheetsSection() {
     const day = String(d.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+  
+  // Helper to get YYYY-MM key from date
+  const getMonthKey = (date: string | Date): string => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  };
+
+  const formatMonthGe = (monthKey: string) => {
+    const [year, monthNum] = monthKey.split("-");
+    const months = [
+      "იანვარი",
+      "თებერვალი",
+      "მარტი",
+      "აპრილი",
+      "მაისი",
+      "ივნისი",
+      "ივლისი",
+      "აგვისტო",
+      "სექტემბერი",
+      "ოქტომბერი",
+      "ნოემბერი",
+      "დეკემბერი",
+    ];
+    const monthIndex = parseInt(monthNum, 10) - 1;
+    return `${months[monthIndex]} ${year}`;
+  };
 
   const filteredSheets = sheets.filter(sheet => {
-    const dateMatch = !selectedDate || getDateString(sheet.date) === selectedDate;
+    const monthKey = getMonthKey(sheet.date);
+    const monthMatch = !selectedMonth || monthKey === selectedMonth;
     const hotelMatch = !selectedHotel || sheet.hotelName === selectedHotel;
-    return dateMatch && hotelMatch;
+    return monthMatch && hotelMatch;
   });
 
   const formatDateGe = (date: string | Date) => {
@@ -475,6 +517,26 @@ export default function DailySheetsSection() {
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
+
+  const toggleMonth = (monthKey: string) => {
+    setExpandedMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(monthKey)) {
+        next.delete(monthKey);
+      } else {
+        next.add(monthKey);
+      }
+      return next;
+    });
+  };
+
+  // Group filtered sheets by month for accordion-style display
+  const sheetsByMonth = filteredSheets.reduce<Record<string, DailySheet[]>>((acc, sheet) => {
+    const key = getMonthKey(sheet.date);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(sheet);
+    return acc;
+  }, {});
 
   const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL", hasProtectors: boolean = false, hasLinenOrTowels: boolean = false) =>
     items.map((item, idx) => {
@@ -745,14 +807,20 @@ export default function DailySheetsSection() {
       <div className="mb-4 flex items-end gap-4 flex-wrap">
         <div>
           <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-            თარიღის ფილტრი
+            თვე
           </label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-black"
-          />
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-black min-w-[200px]"
+          >
+            <option value="">ყველა თვე</option>
+            {allMonths.map((month) => (
+              <option key={month} value={month}>
+                {formatMonthGe(month)}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
@@ -773,7 +841,7 @@ export default function DailySheetsSection() {
         </div>
         <button
           onClick={() => {
-            setSelectedDate("");
+            setSelectedMonth("");
             setSelectedHotel("");
           }}
           className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300 h-[42px]"
@@ -1238,90 +1306,141 @@ export default function DailySheetsSection() {
         </div>
       )}
 
-      {/* Sheets List */}
+      {/* Sheets List grouped by month */}
       <div className="space-y-6">
-        {filteredSheets.map((sheet) => {
-          const isExpanded = expandedSheets.has(sheet.id);
-          return (
-            <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              {/* Header - Always visible */}
-              <div 
-                className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => toggleSheet(sheet.id)}
-              >
-                <div className="flex items-center gap-3 flex-1">
-                  <button
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSheet(sheet.id);
-                    }}
-                  >
-                    {isExpanded ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <div>
-                    <h3 className="text-lg font-semibold text-black">
-                      {sheet.hotelName}
-                    </h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
-                      <span>{formatDateGe(sheet.date)}</span>
-                      <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
-                        გაგზავნილი {sheet.emailSendCount ?? 0}x
-                      </span>
-                      {sheet.confirmedAt && sheet.confirmedByUser && (
-                        <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
-                          ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})
-                        </span>
+        {Object.keys(sheetsByMonth)
+          .sort((a, b) => b.localeCompare(a)) // Newest month first
+          .map((monthKey) => {
+            const monthSheets = sheetsByMonth[monthKey];
+            const isMonthExpanded = expandedMonths.has(monthKey);
+            return (
+              <div key={monthKey} className="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                {/* Month header */}
+                <div
+                  className="flex justify-between items-center px-6 py-4 cursor-pointer bg-gray-100 hover:bg-gray-200 transition-colors"
+                  onClick={() => toggleMonth(monthKey)}
+                >
+                  <div className="flex items-center gap-3">
+                    <button
+                      className="text-gray-600 hover:text-gray-800 focus:outline-none"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleMonth(monthKey);
+                      }}
+                    >
+                      {isMonthExpanded ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       )}
-                      {!sheet.confirmedAt && (
-                        <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
-                          დადასტურება საჭიროა
-                        </span>
-                      )}
+                    </button>
+                    <div>
+                      <h3 className="text-lg font-bold text-black">
+                        {formatMonthGe(monthKey)}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        ფურცლები: {monthSheets.length}
+                      </p>
                     </div>
                   </div>
                 </div>
-                <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleEdit(sheet)}
-                    className="text-blue-600 hover:underline px-2"
-                  >
-                    რედაქტირება
-                  </button>
-                  <button
-                    onClick={() => handleDelete(sheet.id)}
-                    className="text-red-600 hover:underline px-2"
-                  >
-                    წაშლა
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEmailModal({ open: true, sheetId: sheet.id });
-                      setModalEmail(deriveHotelEmail(sheet.hotelName));
-                    }}
-                    className="text-green-700 hover:underline px-2"
-                  >
-                    გაგზავნა მეილზე
-                  </button>
-                </div>
+
+                {/* Month content */}
+                {isMonthExpanded && (
+                  <div className="p-4 space-y-4 bg-white">
+                    {monthSheets
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map((sheet) => {
+                        const isExpanded = expandedSheets.has(sheet.id);
+                        return (
+                          <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            {/* Header - Always visible */}
+                            <div 
+                              className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                              onClick={() => toggleSheet(sheet.id)}
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                <button
+                                  className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSheet(sheet.id);
+                                  }}
+                                >
+                                  {isExpanded ? (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div>
+                                  <h3 className="text-lg font-semibold text-black">
+                                    {sheet.hotelName}
+                                  </h3>
+                                  <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+                                    <span>{formatDateGe(sheet.date)}</span>
+                                    <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
+                                      გაგზავნილი {sheet.emailSendCount ?? 0}x
+                                    </span>
+                                    {sheet.confirmedAt && sheet.confirmedByUser && (
+                                      <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                                        ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})
+                                      </span>
+                                    )}
+                                    {!sheet.confirmedAt && (
+                                      <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                                        დადასტურება საჭიროა
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => handleEdit(sheet)}
+                                  className="text-blue-600 hover:underline px-2"
+                                >
+                                  რედაქტირება
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(sheet.id)}
+                                  className="text-red-600 hover:underline px-2"
+                                >
+                                  წაშლა
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEmailModal({ open: true, sheetId: sheet.id });
+                                    setModalEmail(deriveHotelEmail(sheet.hotelName));
+                                  }}
+                                  className="text-green-700 hover:underline px-2"
+                                >
+                                  გაგზავნა მეილზე
+                                </button>
+                              </div>
+                            </div>
+                            {/* Content - Collapsible */}
+                            {isExpanded && (
+                              <div className="px-6 pb-6 border-t border-gray-200 pt-4">
+                                {renderSheetTable(sheet)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
-              {/* Content - Collapsible */}
-              {isExpanded && (
-                <div className="px-6 pb-6 border-t border-gray-200 pt-4">
-                  {renderSheetTable(sheet)}
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
 
       {filteredSheets.length === 0 && (
