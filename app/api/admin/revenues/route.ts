@@ -77,8 +77,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Fetch invoices that have been sent to hotels (have customerEmail)
-    // Apply date filter only if view mode is set, otherwise show all sent invoices
+    // Fetch invoices that have been sent to hotels.
+    // IMPORTANT: ფილტრი და თარიღი უნდა იყოს სერვისის / დღის ფურცლის თარიღით (dueDate),
+    // და არა ინვოისის შექმნის თარიღით (createdAt), რომ /admin/revenues და /admin/invoices
+    // ერთსა და იმავე დღეს აჩვენებდნენ.
     let invoiceDateFilter: any = {};
     if (view === "all") {
       // Show all invoices - no filter
@@ -90,7 +92,7 @@ export async function GET(request: NextRequest) {
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(dateObj);
       endOfDay.setHours(23, 59, 59, 999);
-      invoiceDateFilter.createdAt = {
+      invoiceDateFilter.dueDate = {
         gte: startOfDay,
         lte: endOfDay,
       };
@@ -101,7 +103,7 @@ export async function GET(request: NextRequest) {
       endOfMonth.setMonth(endOfMonth.getMonth() + 1);
       endOfMonth.setDate(0); // Last day of the month
       endOfMonth.setHours(23, 59, 59, 999);
-      invoiceDateFilter.createdAt = {
+      invoiceDateFilter.dueDate = {
         gte: startOfMonth,
         lte: endOfMonth,
       };

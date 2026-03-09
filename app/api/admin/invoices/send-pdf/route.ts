@@ -547,17 +547,20 @@ export async function POST(request: NextRequest) {
     
     // Calculate dates
     const issueDate = new Date();
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 3); // 3 days from issue
     
     // Build items array - each emailSend gets its own row (detailed)
     const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
     const pricePerKg = hotel.pricePerKg || 1.8; // Default price
     
-    // Sort email sends by date
-    const sortedEmailSends = [...emailSends].sort((a, b) => 
+    // Sort email sends by date (service date from daily sheet)
+    const sortedEmailSends = [...emailSends].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
+
+    // Use first service date from the sorted email sends as the invoice service date
+    // This is the same value that appears as detail.date on /admin/invoices
+    const serviceDate =
+      sortedEmailSends.length > 0 ? new Date(sortedEmailSends[0].date) : new Date(issueDate);
     
     // Create a separate item for each emailSend
     sortedEmailSends.forEach((emailSend) => {
@@ -683,7 +686,8 @@ export async function POST(request: NextRequest) {
             totalAmount,
             paidAmount: 0,
             status: "PENDING",
-            dueDate: dueDate,
+            // Store the service (daily sheet) date so RevenuesSection can show the same date as detail.date
+            dueDate: serviceDate,
           },
         });
         invoiceNumber = legalInvoiceNumber; // Set invoiceNumber for PDF generation
@@ -716,7 +720,7 @@ export async function POST(request: NextRequest) {
               totalAmount,
               paidAmount: 0,
               status: "PENDING",
-              dueDate: dueDate,
+              dueDate: serviceDate,
             },
           });
         } else {
@@ -756,7 +760,7 @@ export async function POST(request: NextRequest) {
             totalAmount,
             paidAmount: 0,
             status: "PENDING",
-            dueDate: dueDate,
+            dueDate: serviceDate,
           },
         });
         invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
@@ -789,7 +793,7 @@ export async function POST(request: NextRequest) {
               totalAmount,
               paidAmount: 0,
               status: "PENDING",
-              dueDate: dueDate,
+              dueDate: serviceDate,
             },
           });
           invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
@@ -804,7 +808,7 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = await generateInvoicePDF(
       invoiceNumber,
       issueDate,
-      dueDate,
+      serviceDate,
       "გადარიცხვით",
       hotel.hotelName,
       hotel.hotelRegistrationNumber,

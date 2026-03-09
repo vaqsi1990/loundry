@@ -379,18 +379,25 @@ export default function InvoicesSection() {
         hotelName: string | null;
         dateDetails?: DateDetail[];
         email?: string | null;
+        // Explicitly pass service dates (daily sheet dates) for debugging / clarity
+        serviceDates?: string[];
       } = {
         hotelName: pdfModal.hotelName,
         dateDetails: pdfModal.dateDetails, // Send specific invoices to include
         email: modalEmail, // Include email if available
+        serviceDates: pdfModal.dateDetails?.map((d) => d.date) || [],
       };
       
       console.log("Sending invoice request:", {
         apiPath,
         hotelName: requestBody.hotelName,
         dateDetailsCount: requestBody.dateDetails?.length || 0,
-        emailSendIdsCount: requestBody.dateDetails?.flatMap((d: DateDetail) => d.emailSendIds || []).length || 0,
+        emailSendIdsCount:
+          requestBody.dateDetails?.flatMap((d: DateDetail) => d.emailSendIds || [])
+            .length || 0,
         email: requestBody.email,
+        // Show the service dates (day sheet dates) that are being sent
+        serviceDates: requestBody.serviceDates,
       });
       
       const response = await fetch(apiPath, {
@@ -687,6 +694,8 @@ export default function InvoicesSection() {
                                       (detail.emailSendIds && detail.emailSendIds[0]) ||
                                       `${displayName}-${detail.date}-${idx}`;
 
+                                    // თითოეული სტრიქონის გაგზავნისას უნდა შეიქმნას ცალკე ინვოისი,
+                                    // ამიტომ Modal-ს გადაეცემა მხოლოდ კონკრეტული detail (არ ვაჯამებთ მსგავსებს).
                                     return (
                                       <tr key={rowKey} className="hover:bg-gray-50">
                                         <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
@@ -723,7 +732,10 @@ export default function InvoicesSection() {
                                           <div className="flex gap-2">
                                             <button
                                               onClick={() =>
-                                                openPdfModal(inv.displayHotelName || inv.hotelName, [detail])
+                                                openPdfModal(
+                                                  inv.displayHotelName || inv.hotelName,
+                                                  [detail]
+                                                )
                                               }
                                               className="text-[14px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
                                             >

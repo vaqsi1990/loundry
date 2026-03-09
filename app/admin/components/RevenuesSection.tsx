@@ -21,12 +21,11 @@ interface SentInvoice {
   paidAmount: number | null;
   status: string;
   createdAt: string;
+  // დღის ფურცლის თარიღი / სერვისის თარიღი (თუ არსებობს)
+  dueDate?: string;
 }
 
-interface RevenuesResponse {
-  revenues: Revenue[];
-  sentInvoices: SentInvoice[];
-}
+
 
 export default function RevenuesSection() {
   const [revenues, setRevenues] = useState<Revenue[]>([]);
@@ -104,17 +103,43 @@ export default function RevenuesSection() {
         });
       }
 
-      // Debug: Log invoice amounts
+      // Debug: Log detailed invoice / "day sheet" level info
       if (data.sentInvoices && data.sentInvoices.length > 0) {
-        console.log("Invoice details:", data.sentInvoices.map((inv: any) => ({
-          id: inv.id,
-          totalAmount: inv.totalAmount,
-          amount: inv.amount,
-          customerName: inv.customerName,
-          createdAt: inv.createdAt,
-        })));
+        console.log(
+          "Invoice (day sheets) raw data:",
+          data.sentInvoices
+        );
+
+        console.log(
+          "Invoice (day sheets) details:",
+          data.sentInvoices.map((inv: any, index: number) => ({
+            // Local sequence number in this view (1, 2, 3, ...)
+            sequence: index + 1,
+            id: inv.id,
+            // Actual DB invoice number (may start from >1 if ბაზაში უკვე არსებობდა ინვოისები)
+            dbInvoiceNumber: inv.invoiceNumber,
+            hotelName: inv.customerName,
+            // Daily sheet / service date we use for revenues view
+            // Equivalent to detail.date from /admin/invoices გვერდი
+            serviceDate: inv.dueDate,
+            createdAt: inv.createdAt,
+            status: inv.status,
+            amount: inv.amount,
+            totalAmount: inv.totalAmount,
+            paidAmount: inv.paidAmount,
+          }))
+        );
+
+        // Additional debug: log only the service dates (detail.date equivalent)
+        console.log(
+          "detail.date (service dates) list:",
+          data.sentInvoices.map((inv: any) => inv.dueDate)
+        );
       } else {
-        console.log("No invoices found in date range. Total invoices in DB:", data.sentInvoices?.length || 0);
+        console.log(
+          "No invoices (day sheets) found in date range. Total invoices in DB:",
+          data.sentInvoices?.length || 0
+        );
       }
 
       // Ensure we always set arrays, even if empty
@@ -604,7 +629,7 @@ export default function RevenuesSection() {
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                        {new Date(invoice.createdAt).toLocaleDateString("ka-GE")}
+                        {new Date(invoice.dueDate ?? invoice.createdAt).toLocaleDateString("ka-GE")}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                         {invoice.customerName}
