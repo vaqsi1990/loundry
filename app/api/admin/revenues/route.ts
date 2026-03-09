@@ -192,29 +192,9 @@ export async function GET(request: NextRequest) {
         },
       }),
     ]);
-    const allInvoices = [...adminInvoices, ...legalInvoices, ...physicalInvoices];
+    const sentInvoices = [...adminInvoices, ...legalInvoices, ...physicalInvoices];
 
-    // Deduplicate invoices: for the same customerName and date, keep only the most recent one
-    // This prevents showing old invoices when a new one is created for the same hotel on the same date
-    const invoiceMap = new Map<string, typeof allInvoices[0]>();
-    
-    allInvoices.forEach((invoice) => {
-      // Create a key based on customerName and date (day level, not time)
-      const invoiceDate = new Date(invoice.createdAt);
-      const dateKey = invoiceDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-      const key = `${invoice.customerName}_${dateKey}`;
-      
-      // If we already have an invoice for this hotel and date, keep the one with the latest createdAt
-      const existing = invoiceMap.get(key);
-      if (!existing || new Date(invoice.createdAt) > new Date(existing.createdAt)) {
-        invoiceMap.set(key, invoice);
-      }
-    });
-    
-    // Convert map values back to array
-    const sentInvoices = Array.from(invoiceMap.values());
-
-    console.log("Revenues API - Found invoices after filter:", allInvoices.length, "View:", view, "Date:", date, "Month:", month);
+    console.log("Revenues API - Found invoices after filter:", sentInvoices.length, "View:", view, "Date:", date, "Month:", month);
     console.log("Revenues API - Invoice date filter:", JSON.stringify(invoiceDateFilter));
     if (sentInvoices.length > 0) {
       console.log("Revenues API - Sample invoice dates:", sentInvoices.slice(0, 3).map(inv => ({

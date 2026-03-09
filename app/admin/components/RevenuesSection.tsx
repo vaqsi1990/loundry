@@ -40,7 +40,7 @@ export default function RevenuesSection() {
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     source: "",
     description: "",
@@ -56,28 +56,28 @@ export default function RevenuesSection() {
     try {
       setLoading(true);
       setError("");
-      const params = viewMode === "daily" 
+      const params = viewMode === "daily"
         ? `?view=daily&date=${selectedDate}`
         : viewMode === "monthly"
-        ? `?view=monthly&month=${selectedMonth}`
-        : `?view=all`;
-      
+          ? `?view=monthly&month=${selectedMonth}`
+          : `?view=all`;
+
       console.log("Fetching revenues with params:", params);
       const response = await fetch(`/api/admin/revenues${params}`);
-      
+
       // Check if response is ok before parsing JSON
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "უცნობი შეცდომა" }));
         throw new Error(errorData.error || `HTTP ${response.status}: შემოსავლების ჩატვირთვა ვერ მოხერხდა`);
       }
-      
+
       const data = await response.json();
-      
+
       // Validate response structure
       if (!data || typeof data !== 'object') {
         throw new Error("არასწორი პასუხი სერვერიდან");
       }
-      
+
       console.log("Revenues fetched:", {
         revenues: data.revenues?.length || 0,
         sentInvoices: data.sentInvoices?.length || 0,
@@ -87,7 +87,7 @@ export default function RevenuesSection() {
         hasRevenues: Array.isArray(data.revenues),
         hasSentInvoices: Array.isArray(data.sentInvoices),
       });
-      
+
       // Debug: Log revenue amounts
       if (data.revenues && data.revenues.length > 0) {
         console.log("Revenue details:", data.revenues.map((r: any) => ({
@@ -103,7 +103,7 @@ export default function RevenuesSection() {
           selectedMonth: viewMode === "monthly" ? selectedMonth : undefined,
         });
       }
-      
+
       // Debug: Log invoice amounts
       if (data.sentInvoices && data.sentInvoices.length > 0) {
         console.log("Invoice details:", data.sentInvoices.map((inv: any) => ({
@@ -116,7 +116,7 @@ export default function RevenuesSection() {
       } else {
         console.log("No invoices found in date range. Total invoices in DB:", data.sentInvoices?.length || 0);
       }
-      
+
       // Ensure we always set arrays, even if empty
       setRevenues(Array.isArray(data.revenues) ? data.revenues : []);
       setSentInvoices(Array.isArray(data.sentInvoices) ? data.sentInvoices : []);
@@ -134,12 +134,12 @@ export default function RevenuesSection() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Prevent double submission
     if (isSubmitting) {
       return;
     }
-    
+
     setError("");
     setIsSubmitting(true);
 
@@ -206,10 +206,10 @@ export default function RevenuesSection() {
   const handlePaymentUpdate = async (invoiceId: string) => {
     const paymentAmount = paymentAmounts[invoiceId];
     // Allow empty string (which means 0)
-    const amount = paymentAmount === "" || !paymentAmount || paymentAmount.trim() === "" 
-      ? 0 
+    const amount = paymentAmount === "" || !paymentAmount || paymentAmount.trim() === ""
+      ? 0
       : parseFloat(paymentAmount);
-    
+
     if (isNaN(amount) || amount < 0) {
       setError("არასწორი თანხა");
       return;
@@ -277,7 +277,7 @@ export default function RevenuesSection() {
 
     try {
       setError(""); // Clear previous errors
-      
+
       // Delete all invoices in parallel
       const apiPath = getApiPath("invoices");
       const deletePromises = sentInvoices.map(async (invoice) => {
@@ -320,24 +320,24 @@ export default function RevenuesSection() {
     }
 
     // Ensure we have numbers, not strings or null
-    const totalAmount = Number(invoice.totalAmount ?? invoice.amount ?? 0);
+    const totalAmount = Number(invoice.amount ?? 0);
     const paidAmount = Number(invoice.paidAmount ?? 0);
     const remaining = totalAmount - paidAmount;
     // Use the same logic as in render: allow small epsilon for floating point comparison
     // Also check if remaining is <= 0 as an additional check
     const isFullyPaid = totalAmount > 0 && (paidAmount >= totalAmount || Math.abs(paidAmount - totalAmount) < 0.01 || remaining <= 0);
-    
+
     // Only allow confirmation if invoice is fully paid
     if (!isFullyPaid) {
       setError(`ინვოისის დადასტურება შეუძლებელია. გადახდილი: ${paidAmount.toFixed(2)} ₾, სულ: ${totalAmount.toFixed(2)} ₾, დარჩენილი: ${remaining.toFixed(2)} ₾`);
       return;
     }
-    
+
     // Show detailed confirmation message with invoice details
     const invoiceDate = new Date(invoice.createdAt).toLocaleDateString("ka-GE");
     const invoiceNumber = invoice.invoiceNumber || "N/A";
     const confirmMessage = `დარწმუნებული ხართ რომ ინვოისი სრულად ჩაირიცხა?\n\nინვოისის ნომერი: ${invoiceNumber}\nსასტუმრო: ${invoice.customerName}\nთარიღი: ${invoiceDate}\nთანხა: ${totalAmount.toFixed(2)} ₾\nგადახდილი: ${paidAmount.toFixed(2)} ₾\n\nამის შემდეგ ფასის შეცვლა ვეღარ შეიძლება.`;
-    
+
     if (!confirm(confirmMessage)) {
       return;
     }
@@ -370,9 +370,13 @@ export default function RevenuesSection() {
   };
 
   const totalRevenueAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
-  const totalInvoiceAmount = sentInvoices.reduce((sum, inv) => sum + (inv.totalAmount ?? inv.amount ?? 0), 0);
-  const totalAmount = totalRevenueAmount + totalInvoiceAmount;
-  
+  // Sum by invoice amounts (ბილინგის მიხედვით), არა დღის ფურცლების გაგზავნის მიხედვით
+  const totalInvoiceAmount = sentInvoices.reduce(
+    (sum, inv) => sum + Number(inv.totalAmount ?? inv.amount ?? 0),
+    0
+  );
+  const totalAmount = totalRevenueAmount;
+
   // Debug: Log calculation breakdown
   console.log("Total calculation:", {
     revenueCount: revenues.length,
@@ -409,25 +413,22 @@ export default function RevenuesSection() {
         <div className="flex space-x-2">
           <button
             onClick={() => setViewMode("daily")}
-            className={`px-4 py-2 rounded-lg ${
-              viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-            }`}
+            className={`px-4 py-2 rounded-lg ${viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+              }`}
           >
             ყოველდღიური
           </button>
           <button
             onClick={() => setViewMode("monthly")}
-            className={`px-4 py-2 rounded-lg ${
-              viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-            }`}
+            className={`px-4 py-2 rounded-lg ${viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+              }`}
           >
             ყოველთვიური
           </button>
           <button
             onClick={() => setViewMode("all")}
-            className={`px-4 py-2 rounded-lg ${
-              viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-            }`}
+            className={`px-4 py-2 rounded-lg ${viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
+              }`}
           >
             ყველა
           </button>
@@ -452,7 +453,8 @@ export default function RevenuesSection() {
       {/* Summary */}
       <div className="mb-4">
         <div className="text-lg font-bold text-black">
-          სულ: {totalAmount.toFixed(2)} ₾ ({revenues.length} შემოსავალი, {sentInvoices.length} ინვოისი)
+          {/* ჯამი მხოლოდ ინვოისების მიხედვით (ხელით შემოსავალი არ ემატება) */}
+          სულ ინვოისები: {totalInvoiceAmount.toFixed(2)} ₾ ({sentInvoices.length} ინვოისი)
         </div>
       </div>
 
@@ -470,9 +472,8 @@ export default function RevenuesSection() {
                 disabled={isSubmitting}
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
-                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
-                }`}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
               >
                 <option value="">აირჩიეთ</option>
                 <option value="SERVICE">სერვისი</option>
@@ -490,9 +491,8 @@ export default function RevenuesSection() {
                 disabled={isSubmitting}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
-                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
-                }`}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
               />
             </div>
             <div>
@@ -506,9 +506,8 @@ export default function RevenuesSection() {
                 disabled={isSubmitting}
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
-                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
-                }`}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
               />
             </div>
             <div>
@@ -521,20 +520,18 @@ export default function RevenuesSection() {
                 disabled={isSubmitting}
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
-                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
-                }`}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
               />
             </div>
             <div className="flex space-x-2">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`px-4 py-2 rounded-lg ${
-                  isSubmitting 
-                    ? "bg-gray-400 text-white cursor-not-allowed" 
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
+                className={`px-4 py-2 rounded-lg ${isSubmitting
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
               >
                 {isSubmitting ? "იტვირთება..." : "დამატება"}
               </button>
@@ -542,11 +539,10 @@ export default function RevenuesSection() {
                 type="button"
                 onClick={resetForm}
                 disabled={isSubmitting}
-                className={`px-4 py-2 rounded-lg ${
-                  isSubmitting 
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
-                    : "bg-gray-300 text-black hover:bg-gray-400"
-                }`}
+                className={`px-4 py-2 rounded-lg ${isSubmitting
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-gray-300 text-black hover:bg-gray-400"
+                  }`}
               >
                 გაუქმება
               </button>
@@ -555,8 +551,8 @@ export default function RevenuesSection() {
         </div>
       )}
 
-   
-   
+
+
 
       {/* Sent Invoices Section */}
       {sentInvoices.length > 0 ? (
@@ -604,7 +600,7 @@ export default function RevenuesSection() {
                   const isFullyPaid = totalAmount > 0 && (paidAmount >= totalAmount || Math.abs(paidAmount - totalAmount) < 0.01 || remaining <= 0);
                   // Only allow confirmation if invoice is fully paid and not already confirmed
                   const canConfirm = !isPaid && isFullyPaid;
-                  
+
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
@@ -627,8 +623,8 @@ export default function RevenuesSection() {
                               isEditing
                                 ? paymentAmounts[invoice.id] || ""
                                 : paidAmount > 0
-                                ? paidAmount.toFixed(2)
-                                : ""
+                                  ? paidAmount.toFixed(2)
+                                  : ""
                             }
                             onChange={(e) => {
                               if (isPaid) return;
@@ -674,11 +670,10 @@ export default function RevenuesSection() {
                                 startEditingPayment(invoice.id, invoice.paidAmount);
                               }
                             }}
-                            className={`w-28 px-2 py-1 border border-gray-300 rounded-md text-[16px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                              isPaid
-                                ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                                : "text-black"
-                            }`}
+                            className={`w-28 px-2 py-1 border border-gray-300 rounded-md text-[16px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${isPaid
+                              ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                              : "text-black"
+                              }`}
                             placeholder="0.00"
                           />
                           <span className="text-[16px] text-black">₾</span>

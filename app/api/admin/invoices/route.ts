@@ -255,29 +255,27 @@ export async function GET(request: NextRequest) {
       return name.trim().replace(/\s+/g, " ").toLowerCase();
     };
 
-    // Create invoice entries from email sends
+    // Create invoice entries – now ONE entry per email send (daily sheet send),
+    // so that similar/same day's sheets are NOT grouped/combined together.
     const invoiceEntries = emailSends.map((emailSend) => {
       const sheet = emailSend.dailySheet;
 
-      // Use values from DailySheetEmailSend record
       const emailWeight = emailSend.totalWeight ?? 0;
       const emailProtectorsAmount = emailSend.protectorsAmount ?? 0;
       const emailTotalAmount = emailSend.totalAmount ?? 0;
 
-      // Track each email send separately - use UTC methods to avoid timezone issues
+      // Track by service date (sheet date) - use UTC methods to avoid timezone issues
       const dateObj = new Date(emailSend.date);
-      // Get year, month, day in UTC to ensure consistent date formatting
       const year = dateObj.getUTCFullYear();
       const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getUTCDate()).padStart(2, '0');
       const dateKey = `${year}-${month}-${day}`;
-      
+
       const hotelKey = normalizeHotel(emailSend.hotelName);
-      
+
       // Calculate dispatched count from sheet items
       const totals = sheet.items.reduce(
         (acc, item) => {
-          // Treat dispatched as the max known count (fallback to received/washCount when 0 or null)
           const dispatched =
             (item.dispatched && item.dispatched > 0
               ? item.dispatched
@@ -291,20 +289,19 @@ export async function GET(request: NextRequest) {
         },
         { dispatched: 0 }
       );
-      
-      // Get confirmation status from emailSend (not dailySheet)
+
       const confirmedAt = emailSend.confirmedAt ? emailSend.confirmedAt.toISOString() : null;
-      
-      // Each emailSend is a separate invoice entry with a single date detail
+
       return {
         hotelName: hotelKey === "-" ? null : hotelKey,
         displayHotelName: emailSend.hotelName?.trim() || null,
-        sheetCount: 1, // Each invoice represents one sheet
+        sheetCount: 1, // One daily sheet send
         totalDispatched: totals.dispatched,
         totalWeightKg: emailWeight,
         protectorsAmount: emailProtectorsAmount,
         totalAmount: emailTotalAmount,
-        totalEmailSendCount: 1, // Each invoice has one email send
+        // emailSendCount is always 1 since each entry is a separate send
+        totalEmailSendCount: 1,
         dateDetails: [{
           date: dateKey,
           emailSendCount: 1,
@@ -312,8 +309,8 @@ export async function GET(request: NextRequest) {
           protectorsAmount: emailProtectorsAmount,
           totalAmount: emailTotalAmount,
           sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
-          confirmedAt: confirmedAt,
-          emailSendIds: [emailSend.id], // Each invoice detail has only one emailSend ID
+          confirmedAt,
+          emailSendIds: [emailSend.id],
         }],
       };
     });
