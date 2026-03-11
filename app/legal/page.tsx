@@ -157,12 +157,17 @@ export default function LegalProfilePage() {
     },
   ];
 
+  const hotelName =
+    profile?.hotels && profile.hotels.length > 0
+      ? profile.hotels[0].hotelName
+      : profile?.name || "იურიდიული პირის პანელი";
+
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-[18px] md:text-[24px] font-bold text-black">
-            იურიდიული პირის პანელი
+            {hotelName}
           </h1>
           {!isEditing && (
             <button
