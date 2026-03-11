@@ -593,3 +593,10 @@ model LegalInvoicePayment {
   @@index([userId])
   @@index([month])
 }
+
+model KgPrice {
+  id        String   @id
+  value     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -148,6 +148,12 @@ export default function AdminPage() {
       description: "ნახეთ სასტუმროების მოთხოვნები და დაადასტურეთ",
       path: "/admin/pickup-delivery"
     },
+    { 
+      id: "kgPrice",
+      label: "kg ფასი",
+      description: "მართეთ kg ფასი დღის ხელფასისთვის",
+      path: "/admin/kgprice"
+    },
   ];
 
   // Admin sees all sections
