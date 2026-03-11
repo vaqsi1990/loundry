@@ -1521,7 +1521,7 @@ export default function DailySheetsSection() {
                                   </div>
                                 </div>
                                 <div className="text-xs md:text-sm font-semibold text-black">
-                                  ჯამი: {dayTotalWeight.toFixed(2)} კგ
+                                  დღის წონა: {dayTotalWeight.toFixed(2)} კგ
                                 </div>
                               </div>
 
