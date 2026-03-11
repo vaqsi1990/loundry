@@ -63,6 +63,9 @@ export default function TableSection() {
   });
   const [calendarTimeEntries, setCalendarTimeEntries] = useState<Map<string, TimeEntry[]>>(new Map());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState(() =>
+    new Date().toISOString().slice(0, 7)
+  );
 
   // Load initial data on mount
   useEffect(() => {
@@ -1028,17 +1031,37 @@ export default function TableSection() {
                   ← უკან
                 </button>
                 <div className="overflow-x-auto">
-                  <h3 className="text-lg font-semibold text-black mb-2">
-                    {(() => {
-                      const selectedEmp = allEmployees.find((e: Employee) => e.id === popupSelectedEmployeeId);
-                      return `${selectedEmp?.name || ""} - ${formatMonth(popupSelectedMonth)}`;
-                    })()}
-                  </h3>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2">
+                    <h3 className="text-lg font-semibold text-black">
+                      {(() => {
+                        const selectedEmp = allEmployees.find(
+                          (e: Employee) => e.id === popupSelectedEmployeeId
+                        );
+                        const employeeEntries = popupTimeEntries
+                          .filter((entry) => entry.employeeId === popupSelectedEmployeeId)
+                          .sort(
+                            (a, b) =>
+                              new Date(a.date).getTime() - new Date(b.date).getTime()
+                          );
+                        const monthLabel =
+                          employeeEntries.length > 0
+                            ? formatMonth(employeeEntries[0].date.slice(0, 7))
+                            : formatMonth(popupSelectedMonth);
+                        return `${selectedEmp?.name || ""} - ${monthLabel}`;
+                      })()}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      იხილეთ ჩანაწერები დღის და ღამის ცვლების მიხედვით.
+                    </p>
+                  </div>
                   <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
                           თარიღი
+                        </th>
+                        <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
+                          ცვლა
                         </th>
                         <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
                           მოსვლის საათი
@@ -1058,8 +1081,14 @@ export default function TableSection() {
                       {(() => {
                         const employeeEntries = popupTimeEntries
                           .filter((entry) => entry.employeeId === popupSelectedEmployeeId)
-                          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                        const totalSalary = employeeEntries.reduce((sum, e) => sum + (e.dailySalary || 0), 0);
+                          .sort(
+                            (a, b) =>
+                              new Date(a.date).getTime() - new Date(b.date).getTime()
+                          );
+                        const totalSalary = employeeEntries.reduce(
+                          (sum, e) => sum + (e.dailySalary || 0),
+                          0
+                        );
                         
                         return (
                           <>
@@ -1067,6 +1096,9 @@ export default function TableSection() {
                               <tr key={entry.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black">
                                   {formatDate(entry.date)}
+                                </td>
+                                <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black">
+                                  {entry.shift === "NIGHT" ? "ღამის" : "დღის"}
                                 </td>
                                 <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black">
                                   {entry.arrivalTime || "-"}
