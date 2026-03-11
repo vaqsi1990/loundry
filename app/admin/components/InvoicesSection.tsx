@@ -635,125 +635,139 @@ export default function InvoicesSection() {
                         (sum, inv) => sum + (inv.detail.totalAmount || 0),
                         0
                       );
+                      const totalHotelWeight = hotelInvoices.reduce(
+                        (sum, inv) => sum + (inv.detail.weightKg || 0),
+                        0
+                      );
+                      const totalHotelProtectors = hotelInvoices.reduce(
+                        (sum, inv) => sum + (inv.detail.protectorsAmount || 0),
+                        0
+                      );
+                      const dateDetailsForHotel = hotelInvoices.map((inv) => inv.detail);
+                      const allConfirmed =
+                        dateDetailsForHotel.length > 0 &&
+                        dateDetailsForHotel.every((d) => !!d.confirmedAt);
+                      const someConfirmed = dateDetailsForHotel.some((d) => !!d.confirmedAt);
                       const hotelToggleKey = `${monthKey}|${hotelKey}`;
 
                       return (
                         <div key={hotelKey} className="bg-white">
-                          <button
-                            className="w-full px-6 py-3 flex items-center justify-between bg-white hover:bg-gray-50"
+                          <div
+                            className="w-full px-6 py-3 flex items-center justify-between bg-white hover:bg-gray-50 cursor-pointer"
                             onClick={() => toggleHotel(monthKey, hotelKey)}
                           >
                             <div className="flex items-center gap-3">
                               <span className="text-[14px] md:text-[16px] font-semibold text-black">
                                 {displayName}
                               </span>
-                              <span className="text-xs md:text-sm text-gray-600">
-                                {hotelInvoices.length} ინვოისი · {totalHotelAmount.toFixed(2)} ₾
+                              <span className="text-[16px] md:text-[18px] text-black">
+                                {hotelInvoices.length} ინვოისი · {totalHotelAmount.toFixed(2)} ₾ ·{" "}
+                                {totalHotelWeight.toFixed(2)} კგ · დამცავები {totalHotelProtectors.toFixed(2)} ₾
                               </span>
                             </div>
-                            <span className="text-gray-500">
-                              {expandedHotels.has(hotelToggleKey) ? "▲" : "▼"}
-                            </span>
-                          </button>
+                            <div className="flex items-center gap-3">
+                              <div className="hidden md:block">
+                                {allConfirmed ? (
+                                  <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                                    ყველა ინვოისი დადასტურებულია
+                                  </span>
+                                ) : someConfirmed ? (
+                                  <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                                    ნაწილობრივ დადასტურებულია
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                                    დადასტურება საჭიროა
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Always send PDF for all selected day sheets (even if invoice was sent before)
+                                    openPdfModal(
+                                      group.displayHotelName || group.hotelName,
+                                      dateDetailsForHotel
+                                    );
+                                  }}
+                                  className="text-[12px] md:text-[14px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
+                                >
+                                  PDF-ის გაგზავნა
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteHotel(group.displayHotelName || group.hotelName, dateDetailsForHotel);
+                                  }}
+                                  disabled={busy}
+                                  className="text-[12px] md:text-[14px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  წაშლა
+                                </button>
+                                <span className="text-gray-500 text-sm md:text-base">
+                                  {expandedHotels.has(hotelToggleKey) ? "▲" : "▼"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
                           {expandedHotels.has(hotelToggleKey) && (
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto border-t border-gray-100">
                               <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                  <tr>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      თარიღი
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      გაგზავნის თარიღი
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      გაგზავნილი რაოდენობა
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      წონა (კგ)
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      დამცავები (₾)
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      სულ (₾)
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      დადასტურება
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
-                                      მოქმედებები
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                  {hotelInvoices.map((inv, idx) => {
-                                    const detail = inv.detail;
-                                    const rowKey =
-                                      (detail.emailSendIds && detail.emailSendIds[0]) ||
-                                      `${displayName}-${detail.date}-${idx}`;
-
-                                    // თითოეული სტრიქონის გაგზავნისას უნდა შეიქმნას ცალკე ინვოისი,
-                                    // ამიტომ Modal-ს გადაეცემა მხოლოდ კონკრეტული detail (არ ვაჯამებთ მსგავსებს).
-                                    return (
-                                      <tr key={rowKey} className="hover:bg-gray-50">
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                                          {formatDate(detail.date)}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                                          {detail.sentAt ? formatDate(detail.sentAt) : "-"}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                                          {detail.emailSendCount}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                                          {(detail.weightKg || 0).toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                                          {(detail.protectorsAmount || 0).toFixed(2)} ₾
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
-                                          {(detail.totalAmount || 0).toFixed(2)} ₾
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
-                                          {detail.confirmedAt ? (
-                                            <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
-                                              ✓ დაადასტურა{" "}
-                                              {new Date(detail.confirmedAt).toLocaleDateString("ka-GE")}
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
-                                              დადასტურება საჭიროა
-                                            </span>
-                                          )}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px]">
-                                          <div className="flex gap-2">
-                                            <button
-                                              onClick={() =>
-                                                openPdfModal(
-                                                  inv.displayHotelName || inv.hotelName,
-                                                  [detail]
-                                                )
-                                              }
-                                              className="text-[14px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
-                                            >
-                                              გაგზავნა
-                                            </button>
-                                            <button
-                                              onClick={() => deleteDay(detail.date, detail.emailSendIds)}
-                                              disabled={busy}
-                                              className="text-[14px] bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                              წაშლა
-                                            </button>
-                                          </div>
-                                        </td>
+                                    <thead className="bg-gray-50">
+                                      <tr>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          თარიღი
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          გაგზავნის თარიღი
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          გაგზავნილი რაოდენობა
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          წონა (კგ)
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          დამცავები (₾)
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          სულ (₾)
+                                        </th>
                                       </tr>
-                                    );
-                                  })}
-                                </tbody>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                      {hotelInvoices.map((inv, idx) => {
+                                        const detail = inv.detail;
+                                        const rowKey =
+                                          (detail.emailSendIds && detail.emailSendIds[0]) ||
+                                          `${displayName}-${detail.date}-${idx}`;
+
+                                        return (
+                                          <tr key={rowKey} className="hover:bg-gray-50">
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              {formatDate(detail.date)}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              {detail.sentAt ? formatDate(detail.sentAt) : "-"}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              {detail.emailSendCount}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              {(detail.weightKg || 0).toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              {(detail.protectorsAmount || 0).toFixed(2)} ₾
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
+                                              {(detail.totalAmount || 0).toFixed(2)} ₾
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
                               </table>
                             </div>
                           )}

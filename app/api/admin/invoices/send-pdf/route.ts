@@ -541,19 +541,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
     }
 
-    // Prevent sending duplicate invoices for the same daily sheets
-    // If any of the selected emailSends already have sentAt მნიშვნელობა, არ დავუშვათ განმეორებითი გაგზავნა
-    const alreadySent = emailSends.filter((es: any) => es.sentAt !== null);
-    if (alreadySent.length > 0) {
-      return NextResponse.json(
-        {
-          error:
-            "შერჩეული დღის ფურცლებისთვის ინვოისი უკვე გაგზავნილია. ერთსა და იმავე დღის ფურცლებზე ორჯერ ინვოისის გაგზავნა არ შეიძლება.",
-        },
-        { status: 400 }
-      );
-    }
-
     // Generate sequential invoice number based on hotel type
     // We'll generate it in the LegalInvoice or PhysicalInvoice section below
     let invoiceNumber = "1";
