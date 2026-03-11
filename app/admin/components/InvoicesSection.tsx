@@ -32,11 +32,6 @@ interface InvoiceDaySummary {
   dateDetails?: DateDetail[];
 }
 
-interface MonthOption {
-  month: string; // YYYY-MM format
-  count: number;
-}
-
 export default function InvoicesSection() {
   const [summaries, setSummaries] = useState<InvoiceDaySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,13 +49,11 @@ export default function InvoicesSection() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState(false);
-  const [availableMonths, setAvailableMonths] = useState<MonthOption[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // Empty = all months
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedHotels, setExpandedHotels] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchAvailableMonths();
     fetchHotels();
   }, []);
 
@@ -79,20 +72,6 @@ export default function InvoicesSection() {
       console.log("გაგზავნილი (ც.) per hotel:", perHotel, "სულ:", total);
     }
   }, [summaries]);
-
-  const fetchAvailableMonths = async () => {
-    try {
-      const apiPath = getApiPath("invoices");
-      const response = await fetch(`${apiPath}?months=true`);
-      if (!response.ok) {
-        throw new Error("თვეების ჩატვირთვა ვერ მოხერხდა");
-      }
-      const data = await response.json();
-      setAvailableMonths(data.months || []);
-    } catch (err) {
-      console.error("Months fetch error:", err);
-    }
-  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -444,6 +423,14 @@ export default function InvoicesSection() {
     return acc;
   }, {});
 
+  // Month options for filter dropdown – same months as headers
+  const monthOptions = Object.keys(invoicesByMonth)
+    .sort((a, b) => b.localeCompare(a)) // newest month first
+    .map((monthKey) => ({
+      month: monthKey,
+      count: invoicesByMonth[monthKey].length,
+    }));
+
   const toggleMonth = (monthKey: string) => {
     setExpandedMonths(prev => {
       const next = new Set(prev);
@@ -489,7 +476,7 @@ export default function InvoicesSection() {
             className="px-4 py-2 border border-gray-300 rounded-lg text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ყველა თვე</option>
-            {availableMonths.map((month) => (
+            {monthOptions.map((month) => (
               <option key={month.month} value={month.month}>
                 {formatMonth(month.month)} ({month.count})
               </option>
@@ -619,7 +606,7 @@ export default function InvoicesSection() {
                     </button>
                     <div>
                       <h3 className="text-lg font-bold text-black">
-                        {formatMonth(monthKey)} – ინვოისები: {monthInvoices.length}
+                        {formatMonth(monthKey)} 
                       </h3>
                     </div>
                   </div>
