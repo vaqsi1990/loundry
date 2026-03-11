@@ -140,6 +140,7 @@ export default function DailySheetsSection() {
   const [allMonths, setAllMonths] = useState<string[]>([]);
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set()); // Track which sheets are expanded
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [emailModal, setEmailModal] = useState<{ open: boolean; sheetId: string | null }>({
     open: false,
     sheetId: null,
@@ -612,6 +613,18 @@ export default function DailySheetsSection() {
     acc[key].push(sheet);
     return acc;
   }, {});
+
+  const toggleDay = (dayKey: string) => {
+    setExpandedDays(prev => {
+      const next = new Set(prev);
+      if (next.has(dayKey)) {
+        next.delete(dayKey);
+      } else {
+        next.add(dayKey);
+      }
+      return next;
+    });
+  };
 
   const renderSectionRows = (items: DailySheetItem[], sheetType: string = "INDIVIDUAL", hasProtectors: boolean = false, hasLinenOrTowels: boolean = false) =>
     items.map((item, idx) => {
@@ -1451,167 +1464,234 @@ export default function DailySheetsSection() {
                 {/* Month content */}
                 {isMonthExpanded && (
                   <div className="p-4 space-y-4 bg-white">
-                    {monthSheets
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map((sheet) => {
-                        const isExpanded = expandedSheets.has(sheet.id);
-                        const headerTotals = calculateTotals(sheet.items);
-                        const headerTotalWeight =
-                          sheet.sheetType === "STANDARD" && sheet.totalWeight
-                            ? sheet.totalWeight
-                            : headerTotals.totalWeight;
-                        return (
-                          <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                            {/* Header - Always visible */}
-                            <div 
-                              className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                              onClick={() => toggleSheet(sheet.id)}
-                            >
-                              <div className="flex items-center gap-3 flex-1">
-                                <button
-                                  className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleSheet(sheet.id);
-                                  }}
-                                >
-                                  {isExpanded ? (
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  ) : (
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                  )}
-                                </button>
-                                <div>
-                                  <h3 className="text-lg font-semibold text-black flex items-center gap-2">
-                                    <span>{sheet.hotelName}</span>
-                                   
-                                  </h3>
-                                  <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
-                                    <span>{formatDateGe(sheet.date)}</span>
-                                    {sheet.shiftType && (
-                                      <span className="inline-flex items-center rounded-full  text-black px-3 py-1 text-4 font-semibold">
-                                        ცვლა: {sheet.shiftType === "DAY" ? "დღის" : "ღამის"}
-                                      </span>
-                                    )}
-                                    <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
-                                      გაგზავნილი {sheet.emailSendCount ?? 0}x
-                                    </span>
-                                    {sheet.confirmedAt && sheet.confirmedByUser && (
-                                      <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
-                                        ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})
-                                      </span>
-                                    )}
-                                    {!sheet.confirmedAt && (
-                                      <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
-                                        დადასტურება საჭიროა
-                                      </span>
-                                    )}
-                                  </div>
-                                  
-                                </div>
-                                {sheet.sheetType === "STANDARD" ? (
-                                  editingWeight.sheetId === sheet.id ? (
-                                    <div
-                                      className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <input
-                                        type="number"
-                                        step="0.001"
-                                        className="w-24 bg-transparent border border-gray-300 rounded-full px-2 py-0.5 text-center text-gray-800 md:text-[18px] text-[16px]"
-                                        value={editingWeight.value}
-                                        onChange={(e) =>
-                                          setEditingWeight((prev) => ({
-                                            ...prev,
-                                            value: e.target.value,
-                                          }))
-                                        }
-                                      />
-                                      <span className="text-xs text-gray-600">კგ</span>
-                                      <button
-                                        type="button"
-                                        disabled={savingWeightId === sheet.id}
-                                        onClick={() => handleHeaderWeightSave(sheet)}
-                                        className="text-xs font-semibold text-green-700 hover:text-green-800 disabled:opacity-50"
-                                      >
-                                        შენახვა
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingWeight({ sheetId: null, value: "" });
-                                        }}
-                                        className="text-xs font-semibold text-red-600 hover:text-red-700"
-                                      >
-                                        გაუქმება
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditHeaderWeight(sheet, headerTotalWeight);
-                                      }}
-                                      className="inline-flex text-center mx-auto items-center rounded-full bg-gray-100 text-gray-800 px-3 py-1 md:text-[18px] text-[16px] font-semibold hover:bg-gray-200"
-                                    >
-                                      წონა: {headerTotalWeight.toFixed(2)} კგ
-                                    </button>
-                                  )
-                                ) : (
-                                  <span className="inline-flex text-center mx-auto items-center rounded-full bg-gray-100 text-gray-800 px-3 py-1 md:text-[18px] text-[16px] font-semibold">
-                                    წონა: {headerTotalWeight.toFixed(2)} კგ
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={() => handleEdit(sheet)}
-                                  className="text-blue-600 hover:underline px-2"
-                                >
-                                  რედაქტირება
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(sheet.id)}
-                                  className="text-red-600 hover:underline px-2"
-                                >
-                                  წაშლა
-                                </button>
-                                {((sheet.emailSendCount ?? 0) === 0) ? (
+                    {(() => {
+                      // Group month sheets by exact date
+                      const sheetsByDay = monthSheets.reduce<Record<string, DailySheet[]>>((acc, sheet) => {
+                        const dayKey = getDateString(sheet.date);
+                        if (!acc[dayKey]) acc[dayKey] = [];
+                        acc[dayKey].push(sheet);
+                        return acc;
+                      }, {});
+
+                      return Object.keys(sheetsByDay)
+                        .sort((a, b) => b.localeCompare(a)) // newest day first
+                        .map((dayKey) => {
+                          const daySheets = sheetsByDay[dayKey];
+                          const isDayExpanded = expandedDays.has(dayKey);
+                          const dayTotalWeight = daySheets.reduce((sum, sheet) => {
+                            const totals = calculateTotals(sheet.items);
+                            const sheetWeight =
+                              sheet.sheetType === "STANDARD" && sheet.totalWeight
+                                ? sheet.totalWeight
+                                : totals.totalWeight;
+                            return sum + sheetWeight;
+                          }, 0);
+                          return (
+                            <div key={dayKey} className="border border-gray-200 rounded-lg overflow-hidden">
+                              {/* Day header */}
+                              <div
+                                className="flex justify-between items-center px-4 py-3 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                                onClick={() => toggleDay(dayKey)}
+                              >
+                                <div className="flex items-center gap-3">
                                   <button
-                                    onClick={() => {
-                                      setEmailModal({ open: true, sheetId: sheet.id });
-                                      setModalEmail(deriveHotelEmail(sheet.hotelName));
+                                    className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDay(dayKey);
                                     }}
-                                    className="text-green-700 hover:underline px-2"
                                   >
-                                    გაგზავნა მეილზე
+                                    {isDayExpanded ? (
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    )}
                                   </button>
-                                ) : (
-                                  <button
-                                    disabled
-                                    className="text-gray-400 px-2 cursor-not-allowed"
-                                    title="ეს დღის ფურცელი უკვე გაგზავნილია"
-                                  >
-                                    უკვე გაგზავნილია
-                                  </button>
-                                )}
+                                  <div>
+                                    <h4 className="font-semibold text-black">
+                                      {formatDateGe(dayKey)}
+                                    </h4>
+                                    <p className="text-xs text-gray-600">
+                                      ფურცლები ამ დღისთვის: {daySheets.length}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-xs md:text-sm font-semibold text-black">
+                                  ჯამი: {dayTotalWeight.toFixed(2)} კგ
+                                </div>
                               </div>
+
+                              {/* Day content: sheets list */}
+                              {isDayExpanded && (
+                                <div className="p-4 space-y-4 bg-white">
+                                  {daySheets
+                                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                                    .map((sheet) => {
+                                      const isExpanded = expandedSheets.has(sheet.id);
+                                      const headerTotals = calculateTotals(sheet.items);
+                                      const headerTotalWeight =
+                                        sheet.sheetType === "STANDARD" && sheet.totalWeight
+                                          ? sheet.totalWeight
+                                          : headerTotals.totalWeight;
+                                      return (
+                                        <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                          {/* Header - Always visible */}
+                                          <div 
+                                            className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                                            onClick={() => toggleSheet(sheet.id)}
+                                          >
+                                            <div className="flex items-center gap-3 flex-1">
+                                              <button
+                                                className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleSheet(sheet.id);
+                                                }}
+                                              >
+                                                {isExpanded ? (
+                                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                  </svg>
+                                                ) : (
+                                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                  </svg>
+                                                )}
+                                              </button>
+                                              <div>
+                                                <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+                                                  <span>{sheet.hotelName}</span>
+                                                </h3>
+                                                <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+                                                  {sheet.shiftType && (
+                                                    <span className="inline-flex items-center rounded-full  text-black px-3 py-1 text-4 font-semibold">
+                                                      ცვლა: {sheet.shiftType === "DAY" ? "დღის" : "ღამის"}
+                                                    </span>
+                                                  )}
+                                                  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
+                                                    გაგზავნილი {sheet.emailSendCount ?? 0}x
+                                                  </span>
+                                                  {sheet.confirmedAt && sheet.confirmedByUser && (
+                                                    <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                                                      ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})
+                                                    </span>
+                                                  )}
+                                                  {!sheet.confirmedAt && (
+                                                    <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                                                      დადასტურება საჭიროა
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              {sheet.sheetType === "STANDARD" ? (
+                                                editingWeight.sheetId === sheet.id ? (
+                                                  <div
+                                                    className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  >
+                                                    <input
+                                                      type="number"
+                                                      step="0.001"
+                                                      className="w-24 bg-transparent border border-gray-300 rounded-full px-2 py-0.5 text-center text-gray-800 md:text-[18px] text-[16px]"
+                                                      value={editingWeight.value}
+                                                      onChange={(e) =>
+                                                        setEditingWeight((prev) => ({
+                                                          ...prev,
+                                                          value: e.target.value,
+                                                        }))
+                                                      }
+                                                    />
+                                                    <span className="text-xs text-gray-600">კგ</span>
+                                                    <button
+                                                      type="button"
+                                                      disabled={savingWeightId === sheet.id}
+                                                      onClick={() => handleHeaderWeightSave(sheet)}
+                                                      className="text-xs font-semibold text-green-700 hover:text-green-800 disabled:opacity-50"
+                                                    >
+                                                      შენახვა
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingWeight({ sheetId: null, value: "" });
+                                                      }}
+                                                      className="text-xs font-semibold text-red-600 hover:text-red-700"
+                                                    >
+                                                      გაუქმება
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      startEditHeaderWeight(sheet, headerTotalWeight);
+                                                    }}
+                                                    className="inline-flex text-center mx-auto items-center rounded-full bg-gray-100 text-gray-800 px-3 py-1 md:text-[18px] text-[16px] font-semibold hover:bg-gray-200"
+                                                  >
+                                                    წონა: {headerTotalWeight.toFixed(2)} კგ
+                                                  </button>
+                                                )
+                                              ) : (
+                                                <span className="inline-flex text-center mx-auto items-center rounded-full bg-gray-100 text-gray-800 px-3 py-1 md:text-[18px] text-[16px] font-semibold">
+                                                  წონა: {headerTotalWeight.toFixed(2)} კგ
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                                              <button
+                                                onClick={() => handleEdit(sheet)}
+                                                className="text-blue-600 hover:underline px-2"
+                                              >
+                                                რედაქტირება
+                                              </button>
+                                              <button
+                                                onClick={() => handleDelete(sheet.id)}
+                                                className="text-red-600 hover:underline px-2"
+                                              >
+                                                წაშლა
+                                              </button>
+                                              {((sheet.emailSendCount ?? 0) === 0) ? (
+                                                <button
+                                                  onClick={() => {
+                                                    setEmailModal({ open: true, sheetId: sheet.id });
+                                                    setModalEmail(deriveHotelEmail(sheet.hotelName));
+                                                  }}
+                                                  className="text-green-700 hover:underline px-2"
+                                                >
+                                                  გაგზავნა მეილზე
+                                                </button>
+                                              ) : (
+                                                <button
+                                                  disabled
+                                                  className="text-gray-400 px-2 cursor-not-allowed"
+                                                  title="ეს დღის ფურცელი უკვე გაგზავნილია"
+                                                >
+                                                  უკვე გაგზავნილია
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {/* Content - Collapsible */}
+                                          {isExpanded && (
+                                            <div className="px-6 pb-6 border-t border-gray-200 pt-4">
+                                              {renderSheetTable(sheet)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              )}
                             </div>
-                            {/* Content - Collapsible */}
-                            {isExpanded && (
-                              <div className="px-6 pb-6 border-t border-gray-200 pt-4">
-                                {renderSheetTable(sheet)}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                    })()}
                   </div>
                 )}
               </div>
