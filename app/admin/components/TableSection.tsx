@@ -42,6 +42,7 @@ export default function TableSection() {
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [showAddEmployeesPopup, setShowAddEmployeesPopup] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+  const [popupShifts, setPopupShifts] = useState<Record<string, "DAY" | "NIGHT">>({});
   
   // Popup states
   const [showDayPopup, setShowDayPopup] = useState(false);
@@ -193,16 +194,25 @@ export default function TableSection() {
     }
   };
 
-  const updateRow = (employeeId: string, field: keyof EmployeeRow, value: string) => {
-    setEmployeeRows(
-      employeeRows.map((row) =>
-        row.employeeId === employeeId ? { ...row, [field]: value } : row
+  const updateRow = (
+    employeeId: string,
+    shift: "DAY" | "NIGHT",
+    field: keyof EmployeeRow,
+    value: string
+  ) => {
+    setEmployeeRows((prev) =>
+      prev.map((row) =>
+        row.employeeId === employeeId && row.shift === shift
+          ? { ...row, [field]: value }
+          : row
       )
     );
   };
 
-  const saveRow = async (employeeId: string) => {
-    const row = employeeRows.find((r) => r.employeeId === employeeId);
+  const saveRow = async (employeeId: string, shift: "DAY" | "NIGHT") => {
+    const row = employeeRows.find(
+      (r) => r.employeeId === employeeId && r.shift === shift
+    );
     if (!row) return;
 
     setSaving({ ...saving, [employeeId]: true });
@@ -319,6 +329,7 @@ export default function TableSection() {
     // Always fetch fresh employees to include newly added ones
     await fetchAllEmployees();
     setSelectedEmployeeIds(new Set());
+    setPopupShifts({});
     setShowAddEmployeesPopup(true);
   };
 
@@ -335,9 +346,15 @@ export default function TableSection() {
   };
 
   const handleAddSelectedEmployees = () => {
-    const employeesToAdd = allEmployees.filter(
-      (emp) => selectedEmployeeIds.has(emp.id) && !employeeRows.some((row) => row.employeeId === emp.id)
-    );
+    const employeesToAdd = allEmployees.filter((emp) => {
+      if (!selectedEmployeeIds.has(emp.id)) return false;
+      const selectedShift = popupShifts[emp.id] || "DAY";
+      // Allow adding same employee again with different shift.
+      // Block only exact duplicate: same employee + same shift already in table.
+      return !employeeRows.some(
+        (row) => row.employeeId === emp.id && row.shift === selectedShift
+      );
+    });
 
     const newRows: EmployeeRow[] = employeesToAdd.map((emp) => ({
       employeeId: emp.id,
@@ -345,7 +362,7 @@ export default function TableSection() {
       arrivalTime: "",
       departureTime: "",
       dailySalary: "",
-      shift: "DAY",
+      shift: popupShifts[emp.id] || "DAY",
     }));
 
     const updatedRows = [...employeeRows, ...newRows];
@@ -358,14 +375,19 @@ export default function TableSection() {
     // Time entries will be loaded when date changes
   };
 
-  const handleRemoveEmployeeFromTable = async (employeeId: string) => {
+  const handleRemoveEmployeeFromTable = async (
+    employeeId: string,
+    shift: "DAY" | "NIGHT"
+  ) => {
     if (!selectedDate) {
       setError("თარიღი აუცილებელია");
       return;
     }
 
-    // Find employee name for confirmation message
-    const employee = employeeRows.find((row) => row.employeeId === employeeId);
+    // Find employee row and name for confirmation message
+    const employee = employeeRows.find(
+      (row) => row.employeeId === employeeId && row.shift === shift
+    );
     const employeeName = employee?.employeeName || "თანამშრომელი";
 
     // Show confirmation dialog
@@ -378,9 +400,9 @@ export default function TableSection() {
     }
 
     try {
-      // Delete from Prisma
+      // Delete from Prisma (specific shift for this row)
       const response = await fetch(
-        `/api/admin/employee-time-entries?employeeId=${employeeId}&date=${selectedDate}`,
+        `/api/admin/employee-time-entries?employeeId=${employeeId}&date=${selectedDate}&shift=${shift}`,
         {
           method: "DELETE",
         }
@@ -392,7 +414,9 @@ export default function TableSection() {
       }
 
       // Remove from UI
-      const newRows = employeeRows.filter((row) => row.employeeId !== employeeId);
+      const newRows = employeeRows.filter(
+        (row) => !(row.employeeId === employeeId && row.shift === shift)
+      );
       setEmployeeRows(newRows);
       
       // Refresh time entries to update the table
@@ -510,7 +534,7 @@ export default function TableSection() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {employeeRows.map((row) => (
-                <tr key={row.employeeId} className="hover:bg-gray-50">
+                <tr key={`${row.employeeId}-${row.shift}`} className="hover:bg-gray-50">
                   <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black">
                     {row.employeeName}
                   </td>
@@ -518,7 +542,12 @@ export default function TableSection() {
                     <select
                       value={row.shift}
                       onChange={(e) =>
-                        updateRow(row.employeeId, "shift", e.target.value as "DAY" | "NIGHT")
+                        updateRow(
+                          row.employeeId,
+                          row.shift,
+                          "shift",
+                          e.target.value as "DAY" | "NIGHT"
+                        )
                       }
                       className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
                     >
@@ -534,10 +563,10 @@ export default function TableSection() {
                         const value = e.target.value;
                         // Allow only numbers and colon, format as HH:mm
                         const formatted = value
-                          .replace(/[^\d:]/g, '')
-                          .replace(/^(\d{2})(\d)/, '$1:$2')
+                          .replace(/[^\d:]/g, "")
+                          .replace(/^(\d{2})(\d)/, "$1:$2")
                           .substring(0, 5);
-                        updateRow(row.employeeId, "arrivalTime", formatted);
+                        updateRow(row.employeeId, row.shift, "arrivalTime", formatted);
                       }}
                       onBlur={(e) => {
                         // Validate and format on blur
@@ -551,7 +580,12 @@ export default function TableSection() {
                             const hoursNum = parseInt(hours);
                             const minutesNum = parseInt(minutes);
                             if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
-                              updateRow(row.employeeId, "arrivalTime", `${hours}:${minutes}`);
+                              updateRow(
+                                row.employeeId,
+                                row.shift,
+                                "arrivalTime",
+                                `${hours}:${minutes}`
+                              );
                             }
                           }
                         }
@@ -569,10 +603,10 @@ export default function TableSection() {
                         const value = e.target.value;
                         // Allow only numbers and colon, format as HH:mm
                         const formatted = value
-                          .replace(/[^\d:]/g, '')
-                          .replace(/^(\d{2})(\d)/, '$1:$2')
+                          .replace(/[^\d:]/g, "")
+                          .replace(/^(\d{2})(\d)/, "$1:$2")
                           .substring(0, 5);
-                        updateRow(row.employeeId, "departureTime", formatted);
+                        updateRow(row.employeeId, row.shift, "departureTime", formatted);
                       }}
                       onBlur={(e) => {
                         // Validate and format on blur
@@ -586,7 +620,12 @@ export default function TableSection() {
                             const hoursNum = parseInt(hours);
                             const minutesNum = parseInt(minutes);
                             if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
-                              updateRow(row.employeeId, "departureTime", `${hours}:${minutes}`);
+                              updateRow(
+                                row.employeeId,
+                                row.shift,
+                                "departureTime",
+                                `${hours}:${minutes}`
+                              );
                             }
                           }
                         }
@@ -601,7 +640,14 @@ export default function TableSection() {
                       type="number"
                       step="0.01"
                       value={row.dailySalary}
-                      onChange={(e) => updateRow(row.employeeId, "dailySalary", e.target.value)}
+                      onChange={(e) =>
+                        updateRow(
+                          row.employeeId,
+                          row.shift,
+                          "dailySalary",
+                          e.target.value
+                        )
+                      }
                       className="w-24 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500"
                       placeholder="0.00"
                         />
@@ -609,14 +655,16 @@ export default function TableSection() {
                     <td className="px-4 py-2 w-28 border border-gray-300">
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => saveRow(row.employeeId)}
+                        onClick={() => saveRow(row.employeeId, row.shift)}
                         disabled={saving[row.employeeId]}
                         className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-[16px] md:text-[18px]"
                       >
                         {saving[row.employeeId] ? "შენახვა..." : "შენახვა"}
                       </button>
                       <button
-                        onClick={() => handleRemoveEmployeeFromTable(row.employeeId)}
+                        onClick={() =>
+                          handleRemoveEmployeeFromTable(row.employeeId, row.shift)
+                        }
                         className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[16px] md:text-[18px]"
                       >
                         წაშლა
@@ -656,13 +704,22 @@ export default function TableSection() {
                   </p>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {allEmployees.map((emp) => {
-                      const isInTable = employeeRows.some((row) => row.employeeId === emp.id);
+                      const hasDay = employeeRows.some(
+                        (row) => row.employeeId === emp.id && row.shift === "DAY"
+                      );
+                      const hasNight = employeeRows.some(
+                        (row) => row.employeeId === emp.id && row.shift === "NIGHT"
+                      );
+                      const selectedShift = popupShifts[emp.id] || "DAY";
+                      const isShiftInTable = employeeRows.some(
+                        (row) => row.employeeId === emp.id && row.shift === selectedShift
+                      );
                       const isSelected = selectedEmployeeIds.has(emp.id);
                       return (
                         <div
                           key={emp.id}
                           className={`flex items-center p-3 border rounded-md ${
-                            isInTable ? "bg-gray-100 opacity-60" : "bg-white hover:bg-gray-50"
+                            hasDay && hasNight ? "bg-gray-100 opacity-60" : "bg-white hover:bg-gray-50"
                           }`}
                         >
                           <input
@@ -670,18 +727,39 @@ export default function TableSection() {
                             id={`emp-${emp.id}`}
                             checked={isSelected}
                             onChange={() => handleToggleEmployeeSelection(emp.id)}
-                            disabled={isInTable}
+                            disabled={isShiftInTable && (hasDay && hasNight)}
                             className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
                           />
-                          <label
-                            htmlFor={`emp-${emp.id}`}
-                            className={`ml-3 text-[16px] md:text-[18px] text-black cursor-pointer flex-1 ${
-                              isInTable ? "text-gray-500" : ""
-                            }`}
-                          >
-                            {emp.name}
-                            {isInTable && <span className="ml-2 text-sm text-gray-400">(უკვე დამატებულია)</span>}
-                          </label>
+                          <div className="ml-3 flex-1 flex items-center justify-between gap-4">
+                            <label
+                              htmlFor={`emp-${emp.id}`}
+                              className={`text-[16px] md:text-[18px] text-black cursor-pointer ${
+                                hasDay && hasNight ? "text-gray-500" : ""
+                              }`}
+                            >
+                              {emp.name}
+                              {hasDay && hasNight && (
+                                <span className="ml-2 text-sm text-gray-400">(უკვე დამატებულია)</span>
+                              )}
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[14px] text-gray-600">ცვლა:</span>
+                              <select
+                                value={popupShifts[emp.id] || "DAY"}
+                                onChange={(e) =>
+                                  setPopupShifts((prev) => ({
+                                    ...prev,
+                                    [emp.id]: e.target.value as "DAY" | "NIGHT",
+                                  }))
+                                }
+                                disabled={hasDay && hasNight}
+                                className="px-2 py-1 border border-gray-300 rounded text-[14px] text-black bg-white"
+                              >
+                                <option value="DAY">დღის</option>
+                                <option value="NIGHT">ღამის</option>
+                              </select>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}

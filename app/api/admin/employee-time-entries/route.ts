@@ -109,14 +109,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if entry already exists for this employee and date
-    const existingEntry = await prisma.employeeTimeEntry.findUnique({
-        where: {
-          employeeId_date: {
-            employeeId,
-            date: new Date(date),
-          },
-        },
+    // Normalize shift (default DAY) and check if entry already exists for this employee, date and shift
+    const normalizedShift = shift === "NIGHT" ? "NIGHT" : "DAY";
+    const existingEntry = await prisma.employeeTimeEntry.findFirst({
+      where: {
+        employeeId,
+        date: new Date(date),
+        shift: normalizedShift,
+      },
     });
 
     let timeEntry;
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
           dailySalary: dailySalary ? parseFloat(dailySalary) : null,
-          shift: shift === "NIGHT" ? "NIGHT" : "DAY",
+          shift: normalizedShift,
         },
         include: {
           employee: {
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
           dailySalary: dailySalary ? parseFloat(dailySalary) : null,
-          shift: shift === "NIGHT" ? "NIGHT" : "DAY",
+          shift: normalizedShift,
         },
         include: {
           employee: {
@@ -201,6 +201,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get("employeeId");
     const date = searchParams.get("date");
+    const shift = searchParams.get("shift") as "DAY" | "NIGHT" | null;
 
     if (!employeeId || !date) {
       return NextResponse.json(
@@ -209,14 +210,27 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Find and delete the time entry
-    const deletedEntry = await prisma.employeeTimeEntry.delete({
+    const normalizedShift: "DAY" | "NIGHT" =
+      shift === "NIGHT" ? "NIGHT" : "DAY";
+
+    // Find entry for this employee, date and shift
+    const existingEntry = await prisma.employeeTimeEntry.findFirst({
       where: {
-        employeeId_date: {
-          employeeId,
-          date: new Date(date),
-        },
+        employeeId,
+        date: new Date(date),
+        shift: normalizedShift,
       },
+    });
+
+    if (!existingEntry) {
+      return NextResponse.json(
+        { message: "დროის ჩანაწერი არ მოიძებნა" },
+        { status: 200 }
+      );
+    }
+
+    const deletedEntry = await prisma.employeeTimeEntry.delete({
+      where: { id: existingEntry.id },
     });
 
     return NextResponse.json(
