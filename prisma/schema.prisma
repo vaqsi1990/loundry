@@ -34,6 +34,11 @@ enum EmployeeRole {
   OTHER
 }
 
+enum EmployeeShift {
+  DAY
+  NIGHT
+}
+
 enum InventoryCategory {
   KALMEBI // კალმები
   SKOCHI // სკოჩი
@@ -155,15 +160,16 @@ model Employee {
 }
 
 model EmployeeTimeEntry {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   employeeId    String
-  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  date          DateTime @db.Date
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date          DateTime      @db.Date
   arrivalTime   String? // მოსვლის საათი (format: HH:mm)
   departureTime String? // გამოსვლის საათი (format: HH:mm)
   dailySalary   Float? // დღეში დარიცხული ხელფასი
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  shift         EmployeeShift @default(DAY) // ცვლა: დღის ან ღამის
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@unique([employeeId, date])
   @@index([employeeId])
@@ -312,12 +318,14 @@ model LegalDailySheetEmailSend {
   totalAmount      Float?
   payload          Json?
   sentAt           DateTime        @default(now())
+  readyForInvoice  Boolean         @default(false)
   confirmedBy      String? // User ID who confirmed the invoice
   confirmedAt      DateTime? // When the invoice was confirmed
 
   @@index([dailySheetId])
   @@index([date])
   @@index([hotelName])
+  @@index([readyForInvoice])
   @@index([confirmedAt])
 }
 
@@ -336,12 +344,14 @@ model PhysicalDailySheetEmailSend {
   totalAmount      Float?
   payload          Json?
   sentAt           DateTime           @default(now())
+  readyForInvoice  Boolean            @default(false)
   confirmedBy      String? // User ID who confirmed the invoice
   confirmedAt      DateTime? // When the invoice was confirmed
 
   @@index([dailySheetId])
   @@index([date])
   @@index([hotelName])
+  @@index([readyForInvoice])
   @@index([confirmedAt])
 }
 

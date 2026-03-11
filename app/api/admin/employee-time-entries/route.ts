@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { employeeId, date, arrivalTime, departureTime, dailySalary } = body;
+    const { employeeId, date, arrivalTime, departureTime, dailySalary, shift } = body;
 
     if (!employeeId || !date) {
       return NextResponse.json(
@@ -111,12 +111,12 @@ export async function POST(request: NextRequest) {
 
     // Check if entry already exists for this employee and date
     const existingEntry = await prisma.employeeTimeEntry.findUnique({
-      where: {
-        employeeId_date: {
-          employeeId,
-          date: new Date(date),
+        where: {
+          employeeId_date: {
+            employeeId,
+            date: new Date(date),
+          },
         },
-      },
     });
 
     let timeEntry;
@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
           dailySalary: dailySalary ? parseFloat(dailySalary) : null,
+          shift: shift === "NIGHT" ? "NIGHT" : "DAY",
         },
         include: {
           employee: {
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
           dailySalary: dailySalary ? parseFloat(dailySalary) : null,
+          shift: shift === "NIGHT" ? "NIGHT" : "DAY",
         },
         include: {
           employee: {

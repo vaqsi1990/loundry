@@ -16,6 +16,7 @@ interface TimeEntry {
   arrivalTime: string | null;
   departureTime: string | null;
   dailySalary: number | null;
+  shift: "DAY" | "NIGHT";
   employee: Employee;
 }
 
@@ -25,6 +26,7 @@ interface EmployeeRow {
   arrivalTime: string;
   departureTime: string;
   dailySalary: string;
+  shift: "DAY" | "NIGHT";
 }
 
 export default function TableSection() {
@@ -140,6 +142,7 @@ export default function TableSection() {
           arrivalTime: entry.arrivalTime || "",
           departureTime: entry.departureTime || "",
           dailySalary: entry.dailySalary?.toString() || "",
+          shift: entry.shift || "DAY",
         }));
         setEmployeeRows(rows);
       } else {
@@ -217,6 +220,7 @@ export default function TableSection() {
           arrivalTime: row.arrivalTime || null,
           departureTime: row.departureTime || null,
           dailySalary: row.dailySalary || null,
+          shift: row.shift,
         }),
       });
 
@@ -248,6 +252,7 @@ export default function TableSection() {
           arrivalTime: row.arrivalTime || null,
           departureTime: row.departureTime || null,
           dailySalary: row.dailySalary || null,
+          shift: row.shift,
         }),
       })
     );
@@ -340,6 +345,7 @@ export default function TableSection() {
       arrivalTime: "",
       departureTime: "",
       dailySalary: "",
+      shift: "DAY",
     }));
 
     const updatedRows = [...employeeRows, ...newRows];
@@ -486,14 +492,17 @@ export default function TableSection() {
                   თანამშრომელი
                 </th>
                 <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
+                  ცვლა
+                </th>
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
                   მოსვლის საათი
                 </th>
-                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
                   გამოსვლის საათი
                 </th>
-                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-28">
                   დღეში დარიცხული ხელფასი
-                  </th>
+                </th>
                 <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
                   მოქმედებები
                 </th>
@@ -505,7 +514,19 @@ export default function TableSection() {
                   <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black">
                     {row.employeeName}
                   </td>
-                  <td className="px-4 py-2 border border-gray-300">
+                  <td className="px-2 py-2 border border-gray-300 w-24">
+                    <select
+                      value={row.shift}
+                      onChange={(e) =>
+                        updateRow(row.employeeId, "shift", e.target.value as "DAY" | "NIGHT")
+                      }
+                      className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="DAY">დღის</option>
+                      <option value="NIGHT">ღამის</option>
+                    </select>
+                  </td>
+                  <td className="px-2 py-2 border border-gray-300 w-24">
                     <input
                       type="text"
                       value={row.arrivalTime}
@@ -535,7 +556,7 @@ export default function TableSection() {
                           }
                         }
                       }}
-                      className="w-full px-2 py-1 border border-gray-200 rounded text-black text-[16px] md:text-[18px] focus:outline-none focus:border-blue-500"
+                      className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
                       placeholder="09:00"
                       maxLength={5}
                     />
@@ -575,17 +596,17 @@ export default function TableSection() {
                       maxLength={5}
                     />
                   </td>
-                  <td className="px-4 py-2 border border-gray-300">
+                  <td className="px-2 py-2 border border-gray-300 w-28">
                     <input
                       type="number"
                       step="0.01"
                       value={row.dailySalary}
                       onChange={(e) => updateRow(row.employeeId, "dailySalary", e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-200 rounded text-black text-[16px] md:text-[18px] focus:outline-none focus:border-blue-500"
+                      className="w-24 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500"
                       placeholder="0.00"
                         />
                       </td>
-                    <td className="px-4 py-2 border border-gray-300">
+                    <td className="px-4 py-2 w-28 border border-gray-300">
                     <div className="flex space-x-2">
                       <button
                         onClick={() => saveRow(row.employeeId)}
