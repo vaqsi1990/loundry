@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items } = body;
+    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items, shiftType } = body;
 
     if (!date) {
       return NextResponse.json(
@@ -237,13 +237,14 @@ export async function POST(request: NextRequest) {
       finalPricePerKg = hotel?.pricePerKg ?? finalPricePerKg;
       hotelType = hotel?.type ?? null;
     }
-    
+
     const prismaData = {
       date: dateObj,
       hotelName: cleanHotelName,
       roomNumber: (roomNumber && String(roomNumber).trim()) ? String(roomNumber).trim() : null,
       description: (description && String(description).trim()) ? String(description).trim() : null,
       notes: (notes && String(notes).trim()) ? String(notes).trim() : null,
+      shiftType: shiftType && typeof shiftType === "string" ? shiftType : null,
       pricePerKg: finalPricePerKg,
       sheetType: sheetType || "INDIVIDUAL",
       totalWeight: totalWeight ? parseFloat(totalWeight) : null,

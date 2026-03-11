@@ -255,8 +255,7 @@ export async function GET(request: NextRequest) {
       return name.trim().replace(/\s+/g, " ").toLowerCase();
     };
 
-    // Create invoice entries – now ONE entry per email send (daily sheet send),
-    // so that similar/same day's sheets are NOT grouped/combined together.
+    // Create invoice entries – ONE entry per email send (daily sheet send)
     const invoiceEntries = emailSends.map((emailSend) => {
       const sheet = emailSend.dailySheet;
 
@@ -315,9 +314,9 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Group invoices by hotel name (normalized)
+    // For /admin/invoices now we DO NOT merge same-date sends.
+    // We only aggregate per hotel (for header totals), but keep each email send as its own dateDetail row.
     const hotelGroups = new Map<string, typeof invoiceEntries>();
-    
     invoiceEntries.forEach((invoice) => {
       const hotelKey = invoice.hotelName || "-";
       if (!hotelGroups.has(hotelKey)) {
@@ -326,25 +325,18 @@ export async function GET(request: NextRequest) {
       hotelGroups.get(hotelKey)!.push(invoice);
     });
 
-    // Combine invoices for the same hotel
     const invoices = Array.from(hotelGroups.entries()).map(([hotelKey, hotelInvoices]) => {
-      // Use the first invoice's displayHotelName (preserve original casing)
       const displayHotelName = hotelInvoices[0]?.displayHotelName || null;
-      
-      // Combine all dateDetails from all invoices for this hotel
       const allDateDetails = hotelInvoices.flatMap(inv => inv.dateDetails || []);
-      
-      // Sort dateDetails by date (most recent first)
-      allDateDetails.sort((a, b) => {
-        const dateA = a.date;
-        const dateB = b.date;
-        if (dateA && dateB) {
-          return dateB.localeCompare(dateA);
+
+      // Sort individual sends by date (most recent first)
+      const sortedDateDetails = allDateDetails.sort((a, b) => {
+        if (a.date && b.date) {
+          return b.date.localeCompare(a.date);
         }
         return 0;
       });
-      
-      // Sum up all totals
+
       const combined = hotelInvoices.reduce((acc, inv) => ({
         sheetCount: acc.sheetCount + (inv.sheetCount || 0),
         totalDispatched: acc.totalDispatched + (inv.totalDispatched || 0),
@@ -360,17 +352,17 @@ export async function GET(request: NextRequest) {
         totalAmount: 0,
         totalEmailSendCount: 0,
       });
-      
+
       return {
         hotelName: hotelKey === "-" ? null : hotelKey,
-        displayHotelName: displayHotelName,
+        displayHotelName,
         sheetCount: combined.sheetCount,
         totalDispatched: combined.totalDispatched,
         totalWeightKg: combined.totalWeightKg,
         protectorsAmount: combined.protectorsAmount,
         totalAmount: combined.totalAmount,
         totalEmailSendCount: combined.totalEmailSendCount,
-        dateDetails: allDateDetails,
+        dateDetails: sortedDateDetails,
       };
     });
 

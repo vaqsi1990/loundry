@@ -283,6 +283,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ფურცელი ვერ მოიძებნა" }, { status: 404 });
     }
 
+    // Prevent sending the same daily sheet multiple times
+    if (isLegal) {
+      const existingSend = await prisma.legalDailySheetEmailSend.findFirst({
+        where: { dailySheetId: sheet.id },
+        select: { id: true },
+      });
+      if (existingSend) {
+        return NextResponse.json(
+          {
+            error:
+              "ეს დღის ფურცელი უკვე ერთხელ გაიგზავნა და მეორედ ვერ გაიგზავნება.",
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      const existingSend = await prisma.physicalDailySheetEmailSend.findFirst({
+        where: { dailySheetId: sheet.id },
+        select: { id: true },
+      });
+      if (existingSend) {
+        return NextResponse.json(
+          {
+            error:
+              "ეს დღის ფურცელი უკვე ერთხელ გაიგზავნა და მეორედ ვერ გაიგზავნება.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Fetch hotel information including email
     let companyName: string | null = null;
     let hotelEmail: string | null = null;

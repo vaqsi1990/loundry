@@ -244,6 +244,7 @@ model LegalDailySheet {
   date           DateTime  @db.Date
   hotelName      String?
   roomNumber     String?
+  shiftType      String? // DAY, NIGHT
   description    String?
   notes          String?
   pricePerKg     Float? // Price per kg from hotel
@@ -272,6 +273,7 @@ model PhysicalDailySheet {
   date           DateTime  @db.Date
   hotelName      String?
   roomNumber     String?
+  shiftType      String? // DAY, NIGHT
   description    String?
   notes          String?
   pricePerKg     Float? // Price per kg from hotel

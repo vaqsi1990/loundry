@@ -30,6 +30,8 @@ interface DailySheet {
   id: string;
   date: string;
   hotelName: string | null;
+  roomNumber?: string | null;
+  shiftType?: string | null;
   description: string | null;
   notes: string | null;
   pricePerKg: number | null;
@@ -143,10 +145,16 @@ export default function DailySheetsSection() {
     sheetId: null,
   });
   const [modalEmail, setModalEmail] = useState<string | null>(null);
+  const [editingWeight, setEditingWeight] = useState<{ sheetId: string | null; value: string }>({
+    sheetId: null,
+    value: "",
+  });
+  const [savingWeightId, setSavingWeightId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     hotelName: "",
+    shiftType: "DAY" as "" | "DAY" | "NIGHT",
     description: "",
     notes: "",
     sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
@@ -302,6 +310,70 @@ export default function DailySheetsSection() {
     setFormData({ ...formData, items: newItems });
   };
 
+  const startEditHeaderWeight = (sheet: DailySheet, currentWeight: number) => {
+    if (sheet.sheetType !== "STANDARD") return;
+    setEditingWeight({
+      sheetId: sheet.id,
+      value: currentWeight.toFixed(3),
+    });
+  };
+
+  const handleHeaderWeightSave = async (sheet: DailySheet) => {
+    if (editingWeight.sheetId !== sheet.id) return;
+
+    const rawValue = editingWeight.value.replace(",", ".").trim();
+    const parsed = parseFloat(rawValue);
+
+    if (!rawValue || isNaN(parsed) || parsed <= 0) {
+      setError("გთხოვთ შეიყვანოთ სწორი წონა");
+      return;
+    }
+
+    setError("");
+    setSavingWeightId(sheet.id);
+
+    try {
+      const url = `/api/admin/daily-sheets/${sheet.id}`;
+
+      const body = {
+        date: sheet.date,
+        hotelName: sheet.hotelName,
+        roomNumber: sheet.roomNumber ?? null,
+        description: sheet.description,
+        notes: sheet.notes,
+        sheetType: sheet.sheetType,
+        shiftType: sheet.shiftType ?? null,
+        totalWeight: parsed,
+        pricePerKg: sheet.pricePerKg,
+        totalPrice: sheet.totalPrice,
+        items: sheet.items.map((item) => ({
+          ...item,
+          totalWeight: item.totalWeight ?? item.weight ?? 0,
+        })),
+      };
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "წონის განახლება ვერ მოხერხდა");
+      }
+
+      await fetchSheets();
+      setEditingWeight({ sheetId: null, value: "" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setSavingWeightId(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -376,6 +448,7 @@ export default function DailySheetsSection() {
     setFormData({
       date: getDateString(sheet.date),
       hotelName: sheet.hotelName || "",
+      shiftType: (sheet.shiftType as "" | "DAY" | "NIGHT") || "",
       description: sheet.description || "",
       notes: sheet.notes || "",
       sheetType: (sheet.sheetType || "INDIVIDUAL") as "INDIVIDUAL" | "STANDARD",
@@ -418,6 +491,7 @@ export default function DailySheetsSection() {
     setFormData({
       date: new Date().toISOString().split("T")[0],
       hotelName: "",
+      shiftType: "DAY" as "" | "DAY" | "NIGHT",
       description: "",
       notes: "",
       sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
@@ -434,6 +508,7 @@ export default function DailySheetsSection() {
     setFormData({
       date: new Date().toISOString().split("T")[0],
       hotelName: "",
+      shiftType: "DAY" as "" | "DAY" | "NIGHT",
       description: "",
       notes: "",
       sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
@@ -868,7 +943,7 @@ export default function DailySheetsSection() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-[16px] font-medium text-black mb-1">
                     თარიღი *
@@ -929,6 +1004,30 @@ export default function DailySheetsSection() {
                   >
                     <option value="INDIVIDUAL">ინდივიდუალური</option>
                     <option value="STANDARD">სტანდარტული</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[16px] font-medium text-black mb-1">
+                    ცვლა
+                  </label>
+                  <select
+                    value={formData.shiftType}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        shiftType: e.target.value as "" | "DAY" | "NIGHT",
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black bg-white"
+                    style={{
+                      appearance: "auto",
+                      WebkitAppearance: "menulist",
+                      MozAppearance: "menulist",
+                    }}
+                  >
+                    <option value="">არჩეული არაა</option>
+                    <option value="DAY">დღის ცვლა</option>
+                    <option value="NIGHT">ღამის ცვლა</option>
                   </select>
                 </div>
               </div>
@@ -1356,6 +1455,11 @@ export default function DailySheetsSection() {
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                       .map((sheet) => {
                         const isExpanded = expandedSheets.has(sheet.id);
+                        const headerTotals = calculateTotals(sheet.items);
+                        const headerTotalWeight =
+                          sheet.sheetType === "STANDARD" && sheet.totalWeight
+                            ? sheet.totalWeight
+                            : headerTotals.totalWeight;
                         return (
                           <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                             {/* Header - Always visible */}
@@ -1382,11 +1486,17 @@ export default function DailySheetsSection() {
                                   )}
                                 </button>
                                 <div>
-                                  <h3 className="text-lg font-semibold text-black">
-                                    {sheet.hotelName}
+                                  <h3 className="text-lg font-semibold text-black flex items-center gap-2">
+                                    <span>{sheet.hotelName}</span>
+                                   
                                   </h3>
                                   <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
                                     <span>{formatDateGe(sheet.date)}</span>
+                                    {sheet.shiftType && (
+                                      <span className="inline-flex items-center rounded-full  text-black px-3 py-1 text-4 font-semibold">
+                                        ცვლა: {sheet.shiftType === "DAY" ? "დღის" : "ღამის"}
+                                      </span>
+                                    )}
                                     <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
                                       გაგზავნილი {sheet.emailSendCount ?? 0}x
                                     </span>
@@ -1401,7 +1511,63 @@ export default function DailySheetsSection() {
                                       </span>
                                     )}
                                   </div>
+                                  
                                 </div>
+                                {sheet.sheetType === "STANDARD" ? (
+                                  editingWeight.sheetId === sheet.id ? (
+                                    <div
+                                      className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <input
+                                        type="number"
+                                        step="0.001"
+                                        className="w-24 bg-transparent border border-gray-300 rounded-full px-2 py-0.5 text-center text-gray-800 md:text-[18px] text-[16px]"
+                                        value={editingWeight.value}
+                                        onChange={(e) =>
+                                          setEditingWeight((prev) => ({
+                                            ...prev,
+                                            value: e.target.value,
+                                          }))
+                                        }
+                                      />
+                                      <span className="text-xs text-gray-600">კგ</span>
+                                      <button
+                                        type="button"
+                                        disabled={savingWeightId === sheet.id}
+                                        onClick={() => handleHeaderWeightSave(sheet)}
+                                        className="text-xs font-semibold text-green-700 hover:text-green-800 disabled:opacity-50"
+                                      >
+                                        შენახვა
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingWeight({ sheetId: null, value: "" });
+                                        }}
+                                        className="text-xs font-semibold text-red-600 hover:text-red-700"
+                                      >
+                                        გაუქმება
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditHeaderWeight(sheet, headerTotalWeight);
+                                      }}
+                                      className="inline-flex text-center mx-auto items-center rounded-full bg-gray-100 text-gray-800 px-3 py-1 md:text-[18px] text-[16px] font-semibold hover:bg-gray-200"
+                                    >
+                                      წონა: {headerTotalWeight.toFixed(2)} კგ
+                                    </button>
+                                  )
+                                ) : (
+                                  <span className="inline-flex text-center mx-auto items-center rounded-full bg-gray-100 text-gray-800 px-3 py-1 md:text-[18px] text-[16px] font-semibold">
+                                    წონა: {headerTotalWeight.toFixed(2)} კგ
+                                  </span>
+                                )}
                               </div>
                               <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                                 <button
@@ -1416,15 +1582,25 @@ export default function DailySheetsSection() {
                                 >
                                   წაშლა
                                 </button>
-                                <button
-                                  onClick={() => {
-                                    setEmailModal({ open: true, sheetId: sheet.id });
-                                    setModalEmail(deriveHotelEmail(sheet.hotelName));
-                                  }}
-                                  className="text-green-700 hover:underline px-2"
-                                >
-                                  გაგზავნა მეილზე
-                                </button>
+                                {((sheet.emailSendCount ?? 0) === 0) ? (
+                                  <button
+                                    onClick={() => {
+                                      setEmailModal({ open: true, sheetId: sheet.id });
+                                      setModalEmail(deriveHotelEmail(sheet.hotelName));
+                                    }}
+                                    className="text-green-700 hover:underline px-2"
+                                  >
+                                    გაგზავნა მეილზე
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled
+                                    className="text-gray-400 px-2 cursor-not-allowed"
+                                    title="ეს დღის ფურცელი უკვე გაგზავნილია"
+                                  >
+                                    უკვე გაგზავნილია
+                                  </button>
+                                )}
                               </div>
                             </div>
                             {/* Content - Collapsible */}

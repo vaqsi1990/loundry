@@ -418,6 +418,10 @@ FROM "DailySheetEmailSend" dses
 INNER JOIN "PhysicalDailySheet" pds ON dses."dailySheetId" = pds."id";
 
 -- Migrate PickupDeliveryRequest data based on hotel type
+-- Ensure legacy columns exist for data migration (shadow DB safety)
+ALTER TABLE "PickupDeliveryRequest" ADD COLUMN IF NOT EXISTS "hiddenFromAdmin" BOOLEAN DEFAULT false;
+ALTER TABLE "PickupDeliveryRequest" ADD COLUMN IF NOT EXISTS "hiddenFromManager" BOOLEAN DEFAULT false;
+
 INSERT INTO "LegalPickupDeliveryRequest" ("id", "hotelId", "userId", "requestType", "notes", "status", "requestedAt", "confirmedAt", "completedAt", "hiddenFromAdmin", "hiddenFromManager", "createdAt", "updatedAt")
 SELECT 
     pdr."id",

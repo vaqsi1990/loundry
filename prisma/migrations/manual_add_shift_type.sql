@@ -1,0 +1,3 @@
+ALTER TABLE "LegalDailySheet" ADD COLUMN IF NOT EXISTS "shiftType" TEXT;
+ALTER TABLE "PhysicalDailySheet" ADD COLUMN IF NOT EXISTS "shiftType" TEXT;
+
