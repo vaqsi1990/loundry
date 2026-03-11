@@ -33,12 +33,10 @@ export default function RevenuesSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [viewMode, setViewMode] = useState<"daily" | "monthly" | "all">("daily");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
 
   const formatMonthYearGe = (date: Date) => {
     const monthIndex = date.getMonth(); // 0-based
@@ -68,20 +66,16 @@ export default function RevenuesSection() {
   });
 
   useEffect(() => {
-    fetchRevenues();
-  }, [viewMode, selectedDate, selectedMonth]);
+    fetchRevenues(selectedMonth || undefined);
+  }, [selectedMonth]);
 
-  const fetchRevenues = async () => {
+  const fetchRevenues = async (month?: string) => {
     try {
       setLoading(true);
       setError("");
-      const params = viewMode === "daily"
-        ? `?view=daily&date=${selectedDate}`
-        : viewMode === "monthly"
-          ? `?view=monthly&month=${selectedMonth}`
-          : `?view=all`;
-
-      console.log("Fetching revenues with params:", params);
+      const params = month
+        ? `?view=monthly&month=${month}`
+        : `?view=all`;
       const response = await fetch(`/api/admin/revenues${params}`);
 
       // Check if response is ok before parsing JSON
@@ -100,9 +94,6 @@ export default function RevenuesSection() {
       console.log("Revenues fetched:", {
         revenues: data.revenues?.length || 0,
         sentInvoices: data.sentInvoices?.length || 0,
-        viewMode,
-        selectedDate,
-        selectedMonth,
         hasRevenues: Array.isArray(data.revenues),
         hasSentInvoices: Array.isArray(data.sentInvoices),
       });
@@ -117,9 +108,8 @@ export default function RevenuesSection() {
         })));
       } else {
         console.log("No revenues found. Check if:", {
-          viewMode,
-          selectedDate: viewMode === "daily" ? selectedDate : undefined,
-          selectedMonth: viewMode === "monthly" ? selectedMonth : undefined,
+          viewMode: month ? "monthly" : "all",
+          month,
         });
       }
 
@@ -437,14 +427,41 @@ export default function RevenuesSection() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-black">შემოსავლები</h2>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          + დამატება
-        </button>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+        <div className="flex items-center justify-between md:justify-start gap-4">
+          <h2 className="text-xl font-bold text-black">შემოსავლები</h2>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            + დამატება
+          </button>
+        </div>
+
+        {/* Month filter */}
+        <div className="flex items-center gap-2">
+          <label className="text-[16px] md:text-[18px] font-medium text-black whitespace-nowrap">
+            თვე:
+          </label>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-black bg-white min-w-[180px]"
+          >
+            <option value="">ყველა თვე</option>
+            {Array.from({ length: 12 }).map((_, index) => {
+              const date = new Date();
+              date.setMonth(index);
+              const value = `${date.getFullYear()}-${String(index + 1).padStart(2, "0")}`;
+              const label = formatMonthYearGe(date);
+              return (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
       </div>
 
       {error && (
@@ -453,52 +470,10 @@ export default function RevenuesSection() {
         </div>
       )}
 
-      {/* View Mode Toggle and Date/Month Selector */}
-      <div className="mb-4 flex items-center space-x-4">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setViewMode("daily")}
-            className={`px-4 py-2 rounded-lg ${viewMode === "daily" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-              }`}
-          >
-            ყოველდღიური
-          </button>
-          <button
-            onClick={() => setViewMode("monthly")}
-            className={`px-4 py-2 rounded-lg ${viewMode === "monthly" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-              }`}
-          >
-            ყოველთვიური
-          </button>
-          <button
-            onClick={() => setViewMode("all")}
-            className={`px-4 py-2 rounded-lg ${viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-black"
-              }`}
-          >
-            ყველა
-          </button>
-        </div>
-        {viewMode === "daily" ? (
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-black"
-          />
-        ) : viewMode === "monthly" ? (
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-black"
-          />
-        ) : null}
-      </div>
-
       {/* Summary */}
       <div className="mb-4">
         <div className="text-lg font-bold text-black">
-          {/* ჯამი მხოლოდ ინვოისების მიხედვით (ხელით შემოსავალი არ ემატება) */}
+          {/* ჯამი მხოლოდ ინვოისების მიხედვით (ხელით შემოსავალი არ ემატებაში) */}
           სულ ინვოისები: {totalInvoiceAmount.toFixed(2)} ₾ ({sentInvoices.length} ინვოისი)
         </div>
       </div>
