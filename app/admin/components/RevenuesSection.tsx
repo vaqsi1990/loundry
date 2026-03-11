@@ -40,6 +40,26 @@ export default function RevenuesSection() {
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const formatMonthYearGe = (date: Date) => {
+    const monthIndex = date.getMonth(); // 0-based
+    const months = [
+      "იანვარი",
+      "თებერვალი",
+      "მარტი",
+      "აპრილი",
+      "მაისი",
+      "ივნისი",
+      "ივლისი",
+      "აგვისტო",
+      "სექტემბერი",
+      "ოქტომბერი",
+      "ნოემბერი",
+      "დეკემბერი",
+    ];
+    const monthName = months[monthIndex] ?? "";
+    return monthName;
+  };
+
   const [formData, setFormData] = useState({
     source: "",
     description: "",
@@ -626,10 +646,13 @@ export default function RevenuesSection() {
                   // Only allow confirmation if invoice is fully paid and not already confirmed
                   const canConfirm = !isPaid && isFullyPaid;
 
+                  const serviceDate = new Date(invoice.dueDate ?? invoice.createdAt);
+                  const monthYear = formatMonthYearGe(serviceDate);
+
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                        {new Date(invoice.dueDate ?? invoice.createdAt).toLocaleDateString("ka-GE")}
+                        {monthYear}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                         {invoice.customerName}
