@@ -117,7 +117,7 @@ export default function PhysicalInvoicesPage() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const month = date.getMonth();
-  
+    const year = date.getFullYear();
     const months = [
       "იანვარი",
       "თებერვალი",
@@ -133,7 +133,7 @@ export default function PhysicalInvoicesPage() {
       "დეკემბერი",
     ];
   
-    return months[month];
+    return ` ${months[month]} - ${year}`;
   };
 
   const formatDateGe = (date: string | Date) => {
