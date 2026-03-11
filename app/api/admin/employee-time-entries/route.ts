@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { employeeId, date, arrivalTime, departureTime, dailySalary, shift } = body;
+    const { employeeId, date, arrivalTime, departureTime, dailySalary, workedKg, shift } = body;
 
     if (!employeeId || !date) {
       return NextResponse.json(
@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
           dailySalary: dailySalary ? parseFloat(dailySalary) : null,
+          workedKg: workedKg ? parseFloat(workedKg) : null,
           shift: normalizedShift,
         },
         include: {
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
           dailySalary: dailySalary ? parseFloat(dailySalary) : null,
+          workedKg: workedKg ? parseFloat(workedKg) : null,
           shift: normalizedShift,
         },
         include: {

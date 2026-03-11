@@ -16,6 +16,7 @@ interface TimeEntry {
   arrivalTime: string | null;
   departureTime: string | null;
   dailySalary: number | null;
+  workedKg: number | null;
   shift: "DAY" | "NIGHT";
   employee: Employee;
 }
@@ -27,6 +28,7 @@ interface EmployeeRow {
   departureTime: string;
   dailySalary: string;
   shift: "DAY" | "NIGHT";
+  workedKg: string;
 }
 
 export default function TableSection() {
@@ -66,6 +68,7 @@ export default function TableSection() {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState(() =>
     new Date().toISOString().slice(0, 7)
   );
+  const [kgPrice, setKgPrice] = useState<number | null>(null);
 
   // Load initial data on mount
   useEffect(() => {
@@ -100,6 +103,23 @@ export default function TableSection() {
       fetchTimeEntries();
     }
   }, [selectedDate]);
+
+  // Load kg price for automatic salary calculation
+  useEffect(() => {
+    const fetchKgPrice = async () => {
+      try {
+        const res = await fetch("/api/admin/kgprice");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.value != null) {
+          setKgPrice(data.value);
+        }
+      } catch {
+        // Ignore kg price errors here, allow manual salary input
+      }
+    };
+    fetchKgPrice();
+  }, []);
 
   // Fetch calendar entries when view mode changes or calendar date changes
   useEffect(() => {
@@ -147,6 +167,7 @@ export default function TableSection() {
           departureTime: entry.departureTime || "",
           dailySalary: entry.dailySalary?.toString() || "",
           shift: entry.shift || "DAY",
+          workedKg: entry.workedKg != null ? entry.workedKg.toString() : "",
         }));
         setEmployeeRows(rows);
       } else {
@@ -212,6 +233,31 @@ export default function TableSection() {
     );
   };
 
+  const updateWorkedKg = (
+    employeeId: string,
+    shift: "DAY" | "NIGHT",
+    value: string
+  ) => {
+    setEmployeeRows((prev) =>
+      prev.map((row) => {
+        if (row.employeeId !== employeeId || row.shift !== shift) return row;
+        let dailySalary = row.dailySalary;
+        const normalized = value.replace(",", ".").trim();
+        const kg = parseFloat(normalized);
+        if (!normalized) {
+          dailySalary = "";
+        } else if (!Number.isNaN(kg) && kgPrice != null && kgPrice > 0) {
+          dailySalary = (kg * kgPrice).toFixed(2);
+        }
+        return {
+          ...row,
+          workedKg: value,
+          dailySalary,
+        };
+      })
+    );
+  };
+
   const saveRow = async (employeeId: string, shift: "DAY" | "NIGHT") => {
     const row = employeeRows.find(
       (r) => r.employeeId === employeeId && r.shift === shift
@@ -233,6 +279,7 @@ export default function TableSection() {
           arrivalTime: row.arrivalTime || null,
           departureTime: row.departureTime || null,
           dailySalary: row.dailySalary || null,
+          workedKg: row.workedKg || null,
           shift: row.shift,
         }),
       });
@@ -265,6 +312,7 @@ export default function TableSection() {
           arrivalTime: row.arrivalTime || null,
           departureTime: row.departureTime || null,
           dailySalary: row.dailySalary || null,
+          workedKg: row.workedKg || null,
           shift: row.shift,
         }),
       })
@@ -366,6 +414,7 @@ export default function TableSection() {
       departureTime: "",
       dailySalary: "",
       shift: popupShifts[emp.id] || "DAY",
+      workedKg: "",
     }));
 
     const updatedRows = [...employeeRows, ...newRows];
@@ -527,6 +576,9 @@ export default function TableSection() {
                 <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
                   გამოსვლის საათი
                 </th>
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
+                  კგ
+                </th>
                 <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-28">
                   დღეში დარიცხული ხელფასი
                 </th>
@@ -599,12 +651,11 @@ export default function TableSection() {
                     />
                   </td>
                   <td className="px-4 py-2 border border-gray-300">
-                        <input
-                          type="text"
+                    <input
+                      type="text"
                       value={row.departureTime}
                       onChange={(e) => {
                         const value = e.target.value;
-                        // Allow only numbers and colon, format as HH:mm
                         const formatted = value
                           .replace(/[^\d:]/g, "")
                           .replace(/^(\d{2})(\d)/, "$1:$2")
@@ -612,14 +663,12 @@ export default function TableSection() {
                         updateRow(row.employeeId, row.shift, "departureTime", formatted);
                       }}
                       onBlur={(e) => {
-                        // Validate and format on blur
                         const value = e.target.value;
                         if (value && !/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
-                          // If invalid format, try to fix it
-                          const parts = value.split(':');
+                          const parts = value.split(":");
                           if (parts.length === 2) {
-                            const hours = parts[0].padStart(2, '0').substring(0, 2);
-                            const minutes = parts[1].padStart(2, '0').substring(0, 2);
+                            const hours = parts[0].padStart(2, "0").substring(0, 2);
+                            const minutes = parts[1].padStart(2, "0").substring(0, 2);
                             const hoursNum = parseInt(hours);
                             const minutesNum = parseInt(minutes);
                             if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
@@ -638,23 +687,31 @@ export default function TableSection() {
                       maxLength={5}
                     />
                   </td>
+                  <td className="px-2 py-2 border border-gray-300 w-24">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={row.workedKg}
+                      onChange={(e) => updateWorkedKg(row.employeeId, row.shift, e.target.value)}
+                      className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500"
+                      placeholder="კგ"
+                    />
+                  </td>
                   <td className="px-2 py-2 border border-gray-300 w-28">
                     <input
                       type="number"
                       step="0.01"
                       value={row.dailySalary}
                       onChange={(e) =>
-                        updateRow(
-                          row.employeeId,
-                          row.shift,
-                          "dailySalary",
-                          e.target.value
-                        )
+                        kgPrice == null
+                          ? updateRow(row.employeeId, row.shift, "dailySalary", e.target.value)
+                          : null
                       }
-                      className="w-24 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500"
+                      readOnly={kgPrice != null}
+                      className="w-24 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500 bg-white"
                       placeholder="0.00"
-                        />
-                      </td>
+                    />
+                  </td>
                     <td className="px-4 py-2 w-28 border border-gray-300">
                     <div className="flex space-x-2">
                       <button
