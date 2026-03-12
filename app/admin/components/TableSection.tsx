@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
+import { TableHeader } from "./ui/TableHeader";
+import { DatePickerSection } from "./ui/DatePickerSection";
+import { EmployeeTables } from "./ui/EmployeeTables";
 
 interface Employee {
   id: string;
@@ -820,51 +823,23 @@ export default function TableSection() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-black">თანამშრომლების ტაბელი</h2>
-        <div className="flex space-x-2">
-          <button
-            onClick={handleAddEmployees}
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
-          >
-            + თანამშრომლების დამატება
-          </button>
-        
-          <button
-            onClick={() => {
-              setShowMonthPopup(true);
-              setPopupMonthStep("date");
-              setPopupSelectedMonth("");
-              setPopupSelectedEmployeeId(null);
-              setPopupTimeEntries([]);
-            }}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-          >
-            თვეების მიხედვით
-          </button>
-          {employeeRows.length > 0 && (
-            <button
-              onClick={saveAll}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-            >
-              ყველას შენახვა
-            </button>
-          )}
-        </div>
-      </div>
+      <TableHeader
+        onAddEmployees={handleAddEmployees}
+        onShowMonthPopup={() => {
+          setShowMonthPopup(true);
+          setPopupMonthStep("date");
+          setPopupSelectedMonth("");
+          setPopupSelectedEmployeeId(null);
+          setPopupTimeEntries([]);
+        }}
+        hasRows={employeeRows.length > 0}
+        onSaveAll={saveAll}
+      />
 
-      {/* Date Picker */}
-      <div className="bg-gray-50 p-4 rounded-lg mb-6">
-        <label className="block text-[16px] md:text-[18px] font-medium text-black mb-2">
-          თარიღი
-        </label>
-          <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-black"
-        />
-      </div>
+      <DatePickerSection
+        selectedDate={selectedDate}
+        onChange={(date) => setSelectedDate(date)}
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
@@ -872,28 +847,26 @@ export default function TableSection() {
         </div>
       )}
 
-      {/* Tables (split by role) */}
       {employeeRows.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           ტაბელი ცარიელია. დაამატეთ თანამშრომლები
         </div>
       ) : (
-        <>
-          {renderEmployeeTable(managerRows, {
-            title: "მენეჯერი და ასისტენტი",
-            showKg: false,
-          })}
-          {renderEmployeeTable(laundryRows, {
-            title: "მრეცხავები",
-            showKg: true,
-            accent: "orange",
-          })}
-          {renderEmployeeTable(courierRows, {
-            title: "კურიერები",
-            showKg: false,
-            accent: "blue",
-          })}
-        </>
+        <EmployeeTables
+          kgPrice={kgPrice}
+          bulkWorkedKg={bulkWorkedKg}
+          setBulkWorkedKg={setBulkWorkedKg}
+          laundryRows={laundryRows}
+          managerRows={managerRows}
+          courierRows={courierRows}
+          updateRow={updateRow}
+          updateWorkedKgForAll={updateWorkedKgForAll}
+          updateWorkedKg={updateWorkedKg}
+          saveRow={saveRow}
+          saving={saving}
+          handleRemoveEmployeeFromTable={handleRemoveEmployeeFromTable}
+          formatEmployeeRole={formatEmployeeRole}
+        />
       )}
 
       {/* Add Employees Popup */}
