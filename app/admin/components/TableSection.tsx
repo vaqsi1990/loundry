@@ -24,6 +24,7 @@ interface TimeEntry {
 interface EmployeeRow {
   employeeId: string;
   employeeName: string;
+  employeePosition?: string;
   arrivalTime: string;
   departureTime: string;
   dailySalary: string;
@@ -69,6 +70,24 @@ export default function TableSection() {
     new Date().toISOString().slice(0, 7)
   );
   const [kgPrice, setKgPrice] = useState<number | null>(null);
+  const [bulkWorkedKg, setBulkWorkedKg] = useState("");
+
+  const formatEmployeeRole = (position: string) => {
+    switch (position) {
+      case "COURIER":
+        return "კურიერი";
+      case "LAUNDRY_WORKER":
+        return "მრეცხავი";
+      case "MANAGER":
+        return "მენეჯერი";
+      case "MANAGER_ASSISTANT":
+        return "მენეჯერის ასისტენტი";
+      case "OTHER":
+        return "სხვა";
+      default:
+        return position;
+    }
+  };
 
   // Load initial data on mount
   useEffect(() => {
@@ -163,6 +182,7 @@ export default function TableSection() {
         const rows: EmployeeRow[] = data.map((entry: TimeEntry) => ({
           employeeId: entry.employeeId,
           employeeName: entry.employee.name,
+          employeePosition: entry.employee.position,
           arrivalTime: entry.arrivalTime || "",
           departureTime: entry.departureTime || "",
           dailySalary: entry.dailySalary?.toString() || "",
@@ -244,6 +264,31 @@ export default function TableSection() {
         let dailySalary = row.dailySalary;
         const normalized = value.replace(",", ".").trim();
         const kg = parseFloat(normalized);
+
+        const isLaundryWorker = row.employeePosition === "LAUNDRY_WORKER";
+        if (isLaundryWorker) {
+          if (!normalized) {
+            dailySalary = "";
+          } else if (!Number.isNaN(kg) && kgPrice != null && kgPrice > 0) {
+            dailySalary = (kg * kgPrice).toFixed(2);
+          }
+        }
+        return {
+          ...row,
+          workedKg: value,
+          dailySalary,
+        };
+      })
+    );
+  };
+
+  const updateWorkedKgForAll = (value: string) => {
+    setEmployeeRows((prev) =>
+      prev.map((row) => {
+        if (row.employeePosition !== "LAUNDRY_WORKER") return row;
+        let dailySalary = row.dailySalary;
+        const normalized = value.replace(",", ".").trim();
+        const kg = parseFloat(normalized);
         if (!normalized) {
           dailySalary = "";
         } else if (!Number.isNaN(kg) && kgPrice != null && kgPrice > 0) {
@@ -278,8 +323,12 @@ export default function TableSection() {
           date: selectedDate,
           arrivalTime: row.arrivalTime || null,
           departureTime: row.departureTime || null,
-          dailySalary: row.dailySalary || null,
-          workedKg: row.workedKg || null,
+          dailySalary:
+            row.dailySalary.trim() === ""
+              ? null
+              : row.dailySalary.replace(",", "."),
+          workedKg:
+            row.workedKg.trim() === "" ? null : row.workedKg.replace(",", "."),
           shift: row.shift,
         }),
       });
@@ -311,8 +360,12 @@ export default function TableSection() {
           date: selectedDate,
           arrivalTime: row.arrivalTime || null,
           departureTime: row.departureTime || null,
-          dailySalary: row.dailySalary || null,
-          workedKg: row.workedKg || null,
+          dailySalary:
+            row.dailySalary.trim() === ""
+              ? null
+              : row.dailySalary.replace(",", "."),
+          workedKg:
+            row.workedKg.trim() === "" ? null : row.workedKg.replace(",", "."),
           shift: row.shift,
         }),
       })
@@ -410,6 +463,7 @@ export default function TableSection() {
     const newRows: EmployeeRow[] = employeesToAdd.map((emp) => ({
       employeeId: emp.id,
       employeeName: emp.name,
+      employeePosition: emp.position,
       arrivalTime: "",
       departureTime: "",
       dailySalary: "",
@@ -500,6 +554,257 @@ export default function TableSection() {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
 
+  const laundryRows = employeeRows.filter((r) => r.employeePosition === "LAUNDRY_WORKER");
+  const courierRows = employeeRows.filter((r) => r.employeePosition === "COURIER");
+
+  const renderEmployeeTable = (
+    rows: EmployeeRow[],
+    opts: { title: string; showKg: boolean; accent?: "orange" | "blue" }
+  ) => {
+    if (rows.length === 0) return null;
+
+    const accentClasses =
+      opts.accent === "orange"
+        ? "border-orange-200 bg-orange-50 text-orange-900"
+        : opts.accent === "blue"
+          ? "border-blue-200 bg-blue-50 text-blue-900"
+          : "border-gray-200 bg-gray-50 text-black";
+
+    return (
+      <div className="mb-8">
+        <div className={`mb-3 px-4 py-3 rounded-lg border ${accentClasses}`}>
+          <div className="font-semibold text-[16px] md:text-[18px]">{opts.title}</div>
+          <div className="text-[13px] md:text-[14px] opacity-80">ჩანაწერები: {rows.length}</div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300 w-48 max-w-48">
+                  თანამშრომელი
+                </th>
+                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
+                  ცვლა
+                </th>
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
+                  მოსვლის საათი
+                </th>
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
+                  გამოსვლის საათი
+                </th>
+                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-28">
+                  დღეში დარიცხული ხელფასი
+                </th>
+                {opts.showKg && (
+                  <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
+                    <div className="flex flex-row gap-4">
+                      <span>კგ</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={bulkWorkedKg}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const cleaned = raw.replace(/[^\d.,]/g, "");
+                          setBulkWorkedKg(cleaned);
+                        }}
+                        onBlur={() => {
+                          updateWorkedKgForAll(bulkWorkedKg.trim());
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          updateWorkedKgForAll(bulkWorkedKg.trim());
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }}
+                        className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500 bg-white"
+                        placeholder="ყველას"
+                      />
+                    </div>
+                  </th>
+                )}
+                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
+                  მოქმედებები
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {rows.map((row) => {
+                const salaryLocked = row.employeePosition === "LAUNDRY_WORKER" && kgPrice != null;
+                return (
+                  <tr key={`${row.employeeId}-${row.shift}`} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black w-48 max-w-48">
+                      <div className="truncate" title={row.employeeName}>
+                        <span className="flex items-center gap-2">
+                          <span className="truncate">{row.employeeName}</span>
+                          {row.employeePosition && (
+                            <span className="shrink-0 text-[12px] md:text-[13px] px-2 py-0.5 rounded-full border border-gray-300 text-gray-700 bg-white">
+                              {formatEmployeeRole(row.employeePosition)}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 border border-gray-300 w-24">
+                      <select
+                        value={row.shift}
+                        onChange={(e) =>
+                          updateRow(
+                            row.employeeId,
+                            row.shift,
+                            "shift",
+                            e.target.value as "DAY" | "NIGHT"
+                          )
+                        }
+                        className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="DAY">დღის</option>
+                        <option value="NIGHT">ღამის</option>
+                      </select>
+                    </td>
+                    <td className="px-2 py-2 border border-gray-300 w-24">
+                      <input
+                        type="text"
+                        value={row.arrivalTime}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const formatted = value
+                            .replace(/[^\d:]/g, "")
+                            .replace(/^(\d{2})(\d)/, "$1:$2")
+                            .substring(0, 5);
+                          updateRow(row.employeeId, row.shift, "arrivalTime", formatted);
+                        }}
+                        onBlur={(e) => {
+                          const value = e.target.value;
+                          if (value && !/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
+                            const parts = value.split(":");
+                            if (parts.length === 2) {
+                              const hours = parts[0].padStart(2, "0").substring(0, 2);
+                              const minutes = parts[1].padStart(2, "0").substring(0, 2);
+                              const hoursNum = parseInt(hours);
+                              const minutesNum = parseInt(minutes);
+                              if (
+                                hoursNum >= 0 &&
+                                hoursNum <= 23 &&
+                                minutesNum >= 0 &&
+                                minutesNum <= 59
+                              ) {
+                                updateRow(
+                                  row.employeeId,
+                                  row.shift,
+                                  "arrivalTime",
+                                  `${hours}:${minutes}`
+                                );
+                              }
+                            }
+                          }
+                        }}
+                        className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
+                        placeholder="09:00"
+                        maxLength={5}
+                      />
+                    </td>
+                    <td className="px-4 py-2 border border-gray-300">
+                      <input
+                        type="text"
+                        value={row.departureTime}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const formatted = value
+                            .replace(/[^\d:]/g, "")
+                            .replace(/^(\d{2})(\d)/, "$1:$2")
+                            .substring(0, 5);
+                          updateRow(row.employeeId, row.shift, "departureTime", formatted);
+                        }}
+                        onBlur={(e) => {
+                          const value = e.target.value;
+                          if (value && !/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
+                            const parts = value.split(":");
+                            if (parts.length === 2) {
+                              const hours = parts[0].padStart(2, "0").substring(0, 2);
+                              const minutes = parts[1].padStart(2, "0").substring(0, 2);
+                              const hoursNum = parseInt(hours);
+                              const minutesNum = parseInt(minutes);
+                              if (
+                                hoursNum >= 0 &&
+                                hoursNum <= 23 &&
+                                minutesNum >= 0 &&
+                                minutesNum <= 59
+                              ) {
+                                updateRow(
+                                  row.employeeId,
+                                  row.shift,
+                                  "departureTime",
+                                  `${hours}:${minutes}`
+                                );
+                              }
+                            }
+                          }
+                        }}
+                        className="w-full px-2 py-1 border border-gray-200 rounded text-black text-[16px] md:text-[18px] focus:outline-none focus:border-blue-500"
+                        placeholder="18:00"
+                        maxLength={5}
+                      />
+                    </td>
+                    <td className="px-2 py-2 border border-gray-300 w-28">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        step="0.01"
+                        value={row.dailySalary}
+                        onChange={(e) => {
+                          if (salaryLocked) return;
+                          updateRow(row.employeeId, row.shift, "dailySalary", e.target.value);
+                        }}
+                        readOnly={salaryLocked}
+                        className="w-24 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500 bg-white"
+                        placeholder="0.00"
+                      />
+                    </td>
+                    {opts.showKg && (
+                      <td className="px-2 py-2 border border-gray-300 w-24">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.workedKg}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const cleaned = raw.replace(/[^\d.,]/g, "");
+                            updateWorkedKg(row.employeeId, row.shift, cleaned);
+                          }}
+                          className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500 bg-white"
+                          placeholder="კგ"
+                        />
+                      </td>
+                    )}
+                    <td className="px-4 py-2 w-28 border border-gray-300">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => saveRow(row.employeeId, row.shift)}
+                          disabled={saving[row.employeeId]}
+                          className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-[16px] md:text-[18px]"
+                        >
+                          {saving[row.employeeId] ? "შენახვა..." : "შენახვა"}
+                        </button>
+                        <button
+                          onClick={() => handleRemoveEmployeeFromTable(row.employeeId, row.shift)}
+                          className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[16px] md:text-[18px]"
+                        >
+                          წაშლა
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -554,189 +859,25 @@ export default function TableSection() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        {employeeRows.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            ტაბელი ცარიელია. დაამატეთ თანამშრომლები
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
-                  თანამშრომელი
-                </th>
-                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
-                  ცვლა
-                </th>
-                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
-                  მოსვლის საათი
-                </th>
-                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
-                  გამოსვლის საათი
-                </th>
-                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-24">
-                  კგ
-                </th>
-                <th className="px-2 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider border border-gray-300 w-28">
-                  დღეში დარიცხული ხელფასი
-                </th>
-                <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider border border-gray-300">
-                  მოქმედებები
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {employeeRows.map((row) => (
-                <tr key={`${row.employeeId}-${row.shift}`} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black">
-                    {row.employeeName}
-                  </td>
-                  <td className="px-2 py-2 border border-gray-300 w-24">
-                    <select
-                      value={row.shift}
-                      onChange={(e) =>
-                        updateRow(
-                          row.employeeId,
-                          row.shift,
-                          "shift",
-                          e.target.value as "DAY" | "NIGHT"
-                        )
-                      }
-                      className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="DAY">დღის</option>
-                      <option value="NIGHT">ღამის</option>
-                    </select>
-                  </td>
-                  <td className="px-2 py-2 border border-gray-300 w-24">
-                    <input
-                      type="text"
-                      value={row.arrivalTime}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        // Allow only numbers and colon, format as HH:mm
-                        const formatted = value
-                          .replace(/[^\d:]/g, "")
-                          .replace(/^(\d{2})(\d)/, "$1:$2")
-                          .substring(0, 5);
-                        updateRow(row.employeeId, row.shift, "arrivalTime", formatted);
-                      }}
-                      onBlur={(e) => {
-                        // Validate and format on blur
-                        const value = e.target.value;
-                        if (value && !/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
-                          // If invalid format, try to fix it
-                          const parts = value.split(':');
-                          if (parts.length === 2) {
-                            const hours = parts[0].padStart(2, '0').substring(0, 2);
-                            const minutes = parts[1].padStart(2, '0').substring(0, 2);
-                            const hoursNum = parseInt(hours);
-                            const minutesNum = parseInt(minutes);
-                            if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
-                              updateRow(
-                                row.employeeId,
-                                row.shift,
-                                "arrivalTime",
-                                `${hours}:${minutes}`
-                              );
-                            }
-                          }
-                        }
-                      }}
-                      className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-center focus:outline-none focus:border-blue-500"
-                      placeholder="09:00"
-                      maxLength={5}
-                    />
-                  </td>
-                  <td className="px-4 py-2 border border-gray-300">
-                    <input
-                      type="text"
-                      value={row.departureTime}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const formatted = value
-                          .replace(/[^\d:]/g, "")
-                          .replace(/^(\d{2})(\d)/, "$1:$2")
-                          .substring(0, 5);
-                        updateRow(row.employeeId, row.shift, "departureTime", formatted);
-                      }}
-                      onBlur={(e) => {
-                        const value = e.target.value;
-                        if (value && !/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
-                          const parts = value.split(":");
-                          if (parts.length === 2) {
-                            const hours = parts[0].padStart(2, "0").substring(0, 2);
-                            const minutes = parts[1].padStart(2, "0").substring(0, 2);
-                            const hoursNum = parseInt(hours);
-                            const minutesNum = parseInt(minutes);
-                            if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
-                              updateRow(
-                                row.employeeId,
-                                row.shift,
-                                "departureTime",
-                                `${hours}:${minutes}`
-                              );
-                            }
-                          }
-                        }
-                      }}
-                      className="w-full px-2 py-1 border border-gray-200 rounded text-black text-[16px] md:text-[18px] focus:outline-none focus:border-blue-500"
-                      placeholder="18:00"
-                      maxLength={5}
-                    />
-                  </td>
-                  <td className="px-2 py-2 border border-gray-300 w-24">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.workedKg}
-                      onChange={(e) => updateWorkedKg(row.employeeId, row.shift, e.target.value)}
-                      className="w-20 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500"
-                      placeholder="კგ"
-                    />
-                  </td>
-                  <td className="px-2 py-2 border border-gray-300 w-28">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={row.dailySalary}
-                      onChange={(e) =>
-                        kgPrice == null
-                          ? updateRow(row.employeeId, row.shift, "dailySalary", e.target.value)
-                          : null
-                      }
-                      readOnly={kgPrice != null}
-                      className="w-24 px-1 py-1 border border-gray-200 rounded text-black text-[14px] md:text-[16px] text-right focus:outline-none focus:border-blue-500 bg-white"
-                      placeholder="0.00"
-                    />
-                  </td>
-                    <td className="px-4 py-2 w-28 border border-gray-300">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => saveRow(row.employeeId, row.shift)}
-                        disabled={saving[row.employeeId]}
-                        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-[16px] md:text-[18px]"
-                      >
-                        {saving[row.employeeId] ? "შენახვა..." : "შენახვა"}
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleRemoveEmployeeFromTable(row.employeeId, row.shift)
-                        }
-                        className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-[16px] md:text-[18px]"
-                      >
-                        წაშლა
-                      </button>
-                    </div>
-                    </td>
-                  </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* Tables (split by role) */}
+      {employeeRows.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          ტაბელი ცარიელია. დაამატეთ თანამშრომლები
+        </div>
+      ) : (
+        <>
+          {renderEmployeeTable(laundryRows, {
+            title: "მრეცხავები",
+            showKg: true,
+            accent: "orange",
+          })}
+          {renderEmployeeTable(courierRows, {
+            title: "კურიერები",
+            showKg: false,
+            accent: "blue",
+          })}
+        </>
+      )}
 
       {/* Add Employees Popup */}
       {showAddEmployeesPopup && (
@@ -797,7 +938,14 @@ export default function TableSection() {
                                 hasDay && hasNight ? "text-gray-500" : ""
                               }`}
                             >
-                              {emp.name}
+                              <span className="flex items-center gap-2">
+                                <span>{emp.name}</span>
+                                {emp.position && (
+                                  <span className="text-[12px] md:text-[13px] px-2 py-0.5 rounded-full border border-gray-300 text-gray-700 bg-white">
+                                    {formatEmployeeRole(emp.position)}
+                                  </span>
+                                )}
+                              </span>
                               {hasDay && hasNight && (
                                 <span className="ml-2 text-sm text-gray-400">(უკვე დამატებულია)</span>
                               )}

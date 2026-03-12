@@ -31,6 +31,7 @@ enum EmployeeRole {
   MANAGER
   MANAGER_ASSISTANT
   COURIER
+  LAUNDRY_WORKER // მრეცხავი
   OTHER
 }
 

@@ -127,8 +127,10 @@ export async function POST(request: NextRequest) {
         data: {
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
-          dailySalary: dailySalary ? parseFloat(dailySalary) : null,
-          workedKg: workedKg ? parseFloat(workedKg) : null,
+          dailySalary:
+            dailySalary === "" || dailySalary == null ? null : parseFloat(dailySalary),
+          workedKg:
+            workedKg === "" || workedKg == null ? null : parseFloat(workedKg),
           shift: normalizedShift,
         },
         include: {
@@ -150,8 +152,10 @@ export async function POST(request: NextRequest) {
           date: new Date(date),
           arrivalTime: arrivalTime || null,
           departureTime: departureTime || null,
-          dailySalary: dailySalary ? parseFloat(dailySalary) : null,
-          workedKg: workedKg ? parseFloat(workedKg) : null,
+          dailySalary:
+            dailySalary === "" || dailySalary == null ? null : parseFloat(dailySalary),
+          workedKg:
+            workedKg === "" || workedKg == null ? null : parseFloat(workedKg),
           shift: normalizedShift,
         },
         include: {
