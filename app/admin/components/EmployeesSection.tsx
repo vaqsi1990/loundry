@@ -25,7 +25,13 @@ export default function EmployeesSection() {
     name: "",
     personalId: "",
     phone: "",
-    position: "OTHER" as "MANAGER" | "MANAGER_ASSISTANT" | "COURIER" | "LAUNDRY_WORKER" | "OTHER",
+    position: "OTHER" as
+      | "MANAGER"
+      | "MANAGER_ASSISTANT"
+      | "COURIER"
+      | "LAUNDRY_WORKER"
+      | "IRON"
+      | "OTHER",
     canLogin: false,
     contractFile: null as File | null,
     email: "",
@@ -152,6 +158,8 @@ export default function EmployeesSection() {
         return "კურიერი";
       case "LAUNDRY_WORKER":
         return "მრეცხავი";
+      case "IRON":
+        return "უთო";
       default:
         return "სხვა";
     }
@@ -257,6 +265,7 @@ export default function EmployeesSection() {
                 <option value="MANAGER_ASSISTANT">მენეჯერ ასისტანტი</option>
                 <option value="COURIER">კურიერი</option>
                 <option value="LAUNDRY_WORKER">მრეცხავი</option>
+                <option value="IRON">უთო</option>
               </select>
             </div>
             <div className="flex items-center">

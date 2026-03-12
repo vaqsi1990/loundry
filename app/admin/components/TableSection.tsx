@@ -78,6 +78,8 @@ export default function TableSection() {
         return "კურიერი";
       case "LAUNDRY_WORKER":
         return "მრეცხავი";
+      case "IRON":
+        return "უთო";
       case "MANAGER":
         return "მენეჯერი";
       case "MANAGER_ASSISTANT":
@@ -265,8 +267,9 @@ export default function TableSection() {
         const normalized = value.replace(",", ".").trim();
         const kg = parseFloat(normalized);
 
-        const isLaundryWorker = row.employeePosition === "LAUNDRY_WORKER";
-        if (isLaundryWorker) {
+        const isLaundryOrIron =
+          row.employeePosition === "LAUNDRY_WORKER" || row.employeePosition === "IRON";
+        if (isLaundryOrIron) {
           if (!normalized) {
             dailySalary = "";
           } else if (!Number.isNaN(kg) && kgPrice != null && kgPrice > 0) {
@@ -285,7 +288,9 @@ export default function TableSection() {
   const updateWorkedKgForAll = (value: string) => {
     setEmployeeRows((prev) =>
       prev.map((row) => {
-        if (row.employeePosition !== "LAUNDRY_WORKER") return row;
+        if (row.employeePosition !== "LAUNDRY_WORKER" && row.employeePosition !== "IRON") {
+          return row;
+        }
         let dailySalary = row.dailySalary;
         const normalized = value.replace(",", ".").trim();
         const kg = parseFloat(normalized);
@@ -554,7 +559,12 @@ export default function TableSection() {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
   }
 
-  const laundryRows = employeeRows.filter((r) => r.employeePosition === "LAUNDRY_WORKER");
+  const laundryRows = employeeRows.filter(
+    (r) => r.employeePosition === "LAUNDRY_WORKER" || r.employeePosition === "IRON"
+  );
+  const managerRows = employeeRows.filter(
+    (r) => r.employeePosition === "MANAGER" || r.employeePosition === "MANAGER_ASSISTANT"
+  );
   const courierRows = employeeRows.filter((r) => r.employeePosition === "COURIER");
 
   const renderEmployeeTable = (
@@ -631,7 +641,10 @@ export default function TableSection() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {rows.map((row) => {
-                const salaryLocked = row.employeePosition === "LAUNDRY_WORKER" && kgPrice != null;
+                const salaryLocked =
+                  (row.employeePosition === "LAUNDRY_WORKER" ||
+                    row.employeePosition === "IRON") &&
+                  kgPrice != null;
                 return (
                   <tr key={`${row.employeeId}-${row.shift}`} className="hover:bg-gray-50">
                     <td className="px-4 py-2 border border-gray-300 text-[16px] md:text-[18px] text-black w-48 max-w-48">
@@ -870,6 +883,10 @@ export default function TableSection() {
             title: "მრეცხავები",
             showKg: true,
             accent: "orange",
+          })}
+          {renderEmployeeTable(managerRows, {
+            title: "მენეჯერი და ასისტენტი",
+            showKg: false,
           })}
           {renderEmployeeTable(courierRows, {
             title: "კურიერები",
