@@ -42,7 +42,7 @@ export default function TablePage() {
 
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Link

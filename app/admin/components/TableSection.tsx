@@ -879,14 +879,14 @@ export default function TableSection() {
         </div>
       ) : (
         <>
+          {renderEmployeeTable(managerRows, {
+            title: "მენეჯერი და ასისტენტი",
+            showKg: false,
+          })}
           {renderEmployeeTable(laundryRows, {
             title: "მრეცხავები",
             showKg: true,
             accent: "orange",
-          })}
-          {renderEmployeeTable(managerRows, {
-            title: "მენეჯერი და ასისტენტი",
-            showKg: false,
           })}
           {renderEmployeeTable(courierRows, {
             title: "კურიერები",
