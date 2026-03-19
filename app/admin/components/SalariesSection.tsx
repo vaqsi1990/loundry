@@ -45,6 +45,7 @@ export default function SalariesSection() {
   const [expandedSalaryId, setExpandedSalaryId] = useState<string | null>(null);
   const [timeEntriesDetails, setTimeEntriesDetails] = useState<{ [key: string]: any[] }>({});
   const [loadingDetails, setLoadingDetails] = useState<{ [key: string]: boolean }>({});
+  const [debtsFromPrevMonths, setDebtsFromPrevMonths] = useState<{ [key: string]: number }>({});
   
   const [formData, setFormData] = useState({
     employeeId: "",
@@ -75,6 +76,25 @@ export default function SalariesSection() {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    const fetchDebts = async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/salaries/debts?month=${filterMonth}&year=${filterYear}`
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        setDebtsFromPrevMonths(data || {});
+      } catch (err) {
+        console.error("Error fetching salaries debts:", err);
+      }
+    };
+
+    if (filterMonth && filterYear) {
+      fetchDebts();
+    }
+  }, [filterMonth, filterYear]);
 
   // Clear editing state when salaries are updated
   useEffect(() => {
@@ -1035,8 +1055,26 @@ export default function SalariesSection() {
                       accruedAmount = salary.accruedAmount || 0;
                     }
                     const issuedAmount = salary.issuedAmount || 0;
-                    const remainingAmount = accruedAmount - issuedAmount;
-                    return remainingAmount !== 0 ? `${remainingAmount.toFixed(2)} ₾` : '-';
+                    const currentRemaining = accruedAmount - issuedAmount;
+
+                    const debtKey =
+                      employeeId ||
+                      (salary.employeeName ? salary.employeeName.toLowerCase().trim() : salary.id);
+                    const prevDebt = debtsFromPrevMonths[debtKey] || 0;
+                    const totalRemaining = prevDebt;
+
+                    return (
+                      <span>
+                        <span className={prevDebt > 0 ? "text-red-600" : undefined}>
+                          {totalRemaining !== 0 ? `${totalRemaining.toFixed(2)} ₾` : "-"}
+                        </span>
+                        {currentRemaining !== 0 && (
+                          <span className="ml-2 text-sm text-black">
+                            (მიმდინარე: {currentRemaining.toFixed(2)} ₾)
+                          </span>
+                        )}
+                      </span>
+                    );
                   })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
