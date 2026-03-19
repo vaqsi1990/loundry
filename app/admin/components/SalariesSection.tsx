@@ -60,6 +60,9 @@ export default function SalariesSection() {
     status: "PENDING",
     notes: "",
   });
+  // Used to prevent `autoCreateSalaries()` from running with stale `salaries` data
+  // when the user changes month/year.
+  const [salariesLoadedKey, setSalariesLoadedKey] = useState<string>("");
 
   useEffect(() => {
     fetchSalaries();
@@ -84,16 +87,18 @@ export default function SalariesSection() {
   // Auto-create salaries for all employees with time entries when month/year changes
   useEffect(() => {
     const key = `${filterMonth}-${filterYear}`;
-    if (filterMonth && filterYear && employees.length > 0 && !isAutoCreating && !loading && lastAutoCreateRef.current !== key) {
-      // Small delay to ensure data is loaded
-      const timer = setTimeout(() => {
-        lastAutoCreateRef.current = key;
-        autoCreateSalaries();
-      }, 1500);
-      return () => clearTimeout(timer);
+    if (
+      filterMonth &&
+      filterYear &&
+      employees.length > 0 &&
+      !isAutoCreating &&
+      salariesLoadedKey === key &&
+      lastAutoCreateRef.current !== key
+    ) {
+      lastAutoCreateRef.current = key;
+      autoCreateSalaries();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMonth, filterYear]);
+  }, [filterMonth, filterYear, employees.length, isAutoCreating, salariesLoadedKey]);
 
   // Auto-calculate accrued amount when employee, month, or year changes
   useEffect(() => {
@@ -315,14 +320,15 @@ export default function SalariesSection() {
     }
   };
 
-  const fetchSalaries = async () => {
+  const fetchSalaries = async (month: number = filterMonth, year: number = filterYear) => {
     try {
-      const response = await fetch(`/api/admin/salaries?month=${filterMonth}&year=${filterYear}`);
+      const response = await fetch(`/api/admin/salaries?month=${month}&year=${year}`);
       if (!response.ok) {
         throw new Error("ხელფასების ჩატვირთვა ვერ მოხერხდა");
       }
       const data = await response.json();
       setSalaries(data);
+      setSalariesLoadedKey(`${month}-${year}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -569,21 +575,36 @@ export default function SalariesSection() {
     return months[month - 1];
   };
 
-  // Remove duplicates - keep only the first salary for each employee
-  const seenEmployees = new Set<string>();
-  const uniqueSalaries = salaries.filter((salary) => {
-    // Hide soft-deleted rows from the UI, but keep them in `salaries`
-    // state so autoCreateSalaries can detect "already exists".
-    if (salary.status === "DELETED") {
-      return false;
-    }
+  // Remove duplicates deterministically (prevents names/count from "jumping"
+  // when the API returns the same employee multiple times).
+  // - Hide soft-deleted rows from the UI
+  // - If duplicates exist, prefer the row with non-null `employeeId`
+  // - Otherwise prefer the newest `createdAt`
+  const uniqueSalariesMap = new Map<string, Salary>();
+  for (const salary of salaries) {
+    if (salary.status === "DELETED") continue;
+
     const key = salary.employeeId || salary.employeeName?.toLowerCase().trim() || salary.id;
-    if (seenEmployees.has(key)) {
-      return false; // Skip duplicate
+    const existing = uniqueSalariesMap.get(key);
+    if (!existing) {
+      uniqueSalariesMap.set(key, salary);
+      continue;
     }
-    seenEmployees.add(key);
-    return true; // Keep first occurrence
-  });
+
+    const existingHasEmployeeId = !!existing.employeeId;
+    const thisHasEmployeeId = !!salary.employeeId;
+    if (!existingHasEmployeeId && thisHasEmployeeId) {
+      uniqueSalariesMap.set(key, salary);
+      continue;
+    }
+
+    const existingCreatedAt = existing.createdAt ? new Date(existing.createdAt).getTime() : 0;
+    const thisCreatedAt = salary.createdAt ? new Date(salary.createdAt).getTime() : 0;
+    if (thisCreatedAt > existingCreatedAt) {
+      uniqueSalariesMap.set(key, salary);
+    }
+  }
+  const uniqueSalaries = Array.from(uniqueSalariesMap.values());
 
   // Calculate total amount using the same logic as displayed in the table
   // Prioritize accruedAmountsFromTable when available, otherwise use accruedAmount or amount
