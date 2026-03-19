@@ -553,20 +553,60 @@ export default function SalariesSection() {
     return months[month - 1];
   };
 
-  // Remove duplicates - keep only the first salary for each employee
-  const seenEmployees = new Set<string>();
-  const uniqueSalaries = salaries.filter((salary) => {
-    const key = salary.employeeId || salary.employeeName?.toLowerCase().trim() || salary.id;
-    if (seenEmployees.has(key)) {
-      return false; // Skip duplicate
+  // Remove duplicates for the same employee.
+  // Important: we must do this deterministically, otherwise after refetch React rows can "jump"
+  // and inputs appear to move between employees.
+  const uniqueSalaries = (() => {
+    const map = new Map<string, Salary>();
+    const getKey = (s: Salary) => s.employeeId || s.employeeName?.toLowerCase().trim() || s.id;
+    const hasIssued = (s: Salary) => s.issuedAmount !== null && s.issuedAmount !== undefined;
+
+    for (const s of salaries) {
+      const key = getKey(s);
+      const existing = map.get(key);
+
+      if (!existing) {
+        map.set(key, s);
+        continue;
+      }
+
+      // Prefer the record that has issuedAmount set.
+      const existingHasIssued = hasIssued(existing);
+      const sHasIssued = hasIssued(s);
+      if (sHasIssued && !existingHasIssued) {
+        map.set(key, s);
+        continue;
+      }
+      if (!sHasIssued && existingHasIssued) {
+        continue;
+      }
+
+      // If both have (or both don't have) issuedAmount, pick the most recent.
+      const existingTs = existing.createdAt ? new Date(existing.createdAt).getTime() : 0;
+      const ts = s.createdAt ? new Date(s.createdAt).getTime() : 0;
+      if (ts > existingTs) {
+        map.set(key, s);
+      }
     }
-    seenEmployees.add(key);
-    return true; // Keep first occurrence
+
+    return Array.from(map.values());
+  })();
+
+  const orderedSalaries = [...uniqueSalaries].sort((a, b) => {
+    const nameA = (a.employeeName || "").toLowerCase().trim();
+    const nameB = (b.employeeName || "").toLowerCase().trim();
+    if (nameA < nameB) return -1;
+    if (nameA > nameB) return 1;
+
+    // Fallback to stable IDs to avoid nondeterministic order.
+    const idA = a.employeeId || a.id;
+    const idB = b.employeeId || b.id;
+    return String(idA).localeCompare(String(idB));
   });
 
   // Calculate total amount using the same logic as displayed in the table
   // Prioritize accruedAmountsFromTable when available, otherwise use accruedAmount or amount
-  const totalAmount = uniqueSalaries.reduce((sum, s) => {
+  const totalAmount = orderedSalaries.reduce((sum, s) => {
     let accruedAmount = 0;
     if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
       // Use table value if available (from time entries)
@@ -581,7 +621,7 @@ export default function SalariesSection() {
     return sum + accruedAmount;
   }, 0);
   
-  const paidAmount = uniqueSalaries.filter(s => s.status === "PAID").reduce((sum, s) => {
+  const paidAmount = orderedSalaries.filter(s => s.status === "PAID").reduce((sum, s) => {
     let accruedAmount = 0;
     if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
       accruedAmount = accruedAmountsFromTable[s.employeeId];
@@ -642,7 +682,7 @@ export default function SalariesSection() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-blue-50 p-4 rounded-lg">
           <div className="text-sm text-gray-600">სულ ხელფასები</div>
-          <div className="text-2xl font-bold text-black">{uniqueSalaries.length}</div>
+          <div className="text-2xl font-bold text-black">{orderedSalaries.length}</div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg">
           <div className="text-sm text-gray-600">სულ თანხა</div>
@@ -747,7 +787,7 @@ export default function SalariesSection() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[16px] md:text-[18px] font-medium text-black">
-                    დარიცხული თანხა *
+                    დარიცხული  *
                   </label>
                   {formData.employeeId && (
                     <button
@@ -777,16 +817,14 @@ export default function SalariesSection() {
                 />
               </div>
               <div>
-                <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  გაცემული თანხა *
-                </label>
+               
                 <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   required
                   value={formData.issuedAmount}
                   onChange={(e) => setFormData({ ...formData, issuedAmount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black no-spinner"
                 />
               </div>
             </div>
@@ -880,13 +918,13 @@ export default function SalariesSection() {
                 პ/ნ
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                დარიცხული თანხა
+                დარიცხული
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                გაცემული თანხა
+                გაცემული
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                დარჩენილი თანხა
+                დარჩენილი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
@@ -894,7 +932,7 @@ export default function SalariesSection() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {uniqueSalaries.map((salary) => (
+            {orderedSalaries.map((salary) => (
               <ReactFragment key={salary.id}>
                 <tr className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
@@ -957,7 +995,7 @@ export default function SalariesSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   <input
-                    type="number"
+                    type="text"
                     step="0.01"
                     value={editingIssuedAmount[salary.id] !== undefined 
                       ? editingIssuedAmount[salary.id] 
@@ -1108,7 +1146,7 @@ export default function SalariesSection() {
         </table>
       </div>
 
-      {uniqueSalaries.length === 0 && (
+      {orderedSalaries.length === 0 && (
         <div className="text-center py-8 text-black">
           ხელფასები არ მოიძებნა
         </div>
