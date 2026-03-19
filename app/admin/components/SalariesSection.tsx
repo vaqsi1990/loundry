@@ -63,6 +63,8 @@ export default function SalariesSection() {
   // Used to prevent `autoCreateSalaries()` from running with stale `salaries` data
   // when the user changes month/year.
   const [salariesLoadedKey, setSalariesLoadedKey] = useState<string>("");
+  const [debtsByEmployeeId, setDebtsByEmployeeId] = useState<{ [key: string]: number }>({});
+  const [loadingDebts, setLoadingDebts] = useState(false);
 
   useEffect(() => {
     fetchSalaries();
@@ -320,6 +322,26 @@ export default function SalariesSection() {
     }
   };
 
+  const fetchDebts = async (month: number = filterMonth, year: number = filterYear) => {
+    try {
+      setLoadingDebts(true);
+      // Prevent "stale" debts from the previous month/year from being shown
+      // while the new request is in-flight.
+      setDebtsByEmployeeId({});
+      const response = await fetch(`/api/admin/salaries/debt?month=${month}&year=${year}`);
+      if (!response.ok) {
+        throw new Error("დავალიანების ჩატვირთვა ვერ მოხერხდა");
+      }
+      const data = await response.json();
+      setDebtsByEmployeeId(data || {});
+    } catch (err) {
+      console.error("Error fetching debts:", err);
+      setDebtsByEmployeeId({});
+    } finally {
+      setLoadingDebts(false);
+    }
+  };
+
   const fetchSalaries = async (month: number = filterMonth, year: number = filterYear) => {
     try {
       const response = await fetch(`/api/admin/salaries?month=${month}&year=${year}`);
@@ -329,6 +351,8 @@ export default function SalariesSection() {
       const data = await response.json();
       setSalaries(data);
       setSalariesLoadedKey(`${month}-${year}`);
+      // Fetch debts independently to avoid impacting table order.
+      void fetchDebts(month, year);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -417,6 +441,8 @@ export default function SalariesSection() {
             : s
         )
       );
+      // Update debt column (depends on previous months too).
+      void fetchDebts(filterMonth, filterYear);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
@@ -438,7 +464,10 @@ export default function SalariesSection() {
         throw new Error("წაშლა ვერ მოხერხდა");
       }
 
-      await fetchSalaries();
+      // Soft-delete already handled in API; hide row immediately to keep UI stable.
+      setSalaries((prev) => prev.map((s) => (s.id === id ? { ...s, status: "DELETED" } : s)));
+      setExpandedSalaryId((prev) => (prev === id ? null : prev));
+      void fetchDebts(filterMonth, filterYear);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     }
@@ -491,9 +520,12 @@ export default function SalariesSection() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
+    // `employeeTimeEntry.date` is `@db.Date` (date-only). When serialized to ISO,
+    // JS parses it as UTC midnight; using local getters can shift the calendar day.
+    // Use UTC getters to keep the correct day/month (e.g. 31.12.2025 stays 31.12.2025).
+    const day = date.getUTCDate();
+    const month = date.getUTCMonth() + 1;
+    const year = date.getUTCFullYear();
     return `${day}.${month}.${year}`;
   };
 
@@ -582,7 +614,9 @@ export default function SalariesSection() {
   // - Otherwise prefer the newest `createdAt`
   const uniqueSalariesMap = new Map<string, Salary>();
   for (const salary of salaries) {
-    if (salary.status === "DELETED") continue;
+    // Keep client-side rows consistent with debt endpoint:
+    // debt ignores both DELETED and CANCELLED salaries.
+    if (salary.status === "DELETED" || salary.status === "CANCELLED") continue;
 
     const key = salary.employeeId || salary.employeeName?.toLowerCase().trim() || salary.id;
     const existing = uniqueSalariesMap.get(key);
@@ -600,7 +634,9 @@ export default function SalariesSection() {
 
     const existingCreatedAt = existing.createdAt ? new Date(existing.createdAt).getTime() : 0;
     const thisCreatedAt = salary.createdAt ? new Date(salary.createdAt).getTime() : 0;
-    if (thisCreatedAt > existingCreatedAt) {
+    const existingId = existing.id ?? "";
+    const thisId = salary.id ?? "";
+    if (thisCreatedAt > existingCreatedAt || (thisCreatedAt === existingCreatedAt && thisId > existingId)) {
       uniqueSalariesMap.set(key, salary);
     }
   }
@@ -931,6 +967,9 @@ export default function SalariesSection() {
                 დარჩენილი 
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                დავალიანება
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
               </th>
             </tr>
@@ -1049,6 +1088,19 @@ export default function SalariesSection() {
                     return remainingAmount !== 0 ? `${remainingAmount.toFixed(2)} ₾` : '-';
                   })()}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
+                  {(() => {
+                    const employeeId = salary.employeeId;
+                    if (!employeeId) return "-";
+                    if (loadingDebts) return "იტვირთება...";
+
+                    const debtAny = debtsByEmployeeId[employeeId];
+                    const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
+                    const debt = Number.isFinite(debtNum) ? debtNum : 0;
+
+                    return debt > 0 ? `${debt.toFixed(2)} ₾` : "-";
+                  })()}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <div className="flex space-x-2">
                     <button
@@ -1069,7 +1121,7 @@ export default function SalariesSection() {
                 </tr>
                 {expandedSalaryId === salary.id && (
                   <tr key={`${salary.id}-details`}>
-                    <td colSpan={6} className="px-6 py-4 bg-gray-50">
+                    <td colSpan={7} className="px-6 py-4 bg-gray-50">
                     <div className="space-y-4">
                       <div>
                         <h4 className="font-semibold text-black mb-2">
@@ -1080,6 +1132,27 @@ export default function SalariesSection() {
                         <p className="text-sm text-black">
                           <strong>თვე:</strong> {getMonthName(salary.month)} {salary.year} | 
                           <strong> პ/ნ:</strong> {salary.personalId || '-'}
+                        </p>
+                        <p className="text-sm text-black">
+                          <strong>დავალიანება:</strong>{" "}
+                          {(() => {
+                            const employeeId = salary.employeeId;
+                            if (!employeeId) return "-";
+                            if (loadingDebts) return "იტვირთება...";
+
+                            const debtAny = debtsByEmployeeId[employeeId];
+                            const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
+                            const debt = Number.isFinite(debtNum) ? debtNum : 0;
+
+                            return debt > 0 ? `${debt.toFixed(2)} ₾` : "-";
+                          })()}
+                        </p>
+                        <p className="text-sm text-black">
+                          <strong>გაცემული:</strong>{" "}
+                          {(() => {
+                            const issued = salary.issuedAmount ?? 0;
+                            return issued !== 0 ? `${issued.toFixed(2)} ₾` : "0";
+                          })()}
                         </p>
                       </div>
 
