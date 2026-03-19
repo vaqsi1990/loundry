@@ -104,8 +104,13 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.salary.delete({
+    // Soft-delete so autoCreateSalaries doesn't recreate the row after refresh.
+    // We keep the record, but mark it as deleted for the UI filtering.
+    await prisma.salary.update({
       where: { id },
+      data: {
+        status: "DELETED",
+      },
     });
 
     return NextResponse.json({ message: "ხელფასი წაიშალა" });

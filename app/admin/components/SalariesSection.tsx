@@ -572,6 +572,11 @@ export default function SalariesSection() {
   // Remove duplicates - keep only the first salary for each employee
   const seenEmployees = new Set<string>();
   const uniqueSalaries = salaries.filter((salary) => {
+    // Hide soft-deleted rows from the UI, but keep them in `salaries`
+    // state so autoCreateSalaries can detect "already exists".
+    if (salary.status === "DELETED") {
+      return false;
+    }
     const key = salary.employeeId || salary.employeeName?.toLowerCase().trim() || salary.id;
     if (seenEmployees.has(key)) {
       return false; // Skip duplicate
