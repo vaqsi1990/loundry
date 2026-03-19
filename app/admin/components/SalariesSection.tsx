@@ -645,7 +645,7 @@ export default function SalariesSection() {
           <div className="text-2xl font-bold text-black">{uniqueSalaries.length}</div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg">
-          <div className="text-sm text-gray-600">სულ თანხა</div>
+          <div className="text-sm text-gray-600">სულ </div>
           <div className="text-2xl font-bold text-black">{totalAmount.toFixed(2)} ₾</div>
         </div>
         <div className="bg-yellow-50 p-4 rounded-lg">
@@ -747,7 +747,7 @@ export default function SalariesSection() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[16px] md:text-[18px] font-medium text-black">
-                    დარიცხული თანხა *
+                    დარიცხული  *
                   </label>
                   {formData.employeeId && (
                     <button
@@ -778,10 +778,10 @@ export default function SalariesSection() {
               </div>
               <div>
                 <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                  გაცემული თანხა *
+                  გაცემული  *
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   required
                   value={formData.issuedAmount}
@@ -880,13 +880,13 @@ export default function SalariesSection() {
                 პ/ნ
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                დარიცხული თანხა
+                დარიცხული 
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                გაცემული თანხა
+                გაცემული 
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
-                დარჩენილი თანხა
+                დარჩენილი 
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 მოქმედებები
