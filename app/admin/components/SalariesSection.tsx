@@ -370,10 +370,10 @@ export default function SalariesSection() {
     }
   };
 
-  const handleUpdateIssuedAmount = async (salaryId: string, issuedAmount: number) => {
+  const handleUpdateIssuedAmount = async (salaryId: string, issuedAmount: number): Promise<boolean> => {
     try {
       const salary = salaries.find(s => s.id === salaryId);
-      if (!salary) return;
+      if (!salary) return false;
 
       const accruedAmount = salary.accruedAmount || 0;
       const finalIssuedAmount = issuedAmount > 0 ? issuedAmount : null;
@@ -396,9 +396,25 @@ export default function SalariesSection() {
         throw new Error(data.error || "განახლება ვერ მოხერხდა");
       }
 
-      await fetchSalaries();
+      // Keep table order stable: update local state instead of refetching list.
+      // Refetching can reorder rows returned by the API and causes the "jump" effect while editing.
+      setSalaries((prev) =>
+        prev.map((s) =>
+          s.id === salaryId
+            ? {
+                ...s,
+                issuedAmount: finalIssuedAmount,
+                // UI computes remaining based on accruedAmount + issuedAmount,
+                // but keep it in sync for any other consumers.
+                remainingAmount: remainingAmount,
+              }
+            : s
+        )
+      );
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+      return false;
     }
   };
 
@@ -767,7 +783,7 @@ export default function SalariesSection() {
                   )}
                 </div>
                 <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   required
                   value={formData.accruedAmount}
@@ -957,23 +973,29 @@ export default function SalariesSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   <input
-                    type="number"
+                    type="text"
                     step="0.01"
                     value={editingIssuedAmount[salary.id] !== undefined 
                       ? editingIssuedAmount[salary.id] 
                       : (salary.issuedAmount?.toString() || '')}
                     onChange={(e) => {
-                      setEditingIssuedAmount({
-                        ...editingIssuedAmount,
-                        [salary.id]: e.target.value
-                      });
+                      // Use functional update to avoid stale state while typing
+                      setEditingIssuedAmount((prev) => ({
+                        ...prev,
+                        [salary.id]: e.target.value,
+                      }));
                     }}
-                    onBlur={(e) => {
-                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                      handleUpdateIssuedAmount(salary.id, value);
-                      const newEditing = { ...editingIssuedAmount };
-                      delete newEditing[salary.id];
-                      setEditingIssuedAmount(newEditing);
+                    onBlur={async (e) => {
+                      const value = e.target.value === "" ? 0 : parseFloat(e.target.value) || 0;
+                      const ok = await handleUpdateIssuedAmount(salary.id, value);
+                      // Clear local value only after the server update is done successfully
+                      if (ok) {
+                        setEditingIssuedAmount((prev) => {
+                          const next = { ...prev };
+                          delete next[salary.id];
+                          return next;
+                        });
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
