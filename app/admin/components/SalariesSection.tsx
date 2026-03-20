@@ -40,6 +40,7 @@ export default function SalariesSection() {
   const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [editingIssuedAmount, setEditingIssuedAmount] = useState<{ [key: string]: string | undefined }>({});
   const lastAutoCreateRef = useRef<string>("");
+  const debtFetchIdRef = useRef<number>(0);
   const [accruedAmountsFromTable, setAccruedAmountsFromTable] = useState<{ [key: string]: number }>({});
   const [loadingAccruedAmounts, setLoadingAccruedAmounts] = useState(false);
   const [expandedSalaryId, setExpandedSalaryId] = useState<string | null>(null);
@@ -323,22 +324,33 @@ export default function SalariesSection() {
   };
 
   const fetchDebts = async (month: number = filterMonth, year: number = filterYear) => {
+    // Prevent "stale" results from previous month/year selections.
+    debtFetchIdRef.current += 1;
+    const fetchId = debtFetchIdRef.current;
+
     try {
       setLoadingDebts(true);
       // Prevent "stale" debts from the previous month/year from being shown
       // while the new request is in-flight.
       setDebtsByEmployeeId({});
+
       const response = await fetch(`/api/admin/salaries/debt?month=${month}&year=${year}`);
       if (!response.ok) {
         throw new Error("დავალიანების ჩატვირთვა ვერ მოხერხდა");
       }
-      const data = await response.json();
-      setDebtsByEmployeeId(data || {});
+
+      const data = (await response.json()) as { [key: string]: number } | null;
+      if (fetchId === debtFetchIdRef.current) setDebtsByEmployeeId(data || {});
     } catch (err) {
       console.error("Error fetching debts:", err);
-      setDebtsByEmployeeId({});
+      if (fetchId === debtFetchIdRef.current) {
+        setDebtsByEmployeeId({});
+      }
     } finally {
-      setLoadingDebts(false);
+      // Only stop loading if this is the latest in-flight request.
+      if (fetchId === debtFetchIdRef.current) {
+        setLoadingDebts(false);
+      }
     }
   };
 

@@ -42,8 +42,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // ✅ Start year for cumulative debt.
+    // Change this if your business data starts earlier/later.
+    const startYear = 2025;
+
     // ✅ UTC date boundaries
-    const startDate = new Date(Date.UTC(parsedYear, 0, 1));
+    const startDate = new Date(Date.UTC(startYear, 0, 1));
     const endDate = new Date(Date.UTC(parsedYear, parsedMonth, 0, 23, 59, 59, 999));
 
     // -------------------- TIME ENTRIES --------------------
@@ -61,15 +65,21 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const accruedByEmployeeMonth: Record<string, Record<number, number>> = {};
+    // accruedByEmployeeMonth[employeeId][year][month] = number
+    const accruedByEmployeeMonth: Record<
+      string,
+      Record<number, Record<number, number>>
+    > = {};
 
     for (const row of timeRows) {
       const employeeId = String(row.employeeId);
-      const month = (row.date as Date).getUTCMonth() + 1;
+      const y = (row.date as Date).getUTCFullYear();
+      const m = (row.date as Date).getUTCMonth() + 1;
 
       accruedByEmployeeMonth[employeeId] ??= {};
-      accruedByEmployeeMonth[employeeId][month] =
-        (accruedByEmployeeMonth[employeeId][month] ?? 0) +
+      accruedByEmployeeMonth[employeeId][y] ??= {};
+      accruedByEmployeeMonth[employeeId][y][m] =
+        (accruedByEmployeeMonth[employeeId][y][m] ?? 0) +
         (row.dailySalary ?? 0);
     }
 
@@ -78,8 +88,13 @@ export async function GET(request: NextRequest) {
       where: {
         employeeId: { not: null },
         status: { notIn: ["DELETED", "CANCELLED"] },
-        year: parsedYear,
-        month: { lte: parsedMonth },
+        year: { gte: startYear, lte: parsedYear },
+        OR: [
+          // All months for years before the selected year
+          { year: { lt: parsedYear } },
+          // Only up to selected month for the selected year
+          { AND: [{ year: parsedYear }, { month: { lte: parsedMonth } }] },
+        ],
       },
       select: {
         id: true,
@@ -113,15 +128,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const issuedByEmployeeMonth: Record<string, Record<number, number>> = {};
+    // issuedByEmployeeMonth[employeeId][year][month] = number
+    const issuedByEmployeeMonth: Record<
+      string,
+      Record<number, Record<number, number>>
+    > = {};
 
     for (const row of bestSalaryRowByKey.values()) {
       const employeeId = String(row.employeeId);
-      const month = row.month;
+      const y = row.year;
+      const m = row.month;
 
       issuedByEmployeeMonth[employeeId] ??= {};
-      issuedByEmployeeMonth[employeeId][month] =
-        (issuedByEmployeeMonth[employeeId][month] ?? 0) +
+      issuedByEmployeeMonth[employeeId][y] ??= {};
+      issuedByEmployeeMonth[employeeId][y][m] =
+        (issuedByEmployeeMonth[employeeId][y][m] ?? 0) +
         (row.issuedAmount ?? 0);
     }
 
@@ -136,14 +157,17 @@ export async function GET(request: NextRequest) {
     for (const employeeId of employeeIds) {
       let balance = 0;
 
-      for (let m = 1; m <= parsedMonth; m++) {
-        const accrued = accruedByEmployeeMonth[employeeId]?.[m] ?? 0;
-        const issued = issuedByEmployeeMonth[employeeId]?.[m] ?? 0;
+      for (let y = startYear; y <= parsedYear; y++) {
+        const lastMonth = y === parsedYear ? parsedMonth : 12;
+        for (let m = 1; m <= lastMonth; m++) {
+          const accrued = accruedByEmployeeMonth[employeeId]?.[y]?.[m] ?? 0;
+          const issued = issuedByEmployeeMonth[employeeId]?.[y]?.[m] ?? 0;
 
-        const monthlyDelta = accrued - issued;
+          const monthlyDelta = accrued - issued;
 
-        // ✅ Carryover but never negative
-        balance = Math.max(0, balance + monthlyDelta);
+          // ✅ Carryover but never negative
+          balance = Math.max(0, balance + monthlyDelta);
+        }
       }
 
       debtByEmployeeId[employeeId] = balance;
