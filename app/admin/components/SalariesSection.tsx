@@ -619,44 +619,26 @@ export default function SalariesSection() {
     return months[month - 1];
   };
 
-  // Remove duplicates deterministically (prevents names/count from "jumping"
-  // when the API returns the same employee multiple times).
-  // - Hide soft-deleted rows from the UI
-  // - If duplicates exist, prefer the row with non-null `employeeId`
-  // - Otherwise prefer the newest `createdAt`
-  const uniqueSalariesMap = new Map<string, Salary>();
-  for (const salary of salaries) {
-    // Keep client-side rows consistent with debt endpoint:
-    // debt ignores both DELETED and CANCELLED salaries.
-    if (salary.status === "DELETED" || salary.status === "CANCELLED") continue;
-
-    const key = salary.employeeId || salary.employeeName?.toLowerCase().trim() || salary.id;
-    const existing = uniqueSalariesMap.get(key);
-    if (!existing) {
-      uniqueSalariesMap.set(key, salary);
-      continue;
-    }
-
-    const existingHasEmployeeId = !!existing.employeeId;
-    const thisHasEmployeeId = !!salary.employeeId;
-    if (!existingHasEmployeeId && thisHasEmployeeId) {
-      uniqueSalariesMap.set(key, salary);
-      continue;
-    }
-
-    const existingCreatedAt = existing.createdAt ? new Date(existing.createdAt).getTime() : 0;
-    const thisCreatedAt = salary.createdAt ? new Date(salary.createdAt).getTime() : 0;
-    const existingId = existing.id ?? "";
-    const thisId = salary.id ?? "";
-    if (thisCreatedAt > existingCreatedAt || (thisCreatedAt === existingCreatedAt && thisId > existingId)) {
-      uniqueSalariesMap.set(key, salary);
-    }
-  }
-  const uniqueSalaries = Array.from(uniqueSalariesMap.values());
+  // Show rows deterministically without "merging" records client-side.
+  // (Merging by name/id can mask real DB duplicates and looks like "wrong salaries".)
+  const visibleSalaries = salaries
+    .filter((s) => s.status !== "DELETED" && s.status !== "CANCELLED")
+    .slice()
+    .sort((a, b) => {
+      const aName = (a.employeeName || "").toLowerCase();
+      const bName = (b.employeeName || "").toLowerCase();
+      if (aName < bName) return -1;
+      if (aName > bName) return 1;
+      // newest first as a tie-breaker
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return (b.id || "").localeCompare(a.id || "");
+    });
 
   // Calculate total amount using the same logic as displayed in the table
   // Prioritize accruedAmountsFromTable when available, otherwise use accruedAmount or amount
-  const totalAmount = uniqueSalaries.reduce((sum, s) => {
+  const totalAmount = visibleSalaries.reduce((sum, s) => {
     let accruedAmount = 0;
     if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
       // Use table value if available (from time entries)
@@ -671,7 +653,7 @@ export default function SalariesSection() {
     return sum + accruedAmount;
   }, 0);
   
-  const paidAmount = uniqueSalaries.filter(s => s.status === "PAID").reduce((sum, s) => {
+  const paidAmount = visibleSalaries.filter(s => s.status === "PAID").reduce((sum, s) => {
     let accruedAmount = 0;
     if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
       accruedAmount = accruedAmountsFromTable[s.employeeId];
@@ -732,7 +714,7 @@ export default function SalariesSection() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="bg-blue-50 p-4 rounded-lg">
           <div className="text-sm text-gray-600">სულ ხელფასები</div>
-          <div className="text-2xl font-bold text-black">{uniqueSalaries.length}</div>
+          <div className="text-2xl font-bold text-black">{visibleSalaries.length}</div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg">
           <div className="text-sm text-gray-600">სულ </div>
@@ -987,7 +969,7 @@ export default function SalariesSection() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {uniqueSalaries.map((salary) => (
+            {visibleSalaries.map((salary) => (
               <ReactFragment key={salary.id}>
                 <tr className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
@@ -1241,7 +1223,7 @@ export default function SalariesSection() {
         </table>
       </div>
 
-      {uniqueSalaries.length === 0 && (
+      {visibleSalaries.length === 0 && (
         <div className="text-center py-8 text-black">
           ხელფასები არ მოიძებნა
         </div>

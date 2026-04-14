@@ -36,12 +36,17 @@ export async function GET(request: NextRequest) {
       where.month = parseInt(month);
       where.year = parseInt(year);
     }
+    // Keep list consistent with UI expectations: hide soft-deleted/cancelled rows.
+    where.status = { notIn: ["DELETED", "CANCELLED"] };
 
     const salaries = await prisma.salary.findMany({
       where,
       orderBy: [
         { year: "desc" },
         { month: "desc" },
+        // Stable order inside a month prevents "row shifting" after mutations.
+        { employeeName: "asc" },
+        { createdAt: "desc" },
       ],
     });
 
@@ -96,14 +101,18 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Check if salary already exists for this employee and month/year
+    const parsedMonth = parseInt(month);
+    const parsedYear = parseInt(year);
     const existingSalary = await prisma.salary.findFirst({
       where: {
-        month: parseInt(month),
-        year: parseInt(year),
-        OR: [
-          employeeId ? { employeeId } : { employeeName: employeeName },
-        ],
+        month: parsedMonth,
+        year: parsedYear,
+        status: { notIn: ["DELETED", "CANCELLED"] },
+        ...(employeeId
+          ? { employeeId }
+          : { employeeId: null, employeeName: employeeName }),
       },
+      orderBy: { createdAt: "desc" },
     });
 
     if (existingSalary) {
