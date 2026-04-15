@@ -65,28 +65,32 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // accruedByEmployeeMonth[employeeId][year][month] = number
+    // accruedByEmployeeMonth[key][year][month] = number
+    // key format:
+    // - "id:<employeeId>" when employeeId exists
     const accruedByEmployeeMonth: Record<
       string,
       Record<number, Record<number, number>>
     > = {};
 
     for (const row of timeRows) {
-      const employeeId = String(row.employeeId);
+      // If employee was deleted and FK nulled out, we can't attribute
+      // time entries to a stable employee key. Skip those rows here.
+      if (!row.employeeId) continue;
+      const key = `id:${String(row.employeeId)}`;
       const y = (row.date as Date).getUTCFullYear();
       const m = (row.date as Date).getUTCMonth() + 1;
 
-      accruedByEmployeeMonth[employeeId] ??= {};
-      accruedByEmployeeMonth[employeeId][y] ??= {};
-      accruedByEmployeeMonth[employeeId][y][m] =
-        (accruedByEmployeeMonth[employeeId][y][m] ?? 0) +
+      accruedByEmployeeMonth[key] ??= {};
+      accruedByEmployeeMonth[key][y] ??= {};
+      accruedByEmployeeMonth[key][y][m] =
+        (accruedByEmployeeMonth[key][y][m] ?? 0) +
         (row.dailySalary ?? 0);
     }
 
     // -------------------- SALARIES --------------------
     const salaryRows = await prisma.salary.findMany({
       where: {
-        employeeId: { not: null },
         status: { notIn: ["DELETED", "CANCELLED"] },
         year: { gte: startYear, lte: parsedYear },
         OR: [
@@ -99,9 +103,12 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         employeeId: true,
+        employeeName: true,
         year: true,
         month: true,
         issuedAmount: true,
+        accruedAmount: true,
+        amount: true,
         createdAt: true,
       },
     });
@@ -110,8 +117,10 @@ export async function GET(request: NextRequest) {
     const bestSalaryRowByKey = new Map<string, typeof salaryRows[number]>();
 
     for (const row of salaryRows) {
-      const employeeId = String(row.employeeId);
-      const key = `${employeeId}-${row.year}-${row.month}`;
+      const employeeKey = row.employeeId
+        ? `id:${String(row.employeeId)}`
+        : `name:${String(row.employeeName || "").toLowerCase().trim()}`;
+      const key = `${employeeKey}-${row.year}-${row.month}`;
 
       const existing = bestSalaryRowByKey.get(key);
 
@@ -135,33 +144,56 @@ export async function GET(request: NextRequest) {
     > = {};
 
     for (const row of bestSalaryRowByKey.values()) {
-      const employeeId = String(row.employeeId);
+      const employeeKey = row.employeeId
+        ? `id:${String(row.employeeId)}`
+        : `name:${String(row.employeeName || "").toLowerCase().trim()}`;
       const y = row.year;
       const m = row.month;
 
-      issuedByEmployeeMonth[employeeId] ??= {};
-      issuedByEmployeeMonth[employeeId][y] ??= {};
-      issuedByEmployeeMonth[employeeId][y][m] =
-        (issuedByEmployeeMonth[employeeId][y][m] ?? 0) +
+      issuedByEmployeeMonth[employeeKey] ??= {};
+      issuedByEmployeeMonth[employeeKey][y] ??= {};
+      issuedByEmployeeMonth[employeeKey][y][m] =
+        (issuedByEmployeeMonth[employeeKey][y][m] ?? 0) +
         (row.issuedAmount ?? 0);
     }
 
+    // If time entries are missing (e.g. employee deleted -> time entries cascaded),
+    // fall back to the stored salary accruedAmount/amount so debt doesn't "reset".
+    // We only fill gaps to avoid double-counting where time-entry data exists.
+    for (const row of bestSalaryRowByKey.values()) {
+      const employeeKey = row.employeeId
+        ? `id:${String(row.employeeId)}`
+        : `name:${String(row.employeeName || "").toLowerCase().trim()}`;
+      const y = row.year;
+      const m = row.month;
+      const accrued = (row.accruedAmount ?? row.amount ?? 0) as number;
+
+      accruedByEmployeeMonth[employeeKey] ??= {};
+      accruedByEmployeeMonth[employeeKey][y] ??= {};
+
+      const monthMap = accruedByEmployeeMonth[employeeKey][y];
+      // Only set if this month wasn't computed from time entries.
+      if (!(m in monthMap)) {
+        monthMap[m] = accrued;
+      }
+    }
+
     // -------------------- DEBT CALCULATION --------------------
-    const employeeIds = new Set<string>([
+    const employeeKeys = new Set<string>([
       ...Object.keys(accruedByEmployeeMonth),
       ...Object.keys(issuedByEmployeeMonth),
     ]);
 
-    const debtByEmployeeId: Record<string, number> = {};
+    const debtByEmployeeKey: Record<string, number> = {};
 
-    for (const employeeId of employeeIds) {
+    for (const employeeKey of employeeKeys) {
       let balance = 0;
 
       for (let y = startYear; y <= parsedYear; y++) {
         const lastMonth = y === parsedYear ? parsedMonth : 12;
         for (let m = 1; m <= lastMonth; m++) {
-          const accrued = accruedByEmployeeMonth[employeeId]?.[y]?.[m] ?? 0;
-          const issued = issuedByEmployeeMonth[employeeId]?.[y]?.[m] ?? 0;
+          const accrued = accruedByEmployeeMonth[employeeKey]?.[y]?.[m] ?? 0;
+          const issued = issuedByEmployeeMonth[employeeKey]?.[y]?.[m] ?? 0;
 
           const monthlyDelta = accrued - issued;
 
@@ -170,10 +202,10 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      debtByEmployeeId[employeeId] = balance;
+      debtByEmployeeKey[employeeKey] = balance;
     }
 
-    return NextResponse.json(debtByEmployeeId);
+    return NextResponse.json(debtByEmployeeKey);
   } catch (error) {
     console.error("Salaries debt fetch error:", error);
 

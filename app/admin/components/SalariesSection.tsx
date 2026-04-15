@@ -67,6 +67,11 @@ export default function SalariesSection() {
   const [debtsByEmployeeId, setDebtsByEmployeeId] = useState<{ [key: string]: number }>({});
   const [loadingDebts, setLoadingDebts] = useState(false);
 
+  const getDebtKeyForSalary = (salary: Salary) => {
+    if (salary.employeeId) return `id:${salary.employeeId}`;
+    return `name:${(salary.employeeName || "").toLowerCase().trim()}`;
+  };
+
   useEffect(() => {
     fetchSalaries();
   }, [filterMonth, filterYear]);
@@ -330,10 +335,6 @@ export default function SalariesSection() {
 
     try {
       setLoadingDebts(true);
-      // Prevent "stale" debts from the previous month/year from being shown
-      // while the new request is in-flight.
-      setDebtsByEmployeeId({});
-
       const response = await fetch(`/api/admin/salaries/debt?month=${month}&year=${year}`);
       if (!response.ok) {
         throw new Error("დავალიანების ჩატვირთვა ვერ მოხერხდა");
@@ -1084,11 +1085,10 @@ export default function SalariesSection() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
                   {(() => {
-                    const employeeId = salary.employeeId;
-                    if (!employeeId) return "-";
                     if (loadingDebts) return "იტვირთება...";
 
-                    const debtAny = debtsByEmployeeId[employeeId];
+                    const debtKey = getDebtKeyForSalary(salary);
+                    const debtAny = debtsByEmployeeId[debtKey];
                     const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
                     const debt = Number.isFinite(debtNum) ? debtNum : 0;
 
@@ -1130,11 +1130,10 @@ export default function SalariesSection() {
                         <p className="text-sm text-black">
                           <strong>დავალიანება:</strong>{" "}
                           {(() => {
-                            const employeeId = salary.employeeId;
-                            if (!employeeId) return "-";
                             if (loadingDebts) return "იტვირთება...";
 
-                            const debtAny = debtsByEmployeeId[employeeId];
+                            const debtKey = getDebtKeyForSalary(salary);
+                            const debtAny = debtsByEmployeeId[debtKey];
                             const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
                             const debt = Number.isFinite(debtNum) ? debtNum : 0;
 
