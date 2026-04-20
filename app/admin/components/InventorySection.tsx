@@ -380,10 +380,7 @@ export default function InventorySection() {
     <div className="space-y-6">
       {/* Header with Filters and Actions */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-6 border-b border-gray-200">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">საწყობის პროდუქტები</h2>
-          <p className="text-sm text-gray-500">პროდუქტების სრული სია და მართვა</p>
-        </div>
+       
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center w-full lg:w-auto">
           <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
             <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
@@ -668,9 +665,6 @@ export default function InventorySection() {
                   პროდუქტი
                 </th>
                 <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
-                  კატეგორია
-                </th>
-                <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
                   სულ შემოსული
                 </th>
                 <th className="px-4 md:px-6 py-4 text-left text-[16px] md:text-[18px] font-semibold text-gray-700 uppercase tracking-wider">
@@ -725,13 +719,6 @@ export default function InventorySection() {
                       <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                         <div className="text-[16px] md:text-[18px] font-semibold text-gray-900">{item.itemName}</div>
                       </td>
-                  <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[16px] md:text-[18px] font-medium bg-blue-100 text-blue-800">
-                      {item.category 
-                        ? (CATEGORY_OPTIONS.find(opt => opt.value === item.category)?.label || item.category)
-                        : "არ არის"}
-                    </span>
-                  </td>
                   <td className="px-4 md:px-6 py-4 whitespace-nowrap">
                     <div className="text-[16px] md:text-[18px] text-gray-900 font-medium">
                       {(() => {
