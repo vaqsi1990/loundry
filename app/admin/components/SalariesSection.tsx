@@ -29,6 +29,7 @@ interface Employee {
 }
 
 export default function SalariesSection() {
+  const EMPTY_DISPLAY = "--";
   const [salaries, setSalaries] = useState<Salary[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -994,7 +995,7 @@ export default function SalariesSection() {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
-                  {salary.personalId || '-'}
+                  {salary.personalId || EMPTY_DISPLAY}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
                   {(() => {
@@ -1017,7 +1018,7 @@ export default function SalariesSection() {
                         stored: salary.accruedAmount,
                         using: 'table'
                       });
-                      return accruedFromTable > 0 ? `${accruedFromTable.toFixed(2)} ₾` : '-';
+                      return accruedFromTable > 0 ? `${accruedFromTable.toFixed(2)} ₾` : EMPTY_DISPLAY;
                     }
                     
                     // If no employeeId or table data not available yet, show stored value only if loading is complete
@@ -1030,7 +1031,7 @@ export default function SalariesSection() {
                         stored: salary.accruedAmount,
                         using: 'stored (no table data)'
                       });
-                      return accruedAmount > 0 ? `${accruedAmount.toFixed(2)} ₾` : '-';
+                      return accruedAmount > 0 ? `${accruedAmount.toFixed(2)} ₾` : EMPTY_DISPLAY;
                     }
                     
                     return 'იტვირთება...';
@@ -1085,7 +1086,8 @@ export default function SalariesSection() {
                     }
                     const issuedAmount = salary.issuedAmount || 0;
                     const remainingAmount = accruedAmount - issuedAmount;
-                    return remainingAmount !== 0 ? `${remainingAmount.toFixed(2)} ₾` : '-';
+                    // Treat tiny floating-point drift as zero (e.g. 0.0000001).
+                    return Math.abs(remainingAmount) > 0.005 ? `${remainingAmount.toFixed(2)} ₾` : EMPTY_DISPLAY;
                   })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-red-600 font-semibold">
@@ -1097,7 +1099,7 @@ export default function SalariesSection() {
                     const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
                     const debt = Number.isFinite(debtNum) ? debtNum : 0;
 
-                    return debt > 0 ? `${debt.toFixed(2)} ₾` : "-";
+                    return debt > 0 ? `${debt.toFixed(2)} ₾` : EMPTY_DISPLAY;
                   })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
@@ -1130,7 +1132,7 @@ export default function SalariesSection() {
                         </h4>
                         <p className="text-sm text-black">
                           <strong>თვე:</strong> {getMonthName(salary.month)} {salary.year} | 
-                          <strong> პ/ნ:</strong> {salary.personalId || '-'}
+                          <strong> პ/ნ:</strong> {salary.personalId || EMPTY_DISPLAY}
                         </p>
                         <p className="text-sm text-black">
                           <strong>დავალიანება:</strong>{" "}
@@ -1142,14 +1144,14 @@ export default function SalariesSection() {
                             const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
                             const debt = Number.isFinite(debtNum) ? debtNum : 0;
 
-                            return debt > 0 ? `${debt.toFixed(2)} ₾` : "-";
+                            return debt > 0 ? `${debt.toFixed(2)} ₾` : EMPTY_DISPLAY;
                           })()}
                         </p>
                         <p className="text-sm text-black">
                           <strong>გაცემული:</strong>{" "}
                           {(() => {
                             const issued = salary.issuedAmount ?? 0;
-                            return issued !== 0 ? `${issued.toFixed(2)} ₾` : "0";
+                            return issued !== 0 ? `${issued.toFixed(2)} ₾` : EMPTY_DISPLAY;
                           })()}
                         </p>
                       </div>
@@ -1192,13 +1194,13 @@ export default function SalariesSection() {
                                       {formatDate(entry.date)}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-black border border-gray-300">
-                                      {entry.arrivalTime || '-'}
+                                      {entry.arrivalTime || EMPTY_DISPLAY}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-black border border-gray-300">
-                                      {entry.departureTime || '-'}
+                                      {entry.departureTime || EMPTY_DISPLAY}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-black font-semibold border border-gray-300">
-                                      {entry.dailySalary ? `${entry.dailySalary.toFixed(2)} ₾` : '-'}
+                                      {entry.dailySalary ? `${entry.dailySalary.toFixed(2)} ₾` : EMPTY_DISPLAY}
                                     </td>
                                   </tr>
                                 ))}
