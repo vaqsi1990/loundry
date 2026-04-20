@@ -637,34 +637,39 @@ export default function SalariesSection() {
       return (b.id || "").localeCompare(a.id || "");
     });
 
+  const toMoneyNumber = (value: unknown): number => {
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const getAccruedAmountForSummary = (s: Salary): number => {
+    if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
+      return toMoneyNumber(accruedAmountsFromTable[s.employeeId]);
+    }
+    return toMoneyNumber(s.accruedAmount ?? s.amount ?? 0);
+  };
+
+  const getIssuedAmountForSummary = (s: Salary): number => {
+    const issued = toMoneyNumber(s.issuedAmount);
+    if (issued > 0) return issued;
+
+    const normalizedStatus = String(s.status || "").trim().toUpperCase();
+    if (normalizedStatus === "PAID") {
+      // If it's marked PAID but issuedAmount is missing, assume fully issued.
+      return getAccruedAmountForSummary(s);
+    }
+
+    return 0;
+  };
+
   // Calculate total amount using the same logic as displayed in the table
   // Prioritize accruedAmountsFromTable when available, otherwise use accruedAmount or amount
   const totalAmount = visibleSalaries.reduce((sum, s) => {
-    let accruedAmount = 0;
-    if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
-      // Use table value if available (from time entries)
-      accruedAmount = accruedAmountsFromTable[s.employeeId];
-    } else if (!loadingAccruedAmounts) {
-      // Use stored accruedAmount if loading is complete and no table data
-      accruedAmount = s.accruedAmount || s.amount || 0;
-    } else {
-      // Still loading, use stored value as fallback
-      accruedAmount = s.accruedAmount || s.amount || 0;
-    }
-    return sum + accruedAmount;
+    return sum + getAccruedAmountForSummary(s);
   }, 0);
   
-  const paidAmount = visibleSalaries.filter(s => s.status === "PAID").reduce((sum, s) => {
-    let accruedAmount = 0;
-    if (s.employeeId && accruedAmountsFromTable[s.employeeId] !== undefined) {
-      accruedAmount = accruedAmountsFromTable[s.employeeId];
-    } else if (!loadingAccruedAmounts) {
-      accruedAmount = s.accruedAmount || s.amount || 0;
-    } else {
-      accruedAmount = s.accruedAmount || s.amount || 0;
-    }
-    return sum + accruedAmount;
-  }, 0);
+  const paidAmount = visibleSalaries
+    .reduce((sum, s) => sum + getIssuedAmountForSummary(s), 0);
 
   if (loading) {
     return <div className="text-center py-8 text-black">იტვირთება...</div>;
