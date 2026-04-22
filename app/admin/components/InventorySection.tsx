@@ -488,11 +488,20 @@ export default function InventorySection() {
                   ერთეულის ფასი (₾)
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="^[0-9]*([.,][0-9]*)?$"
                   value={formData.unitPrice}
-                  onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    // allow both "2.50" and "2,50"
+                    const normalized = raw.replace(",", ".");
+                    // keep only digits and a single dot
+                    const cleaned = normalized
+                      .replace(/[^0-9.]/g, "")
+                      .replace(/(\..*)\./g, "$1");
+                    setFormData({ ...formData, unitPrice: cleaned });
+                  }}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="0.00"
                 />
