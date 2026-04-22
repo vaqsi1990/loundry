@@ -33,15 +33,6 @@ interface InventoryItem {
   movements: InventoryMovement[];
 }
 
-const CATEGORY_OPTIONS = [
-  { value: "KALMEBI", label: "კალმები" },
-  { value: "SKOCHI", label: "სკოჩი" },
-  { value: "PKHVNILI", label: "ფხვნილი" },
-  { value: "KLORI", label: "ქლორი" },
-  { value: "PERADI_STIKERI", label: "ფერადი სტიკერი" },
-  { value: "TETRI_STIKERI", label: "თეთრი სტიკერი" },
-];
-
 // Helper function to translate unit to Georgian
 const translateUnit = (unit: string): string => {
   const unitMap: Record<string, string> = {
@@ -69,7 +60,6 @@ export default function InventorySection() {
   
   const [formData, setFormData] = useState({
     itemName: "",
-    category: "",
     quantity: "",
     unit: "piece",
     unitPrice: "",
@@ -234,9 +224,11 @@ export default function InventorySection() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...formData,
+          itemName: formData.itemName,
           quantity: parseInt(formData.quantity),
+          unit: formData.unit,
           unitPrice: formData.unitPrice ? parseFloat(formData.unitPrice) : null,
+          supplier: formData.supplier || null,
           receiptDate: formData.receiptDate || new Date().toISOString(),
         }),
       });
@@ -330,7 +322,6 @@ export default function InventorySection() {
   const resetForm = () => {
     setFormData({
       itemName: "",
-      category: "",
       quantity: "",
       unit: "piece",
       unitPrice: "",
@@ -344,7 +335,6 @@ export default function InventorySection() {
   const handleEdit = (item: InventoryItem) => {
     setFormData({
       itemName: item.itemName,
-      category: item.category || "",
       quantity: item.quantity.toString(),
       unit: item.unit,
       unitPrice: item.unitPrice?.toString() || "",
@@ -458,23 +448,6 @@ export default function InventorySection() {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="შეიყვანეთ პროდუქტის სახელი"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                კატეგორია
-              </label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              >
-                <option value="">აირჩიეთ კატეგორია</option>
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
