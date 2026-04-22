@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
-export default function ChangePasswordPage() {
+function ChangePasswordForm() {
   const { data: session, status, update } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -186,6 +186,22 @@ export default function ChangePasswordPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function ChangePasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="text-[18px] md:text-[20px] text-gray-600">იტვირთება...</div>
+          </div>
+        </div>
+      }
+    >
+      <ChangePasswordForm />
+    </Suspense>
   );
 }
 
