@@ -55,6 +55,7 @@ const PROTECTOR_PRICES: Record<string, number> = {
   "ბალიში დიდი": 7,
   "ბალიში პატარა": 5,
   "ბალიში საბავშვო": 5,
+  "მძიმე წონა": 2.5,
 };
 
 // Helper function to get item order index
@@ -70,7 +71,7 @@ const getItemOrder = (category: string, itemNameKa: string): number => {
   ];
   const PROTECTOR_ITEMS = [
     "საბანი დიდი", "საბანი პატარა", "მატრასის დამცავი დიდი", "მატრასის დამცავი პატარა",
-    "ბალიში დიდი", "ბალიში პატარა", "ბალიში საბავშვო",
+    "ბალიში დიდი", "ბალიში პატარა", "ბალიში საბავშვო", "მძიმე წონა",
   ];
 
   let items: string[] = [];
