@@ -395,9 +395,10 @@ export async function POST(req: NextRequest) {
     const logoExists = fs.existsSync(logoPath);
 
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: `${process.env.EMAIL_FROM_NAME || "ქინგ ლონდრი"} <${process.env.EMAIL_USER}>`,
       to: recipientEmail,
       subject: `დღის ფურცელი - ${sheet.hotelName || "სასტუმრო"} - ${new Date(sheet.date).toISOString().split("T")[0]}`,
+      replyTo: process.env.EMAIL_REPLY_TO || process.env.EMAIL_USER,
       html: renderHtml(sheet, companyName),
       attachments: logoExists
         ? [
