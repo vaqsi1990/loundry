@@ -154,6 +154,8 @@ export async function PUT(request: NextRequest) {
     }
     if (validatedData.password) {
       userUpdates.password = await bcrypt.hash(validatedData.password, 10);
+      userUpdates.mustChangePassword = false;
+      userUpdates.passwordChangedAt = new Date();
     }
     if (validatedData.firstName || validatedData.lastName) {
       const currentName = user.name || "";

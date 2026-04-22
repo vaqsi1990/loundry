@@ -75,6 +75,7 @@ export const authOptions: NextAuthOptions = {
               email: user.email,
               name: user.name,
               role: user.role,
+              mustChangePassword: user.mustChangePassword,
             };
           }
 
@@ -121,6 +122,7 @@ export const authOptions: NextAuthOptions = {
             email: user.email,
             name: user.name,
             role: user.role,
+            mustChangePassword: user.mustChangePassword,
           };
         }
 
@@ -169,6 +171,7 @@ export const authOptions: NextAuthOptions = {
             email: hotel.user.email,
             name: hotel.user.name,
             role: hotel.user.role,
+            mustChangePassword: hotel.user.mustChangePassword,
           };
         }
 
@@ -217,6 +220,7 @@ export const authOptions: NextAuthOptions = {
             email: hotel.user.email,
             name: hotel.user.name,
             role: hotel.user.role,
+            mustChangePassword: hotel.user.mustChangePassword,
           };
         }
 
@@ -234,15 +238,36 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
+        (token as any).id = (user as any).id;
+        if (!token.sub) {
+          token.sub = (user as any).id;
+        }
+        (token as any).role = (user as any).role;
+        (token as any).mustChangePassword =
+          (user as any).mustChangePassword ?? false;
+      } else {
+        // Subsequent requests: keep claim in sync with DB (e.g. after change-password)
+        const userId = ((token as any).id ?? token.sub) as string | undefined;
+        if (userId) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { mustChangePassword: true, role: true },
+          });
+          if (dbUser) {
+            (token as any).mustChangePassword = dbUser.mustChangePassword;
+            (token as any).role = dbUser.role;
+          }
+        }
       }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
+        (session.user as any).mustChangePassword =
+          (token as any).mustChangePassword ?? false;
       }
       return session;
     },

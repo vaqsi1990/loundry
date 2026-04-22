@@ -135,6 +135,8 @@ export async function POST(request: NextRequest) {
 
     // Create user and optionally hotel in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Hotel (physical/legal) accounts: first login must set password in-app (can match signup password)
+      const isHotelRegistration = Boolean(validatedData.hotelType);
       // Create user
       const user = await tx.user.create({
         data: {
@@ -143,6 +145,15 @@ export async function POST(request: NextRequest) {
           password: hashedPassword,
           mobileNumber: validatedData.mobileNumber,
           role: validatedData.role || "USER",
+          ...(isHotelRegistration
+            ? {
+                mustChangePassword: true,
+                passwordChangedAt: null,
+              }
+            : {
+                mustChangePassword: false,
+                passwordChangedAt: new Date(),
+              }),
         },
         select: {
           id: true,

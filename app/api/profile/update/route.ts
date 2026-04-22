@@ -71,6 +71,8 @@ export async function PUT(request: NextRequest) {
 
     if (validatedData.password) {
       updateData.password = await bcrypt.hash(validatedData.password, 10);
+      updateData.mustChangePassword = false;
+      updateData.passwordChangedAt = new Date();
     }
 
     const updatedUser = await prisma.user.update({

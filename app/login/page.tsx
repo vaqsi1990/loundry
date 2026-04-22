@@ -4,6 +4,12 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+async function fetchAuthSession() {
+  const res = await fetch("/api/auth/session", { cache: "no-store" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,8 +80,14 @@ function LoginForm() {
 
         if (result?.error) {
           setError(result.error);
-          setLoading(false);
         } else if (result?.ok && loginType) {
+          // getSession() is often stale right after signIn; /api/auth/session is reliable
+          const session = await fetchAuthSession();
+          if ((session?.user as any)?.mustChangePassword) {
+            router.push("/change-password");
+            router.refresh();
+            return;
+          }
           // Redirect based on login type
           if (loginType === "PHYSICAL") {
             router.push("/physical");
@@ -85,11 +97,11 @@ function LoginForm() {
           router.refresh();
         } else {
           setError("დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
-          setLoading(false);
         }
       } catch (err) {
         console.error("Login error:", err);
         setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
+      } finally {
         setLoading(false);
       }
     } else if (loginType === "ADMIN") {
@@ -125,6 +137,12 @@ function LoginForm() {
           if (result?.error) {
             setError(result.error);
           } else {
+            const session = await fetchAuthSession();
+            if ((session?.user as any)?.mustChangePassword) {
+              router.push("/change-password");
+              router.refresh();
+              return;
+            }
             router.push("/");
             router.refresh();
           }
@@ -159,6 +177,12 @@ function LoginForm() {
           if (result?.error) {
             setError(result.error);
           } else {
+            const session = await fetchAuthSession();
+            if ((session?.user as any)?.mustChangePassword) {
+              router.push("/change-password");
+              router.refresh();
+              return;
+            }
             router.push("/");
             router.refresh();
           }

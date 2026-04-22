@@ -131,6 +131,8 @@ export async function PUT(request: NextRequest) {
     }
     if (validatedData.password) {
       userUpdates.password = await bcrypt.hash(validatedData.password, 10);
+      userUpdates.mustChangePassword = false;
+      userUpdates.passwordChangedAt = new Date();
     }
 
     if (Object.keys(userUpdates).length > 0) {

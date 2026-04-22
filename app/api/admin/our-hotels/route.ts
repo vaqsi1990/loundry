@@ -320,6 +320,8 @@ export async function PUT(request: NextRequest) {
       }
       if (validatedData.password) {
         userUpdates.password = await bcrypt.hash(validatedData.password, 10);
+        userUpdates.mustChangePassword = true;
+        userUpdates.passwordChangedAt = null;
       }
 
       if (Object.keys(userUpdates).length > 0) {
@@ -466,6 +468,7 @@ export async function POST(request: NextRequest) {
           password: hashedPassword,
           mobileNumber: validatedData.mobileNumber,
           role: "USER",
+          mustChangePassword: true,
         },
       });
 
