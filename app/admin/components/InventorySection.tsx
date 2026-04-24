@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface InventoryMovement {
   id: string;
@@ -523,11 +524,10 @@ export default function InventorySection() {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 მიღების თარიღი <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <FormattedDateInput
+                value={formData.receiptDate || new Date().toISOString().split("T")[0]}
                 required
-                value={formData.receiptDate || new Date().toISOString().split('T')[0]}
-                onChange={(e) => setFormData({ ...formData, receiptDate: e.target.value })}
+                onChange={(date) => setFormData({ ...formData, receiptDate: date })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
@@ -588,11 +588,10 @@ export default function InventorySection() {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 გატანის თარიღი <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
-                required
+              <FormattedDateInput
                 value={removeData.date}
-                onChange={(e) => setRemoveData({ ...removeData, date: e.target.value })}
+                required
+                onChange={(date) => setRemoveData({ ...removeData, date })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
               />
             </div>

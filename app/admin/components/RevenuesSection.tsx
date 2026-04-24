@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface Revenue {
   id: string;
@@ -534,14 +535,14 @@ export default function RevenuesSection() {
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
                 თარიღი *
               </label>
-              <input
-                type="date"
+              <FormattedDateInput
+                value={formData.date}
                 required
                 disabled={isSubmitting}
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
-                  }`}
+                onChange={(date) => setFormData({ ...formData, date })}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-black ${
+                  isSubmitting ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
               />
             </div>
             <div className="flex space-x-2">

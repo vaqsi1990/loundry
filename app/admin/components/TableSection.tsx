@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Fragment } from "react";
 import { TableHeader } from "./ui/TableHeader";
-import { DatePickerSection } from "./ui/DatePickerSection";
+import { DatePickerSection, FormattedDateInput } from "./ui/DatePickerSection";
 import { EmployeeTables } from "./ui/EmployeeTables";
 
 interface Employee {
@@ -1023,10 +1023,9 @@ export default function TableSection() {
                   აირჩიეთ დღე
                 </label>
                 <div className="flex space-x-2">
-                  <input
-                    type="date"
+                  <FormattedDateInput
                     value={popupSelectedDate}
-                    onChange={(e) => setPopupSelectedDate(e.target.value)}
+                    onChange={(date) => setPopupSelectedDate(date)}
                     className="px-3 py-2 border border-gray-300 rounded-md text-black"
                   />
                   <button

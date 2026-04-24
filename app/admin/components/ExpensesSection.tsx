@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface Expense {
   id: string;
@@ -439,12 +440,11 @@ export default function ExpensesSection() {
                   <label className="block text-[16px] font-medium text-black mb-1">
                     თარიღი *
                   </label>
-                  <input
-                    type="date"
+                  <FormattedDateInput
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                     required
+                    onChange={(date) => setFormData({ ...formData, date })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                   />
                 </div>
                 <div>
@@ -559,10 +559,9 @@ export default function ExpensesSection() {
       {viewMode !== "all" && (
         <div className="mb-4">
           {viewMode === "daily" ? (
-            <input
-              type="date"
+            <FormattedDateInput
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(date) => setSelectedDate(date)}
               className="px-3 py-2 border border-gray-300 rounded-md text-black"
             />
           ) : (

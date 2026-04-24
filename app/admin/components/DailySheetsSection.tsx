@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface Hotel {
   id: string;
@@ -1031,11 +1032,10 @@ export default function DailySheetsSection() {
                   <label className="block text-[16px] font-medium text-black mb-1">
                     თარიღი *
                   </label>
-                  <input
-                    type="date"
-                    required
+                  <FormattedDateInput
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                    onChange={(date) => setFormData({ ...formData, date })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                   />
                 </div>
