@@ -153,6 +153,7 @@ export default function DailySheetsSection() {
     value: "",
   });
   const [savingWeightId, setSavingWeightId] = useState<string | null>(null);
+  const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -166,6 +167,73 @@ export default function DailySheetsSection() {
     totalPrice: null as number | null, // For PROTECTORS manual price
     items: [] as DailySheetItem[],
   });
+
+  const getDraftValue = (key: string, fallback: string) =>
+    Object.prototype.hasOwnProperty.call(numericDrafts, key) ? numericDrafts[key] : fallback;
+
+  const isAllowedDecimalDraft = (value: string) => /^-?\d*(?:[.,]\d*)?$/.test(value);
+  const setDecimalDraft = (key: string, next: string) => {
+    if (next === "" || isAllowedDecimalDraft(next)) {
+      setNumericDrafts((prev) => ({ ...prev, [key]: next }));
+    }
+  };
+
+  const setIntegerDraft = (key: string, next: string) => {
+    // Don't block typing; we'll sanitize/parse on commit.
+    setNumericDrafts((prev) => ({ ...prev, [key]: next }));
+  };
+
+  const commitDecimalDraft = (
+    key: string,
+    opts: { allowNull: boolean; onCommit: (n: number | null) => void }
+  ) => {
+    const raw = (numericDrafts[key] ?? "").trim();
+    if (raw === "") {
+      opts.onCommit(opts.allowNull ? null : 0);
+      setNumericDrafts((prev) => {
+        const { [key]: _removed, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+
+    const normalized = raw.replace(",", ".");
+    const parsed = parseFloat(normalized);
+    if (!Number.isFinite(parsed)) return;
+
+    opts.onCommit(parsed);
+    setNumericDrafts((prev) => {
+      const { [key]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const commitIntegerDraft = (
+    key: string,
+    opts: { allowNull: boolean; onCommit: (n: number | null) => void }
+  ) => {
+    const raw = (numericDrafts[key] ?? "").trim();
+    if (raw === "") {
+      opts.onCommit(opts.allowNull ? null : 0);
+      setNumericDrafts((prev) => {
+        const { [key]: _removed, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+
+    const digitsOnly = raw.replace(/[^\d]/g, "");
+    if (digitsOnly === "") return;
+
+    const parsed = parseInt(digitsOnly, 10);
+    if (!Number.isFinite(parsed)) return;
+
+    opts.onCommit(parsed);
+    setNumericDrafts((prev) => {
+      const { [key]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
 
   useEffect(() => {
     fetchSheets();
@@ -1084,42 +1152,141 @@ export default function DailySheetsSection() {
                                   <>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        step="0.001"
-                                        value={item.weight}
-                                        onChange={(e) => handleItemChange(actualIndex, "weight", parseFloat(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-weight`, String(item.weight ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-weight`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "weight", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "weight", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-weight`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "weight", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.received}
-                                        onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-received`, String(item.received ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-received`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "received", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "received", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-received`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "received", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.washCount}
-                                        onChange={(e) => handleItemChange(actualIndex, "washCount", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-washCount`, String(item.washCount ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-washCount`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "washCount", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "washCount", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-washCount`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "washCount", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.dispatched}
-                                        onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-dispatched`, String(item.dispatched ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-dispatched`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "dispatched", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "dispatched", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-dispatched`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "dispatched", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.shortage}
-                                        onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-shortage`, String(item.shortage ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-shortage`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "shortage", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "shortage", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-shortage`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "shortage", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
@@ -1130,10 +1297,36 @@ export default function DailySheetsSection() {
                                       <td className="border border-gray-300 px-2 py-1">
                                         {isProtectors ? (
                                           <input
-                                            type="number"
-                                            step="0.01"
-                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
-                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={getDraftValue(
+                                              `item-${actualIndex}-price`,
+                                              String(
+                                                item.price !== undefined && item.price !== null
+                                                  ? item.price
+                                                  : PROTECTOR_PRICES[item.itemNameKa] || ""
+                                              )
+                                            )}
+                                            onChange={(e) => {
+                                              const next = e.target.value;
+                                              setDecimalDraft(`item-${actualIndex}-price`, next);
+                                              const normalized = next.replace(",", ".");
+                                              if (
+                                                normalized !== "" &&
+                                                !normalized.endsWith(".") &&
+                                                !normalized.endsWith(",") &&
+                                                Number.isFinite(parseFloat(normalized))
+                                              ) {
+                                                handleItemChange(actualIndex, "price", parseFloat(normalized));
+                                              }
+                                              if (normalized === "") handleItemChange(actualIndex, "price", 0);
+                                            }}
+                                            onBlur={() =>
+                                              commitDecimalDraft(`item-${actualIndex}-price`, {
+                                                allowNull: false,
+                                                onCommit: (n) => handleItemChange(actualIndex, "price", n ?? 0),
+                                              })
+                                            }
                                             className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                           />
                                         ) : isLinenOrTowel ? (
@@ -1149,25 +1342,85 @@ export default function DailySheetsSection() {
                                   <>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.received}
-                                        onChange={(e) => handleItemChange(actualIndex, "received", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-received`, String(item.received ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-received`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "received", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "received", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-received`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "received", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.dispatched}
-                                        onChange={(e) => handleItemChange(actualIndex, "dispatched", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-dispatched`, String(item.dispatched ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-dispatched`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "dispatched", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "dispatched", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-dispatched`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "dispatched", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
                                     <td className="border border-gray-300 px-2 py-1">
                                       <input
-                                        type="number"
-                                        value={item.shortage}
-                                        onChange={(e) => handleItemChange(actualIndex, "shortage", parseInt(e.target.value) || 0)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={getDraftValue(`item-${actualIndex}-shortage`, String(item.shortage ?? ""))}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDecimalDraft(`item-${actualIndex}-shortage`, next);
+                                          const normalized = next.replace(",", ".");
+                                          if (
+                                            normalized !== "" &&
+                                            !normalized.endsWith(".") &&
+                                            !normalized.endsWith(",") &&
+                                            Number.isFinite(parseFloat(normalized))
+                                          ) {
+                                            handleItemChange(actualIndex, "shortage", parseFloat(normalized));
+                                          }
+                                          if (normalized === "") handleItemChange(actualIndex, "shortage", 0);
+                                        }}
+                                        onBlur={() =>
+                                          commitDecimalDraft(`item-${actualIndex}-shortage`, {
+                                            allowNull: false,
+                                            onCommit: (n) => handleItemChange(actualIndex, "shortage", n ?? 0),
+                                          })
+                                        }
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
@@ -1175,10 +1428,36 @@ export default function DailySheetsSection() {
                                       <td className="border border-gray-300 px-2 py-1">
                                         {isProtectors ? (
                                           <input
-                                            type="number"
-                                            step="0.01"
-                                            value={item.price !== undefined && item.price !== null ? item.price : (PROTECTOR_PRICES[item.itemNameKa] || "")}
-                                            onChange={(e) => handleItemChange(actualIndex, "price", parseFloat(e.target.value) || 0)}
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={getDraftValue(
+                                              `item-${actualIndex}-price`,
+                                              String(
+                                                item.price !== undefined && item.price !== null
+                                                  ? item.price
+                                                  : PROTECTOR_PRICES[item.itemNameKa] || ""
+                                              )
+                                            )}
+                                            onChange={(e) => {
+                                              const next = e.target.value;
+                                              setDecimalDraft(`item-${actualIndex}-price`, next);
+                                              const normalized = next.replace(",", ".");
+                                              if (
+                                                normalized !== "" &&
+                                                !normalized.endsWith(".") &&
+                                                !normalized.endsWith(",") &&
+                                                Number.isFinite(parseFloat(normalized))
+                                              ) {
+                                                handleItemChange(actualIndex, "price", parseFloat(normalized));
+                                              }
+                                              if (normalized === "") handleItemChange(actualIndex, "price", 0);
+                                            }}
+                                            onBlur={() =>
+                                              commitDecimalDraft(`item-${actualIndex}-price`, {
+                                                allowNull: false,
+                                                onCommit: (n) => handleItemChange(actualIndex, "price", n ?? 0),
+                                              })
+                                            }
                                             className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                           />
                                         ) : isLinenOrTowel ? (
@@ -1307,11 +1586,30 @@ export default function DailySheetsSection() {
                             მთლიანი წონა (კგ) *
                           </label>
                           <input
-                            type="number"
-                            step="0.001"
+                            type="text"
+                            inputMode="decimal"
                             required={hasLinenOrTowels}
-                            value={formData.totalWeight || ""}
-                            onChange={(e) => setFormData({ ...formData, totalWeight: parseFloat(e.target.value) || null })}
+                            value={getDraftValue("form-totalWeight", formData.totalWeight !== null ? String(formData.totalWeight) : "")}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setDecimalDraft("form-totalWeight", next);
+                              const normalized = next.replace(",", ".");
+                              if (
+                                normalized !== "" &&
+                                !normalized.endsWith(".") &&
+                                !normalized.endsWith(",") &&
+                                Number.isFinite(parseFloat(normalized))
+                              ) {
+                                setFormData({ ...formData, totalWeight: parseFloat(normalized) });
+                              }
+                              if (normalized === "") setFormData({ ...formData, totalWeight: null });
+                            }}
+                            onBlur={() =>
+                              commitDecimalDraft("form-totalWeight", {
+                                allowNull: true,
+                                onCommit: (n) => setFormData({ ...formData, totalWeight: n }),
+                              })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                             placeholder="შეიყვანეთ მთლიანი წონა"
                           />
@@ -1321,14 +1619,33 @@ export default function DailySheetsSection() {
                             1 ც-ის ფასი (₾) *
                           </label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             required={hasLinenOrTowels}
-                            value={formData.pricePerKg !== null && formData.pricePerKg !== undefined ? formData.pricePerKg : ""}
+                            value={getDraftValue(
+                              "form-pricePerKg",
+                              formData.pricePerKg !== null && formData.pricePerKg !== undefined ? String(formData.pricePerKg) : ""
+                            )}
                             onChange={(e) => {
-                              const value = e.target.value === "" ? null : parseFloat(e.target.value);
-                              setFormData({ ...formData, pricePerKg: isNaN(value as number) ? null : value });
+                              const next = e.target.value;
+                              setDecimalDraft("form-pricePerKg", next);
+                              const normalized = next.replace(",", ".");
+                              if (
+                                normalized !== "" &&
+                                !normalized.endsWith(".") &&
+                                !normalized.endsWith(",") &&
+                                Number.isFinite(parseFloat(normalized))
+                              ) {
+                                setFormData({ ...formData, pricePerKg: parseFloat(normalized) });
+                              }
+                              if (normalized === "") setFormData({ ...formData, pricePerKg: null });
                             }}
+                            onBlur={() =>
+                              commitDecimalDraft("form-pricePerKg", {
+                                allowNull: true,
+                                onCommit: (n) => setFormData({ ...formData, pricePerKg: n }),
+                              })
+                            }
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
                             placeholder="შეიყვანეთ 1 კგ-ის ფასი"
                           />
