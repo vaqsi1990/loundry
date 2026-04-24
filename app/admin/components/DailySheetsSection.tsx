@@ -816,7 +816,7 @@ export default function DailySheetsSection() {
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-gray-300 md:text-[18px] text-[16px]">
           <thead>
-            <tr className="bg-orange-100">
+            <tr className="bg-white">
               <th className="border border-gray-300 px-2 py-1 text-black  md:text-[18px] text-[16px] text-left font-semibold">დასახელება</th>
               {sheet.sheetType === "INDIVIDUAL" && (
                 <>
@@ -862,7 +862,7 @@ export default function DailySheetsSection() {
             })}
           </tbody>
           <tfoot>
-            <tr className="bg-gray-50 font-semibold">
+            <tr className="bg-white font-semibold">
               <td className="border border-gray-300 px-2 py-1 text-left text-black">ჯამი</td>
               {sheet.sheetType === "INDIVIDUAL" && (
                 <>
@@ -894,7 +894,7 @@ export default function DailySheetsSection() {
               <td className="border border-gray-300 px-2 py-1 text-center">-</td>
             </tr>
             {sheet.sheetType === "STANDARD" && sheet.totalWeight && (
-              <tr className="bg-blue-50 font-semibold">
+              <tr className=" font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი წონა:
                 </td>
@@ -905,7 +905,7 @@ export default function DailySheetsSection() {
               </tr>
             )}
             {sheet.pricePerKg && (
-              <tr className="bg-blue-50 font-semibold">
+              <tr className=" font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   1 კგ-ის ფასი:
                 </td>
@@ -916,7 +916,7 @@ export default function DailySheetsSection() {
               </tr>
             )}
             {hasProtectors && protectorsPrice > 0 && (
-              <tr className="bg-purple-50 font-semibold">
+              <tr className="bg-white font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
                   დამცავების ფასი:
                 </td>
@@ -928,7 +928,7 @@ export default function DailySheetsSection() {
               </tr>
             )}
             {calculatedTotalPrice && (
-              <tr className="bg-green-50 font-bold">
+              <tr className="bg-white font-bold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი ფასი:
                 </td>
@@ -957,7 +957,7 @@ export default function DailySheetsSection() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+        <div className="bg-white border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
@@ -1290,7 +1290,7 @@ export default function DailySheetsSection() {
                                         className="w-full px-1 py-1 border-0 text-center text-black bg-transparent"
                                       />
                                     </td>
-                                    <td className="border border-gray-300 px-2 py-1 text-center bg-gray-50">
+                                    <td className="border border-gray-300 px-2 py-1 text-center bg-white">
                                       {item.totalWeight.toFixed(2)}
                                     </td>
                                     {showPriceColumn && (
@@ -1487,7 +1487,7 @@ export default function DailySheetsSection() {
                     return (
                       <table className="w-full border-collapse border border-gray-300  text-[16px]">
                         <thead>
-                          <tr className="bg-orange-100">
+                          <tr className="bg-white">
                             <th className="border border-gray-300 px-2 py-1 text-left font-semibold">დასახელება</th>
                             {formData.sheetType === "INDIVIDUAL" && (
                               <>
@@ -1526,7 +1526,7 @@ export default function DailySheetsSection() {
                         const showPriceColumn = hasProtectors || hasLinenOrTowels;
                         const protectorsTotalPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
                         return (
-                          <tr className="bg-gray-50 font-semibold">
+                          <tr className="bg-white font-semibold">
                             <td className="border border-gray-300 px-2 py-1 text-left">ჯამი</td>
                             {formData.sheetType === "INDIVIDUAL" && (
                               <>
@@ -1653,7 +1653,7 @@ export default function DailySheetsSection() {
                       </>
                     )}
                     {hasProtectors && protectorsPrice > 0 && (
-                      <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                      <div className="bg-white border border-purple-200 rounded-md p-4">
                         <div className="flex justify-between items-center">
                           <span className="text-[16px] font-semibold text-black">დამცავების ფასი:</span>
                           <span className="text-[18px] font-bold text-purple-700">
@@ -1663,7 +1663,7 @@ export default function DailySheetsSection() {
                       </div>
                     )}
                     {totalSum > 0 && (
-                      <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                      <div className="bg-white border border-green-200 rounded-md p-4">
                         <div className="flex justify-between items-center">
                           <span className="text-[16px] font-semibold text-black">ჯამი (მთლიანი ფასი):</span>
                           <span className="text-[18px] font-bold text-green-700">
@@ -1692,7 +1692,7 @@ export default function DailySheetsSection() {
                   return (
                     <div className="mt-4 space-y-4">
                       {hasProtectors && protectorsPrice > 0 && (
-                        <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                        <div className="bg-white border border-purple-200 rounded-md p-4">
                           <div className="flex justify-between items-center">
                             <span className="text-[16px] font-semibold text-black">დამცავების ფასი:</span>
                             <span className="text-[18px] font-bold text-purple-700">
@@ -1702,7 +1702,7 @@ export default function DailySheetsSection() {
                         </div>
                       )}
                       {totalSum > 0 && (
-                        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                        <div className="bg-white border border-green-200 rounded-md p-4">
                           <div className="flex justify-between items-center">
                             <span className="text-[16px] font-semibold text-black">ჯამი (მთლიანი ფასი):</span>
                             <span className="text-[18px] font-bold text-green-700">
@@ -1809,7 +1809,7 @@ export default function DailySheetsSection() {
                             <div key={dayKey} className="border border-gray-200 rounded-lg overflow-hidden">
                               {/* Day header */}
                               <div
-                                className="flex justify-between items-center px-4 py-3 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                                className="flex justify-between items-center px-4 py-3 cursor-pointer bg-white hover:bg-white transition-colors"
                                 onClick={() => toggleDay(dayKey)}
                               >
                                 <div className="flex items-center gap-3">
@@ -1860,7 +1860,7 @@ export default function DailySheetsSection() {
                                         <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                                           {/* Header - Always visible */}
                                           <div 
-                                            className="flex justify-between items-start p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                                            className="flex justify-between items-start p-6 cursor-pointer hover:bg-white transition-colors"
                                             onClick={() => toggleSheet(sheet.id)}
                                           >
                                             <div className="flex items-center gap-3 flex-1">
@@ -1891,16 +1891,16 @@ export default function DailySheetsSection() {
                                                       ცვლა: {sheet.shiftType === "DAY" ? "დღის" : "ღამის"}
                                                     </span>
                                                   )}
-                                                  <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-xs font-semibold">
+                                                  <span className="inline-flex items-center rounded-full  text-blue-700 px-3 py-1 text-xs font-semibold">
                                                     გაგზავნილი {sheet.emailSendCount ?? 0}x
                                                   </span>
                                                   {sheet.confirmedAt && sheet.confirmedByUser && (
-                                                    <span className="inline-flex items-center rounded-full bg-green-50 text-green-700 px-3 py-1 text-xs font-semibold">
+                                                    <span className="inline-flex items-center rounded-full bg-white text-green-700 px-3 py-1 text-xs font-semibold border border-gray-200">
                                                       ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})
                                                     </span>
                                                   )}
                                                   {!sheet.confirmedAt && (
-                                                    <span className="inline-flex items-center rounded-full bg-yellow-50 text-yellow-700 px-3 py-1 text-xs font-semibold">
+                                                    <span className="inline-flex items-center rounded-full bg-white text-yellow-700 px-3 py-1 text-xs font-semibold border border-gray-200">
                                                       დადასტურება საჭიროა
                                                     </span>
                                                   )}

@@ -169,7 +169,7 @@ export default function CalculatorSection() {
         
         <div className="space-y-4">
           {/* Total Weight Display */}
-          <div className="bg-blue-50 p-4 rounded-lg">
+          <div className=" p-4 rounded-lg">
             <div className="text-gray-600 text-sm mb-1">სულ წონა (კგ) ინვოისებიდან:</div>
             <div className="text-2xl font-bold text-black">
               {loading ? "იტვირთება..." : totalWeight.toFixed(2)} კგ
