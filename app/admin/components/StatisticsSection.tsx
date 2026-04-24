@@ -141,7 +141,7 @@ export default function StatisticsSection() {
                 />
                 <YAxis 
                   tick={{ fill: '#000', fontSize: 12 }}
-                  tickFormatter={(value) => `${value.toFixed(0)} ₾`}
+                  tickFormatter={(value) => `${value.toFixed(2)} ₾`}
                 />
                 <Tooltip 
                   formatter={(value: number) => [`${value.toFixed(2)} ₾`, "შემოსავლები"]}
@@ -159,7 +159,7 @@ export default function StatisticsSection() {
                 />
                 <YAxis 
                   tick={{ fill: '#000', fontSize: 12 }}
-                  tickFormatter={(value) => `${value.toFixed(0)} ₾`}
+                  tickFormatter={(value) => `${value.toFixed(2)} ₾`}
                 />
                 <Tooltip 
                   formatter={(value: number) => [`${value.toFixed(2)} ₾`, "შემოსავლები"]}

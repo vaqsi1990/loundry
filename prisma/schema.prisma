@@ -368,10 +368,10 @@ model LegalDailySheetItem {
   category    String // TOWELS, LINEN
   itemNameKa  String // Georgian name
   weight      Float // Weight in KG
-  received    Int     @default(0) // Received in pieces
+  received    Float   @default(0) // Received in pieces (supports decimals)
   washCount   Int     @default(0) // Wash count in pieces
-  dispatched  Int     @default(0) // Dispatched in pieces
-  shortage    Int     @default(0) // Shortage in pieces
+  dispatched  Float   @default(0) // Dispatched in pieces (supports decimals)
+  shortage    Float   @default(0) // Shortage in pieces (supports decimals)
   totalWeight Float // Total weight in KG (same as weight)
   price       Float? // Price per item for PROTECTORS
   comment     String?
@@ -391,10 +391,10 @@ model PhysicalDailySheetItem {
   category    String // TOWELS, LINEN
   itemNameKa  String // Georgian name
   weight      Float // Weight in KG
-  received    Int     @default(0) // Received in pieces
+  received    Float   @default(0) // Received in pieces (supports decimals)
   washCount   Int     @default(0) // Wash count in pieces
-  dispatched  Int     @default(0) // Dispatched in pieces
-  shortage    Int     @default(0) // Shortage in pieces
+  dispatched  Float   @default(0) // Dispatched in pieces (supports decimals)
+  shortage    Float   @default(0) // Shortage in pieces (supports decimals)
   totalWeight Float // Total weight in KG (same as weight)
   price       Float? // Price per item for PROTECTORS
   comment     String?
