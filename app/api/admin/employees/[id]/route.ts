@@ -34,14 +34,32 @@ export async function PUT(
 
     const { id } = await params;
     const formData = await request.formData();
-    const name = formData.get("name") as string;
-    const personalId = formData.get("personalId") as string | null;
-    const phone = formData.get("phone") as string;
-    const position = formData.get("position") as string;
+    const name = String(formData.get("name") ?? "").trim();
+    const personalId = String(formData.get("personalId") ?? "").trim() || null;
+    const phone = String(formData.get("phone") ?? "").trim();
+    const position = String(formData.get("position") ?? "").trim();
     const canLogin = formData.get("canLogin") === "true";
     const contractFile = formData.get("contractFile") as File | null;
     const email = formData.get("email") as string | null;
     const password = formData.get("password") as string | null;
+
+    if (!name) {
+      return NextResponse.json({ error: "სახელი სავალდებულოა" }, { status: 400 });
+    }
+    if (!phone) {
+      return NextResponse.json({ error: "ტელეფონი სავალდებულოა" }, { status: 400 });
+    }
+    if (!position) {
+      return NextResponse.json({ error: "პოზიცია სავალდებულოა" }, { status: 400 });
+    }
+
+    // Require personalId for MANAGER and MANAGER_ASSISTANT
+    if ((position === "MANAGER" || position === "MANAGER_ASSISTANT") && !personalId) {
+      return NextResponse.json(
+        { error: "მენეჯერს და მენეჯერის ასისტანტს სავალდებულოდ სჭირდება პირადობის ნომერი" },
+        { status: 400 }
+      );
+    }
 
     const existingEmployee = await prisma.employee.findUnique({
       where: { id },

@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
                 category: "asc",
               },
             },
+            emailSends: {
+              orderBy: { sentAt: "desc" },
+              take: 1,
+              select: { sentAt: true, sentTo: true, payload: true },
+            },
           },
           orderBy: {
             date: "desc",
@@ -47,6 +52,11 @@ export async function GET(request: NextRequest) {
               orderBy: {
                 category: "asc",
               },
+            },
+            emailSends: {
+              orderBy: { sentAt: "desc" },
+              take: 1,
+              select: { sentAt: true, sentTo: true, payload: true },
             },
           },
           orderBy: {

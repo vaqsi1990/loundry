@@ -40,9 +40,16 @@ interface DailySheet {
   sheetType: string;
   totalWeight: number | null;
   totalPrice: number | null;
+  emailedAt?: string | null;
+  emailedTo?: string | null;
   items: DailySheetItem[];
   createdAt: string;
   emailSendCount?: number;
+  emailSends?: Array<{
+    sentAt: string;
+    sentTo: string;
+    payload?: any;
+  }>;
   confirmedBy?: string | null;
   confirmedAt?: string | null;
   confirmedByUser?: {
@@ -1922,6 +1929,37 @@ export default function DailySheetsSection() {
                                                   <span className="inline-flex items-center rounded-full  text-blue-700 px-3 py-1 text-xs font-semibold">
                                                     გაგზავნილი {sheet.emailSendCount ?? 0}x
                                                   </span>
+                                                  {(() => {
+                                                    const lastSend = sheet.emailSends?.[0];
+                                                    const sentBy = lastSend?.payload?.sentBy;
+                                                    const isEmailed =
+                                                      !!lastSend ||
+                                                      (sheet.emailSendCount ?? 0) > 0 ||
+                                                      !!sheet.emailedAt ||
+                                                      !!sheet.emailedTo;
+                                                    if (!isEmailed) return null;
+                                                    if (!sentBy?.role) {
+                                                      return (
+                                                        <span className="inline-flex items-center rounded-full bg-white text-black px-3 py-1 text-xs font-semibold border border-gray-200">
+                                                          გაგზავნა: უცნობი
+                                                        </span>
+                                                      );
+                                                    }
+                                                    const roleLabel =
+                                                      sentBy.role === "MANAGER"
+                                                        ? "მენეჯერი"
+                                                        : sentBy.role === "MANAGER_ASSISTANT"
+                                                          ? "მენეჯერ ასისტანტი"
+                                                          : sentBy.role === "ADMIN"
+                                                            ? "ადმინი"
+                                                            : sentBy.role;
+                                                    const who = sentBy.name || sentBy.email || "";
+                                                    return (
+                                                      <span className="inline-flex items-center rounded-full bg-white text-black px-3 py-1 text-xs font-semibold border border-gray-200">
+                                                        გაგზავნა: {roleLabel}{who ? ` (${who})` : ""}
+                                                      </span>
+                                                    );
+                                                  })()}
                                                   {sheet.confirmedAt && sheet.confirmedByUser && (
                                                     <span className="inline-flex items-center rounded-full bg-white text-green-700 px-3 py-1 text-xs font-semibold border border-gray-200">
                                                       ✓ დაადასტურა: {sheet.confirmedByUser.name || sheet.confirmedByUser.email} ({new Date(sheet.confirmedAt).toLocaleDateString("ka-GE")})

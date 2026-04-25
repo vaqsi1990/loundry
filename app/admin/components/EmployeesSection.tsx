@@ -61,17 +61,25 @@ export default function EmployeesSection() {
     e.preventDefault();
     setError("");
 
+    const requiresPersonalId =
+      formData.position === "MANAGER" || formData.position === "MANAGER_ASSISTANT";
+    const personalIdTrimmed = formData.personalId.trim();
+    if (requiresPersonalId && !personalIdTrimmed) {
+      setError("მენეჯერს და მენეჯერის ასისტანტს სავალდებულოდ სჭირდება პირადობის ნომერი");
+      return;
+    }
+
     const formDataToSend = new FormData();
-    formDataToSend.append("name", formData.name);
-    formDataToSend.append("phone", formData.phone);
+    formDataToSend.append("name", formData.name.trim());
+    formDataToSend.append("phone", formData.phone.trim());
     formDataToSend.append("position", formData.position);
     formDataToSend.append("canLogin", formData.canLogin.toString());
-    formDataToSend.append("personalId", formData.personalId);
+    formDataToSend.append("personalId", personalIdTrimmed);
     if (formData.contractFile) {
       formDataToSend.append("contractFile", formData.contractFile);
     }
     if (formData.email) {
-      formDataToSend.append("email", formData.email);
+      formDataToSend.append("email", formData.email.trim());
     }
     if (formData.password) {
       formDataToSend.append("password", formData.password);
@@ -87,8 +95,20 @@ export default function EmployeesSection() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "ოპერაცია ვერ მოხერხდა");
+        let message = "ოპერაცია ვერ მოხერხდა";
+        try {
+          const data = await response.json();
+          message = data?.error || message;
+        } catch {
+          try {
+            const text = await response.text();
+            if (text) message = text;
+          } catch {
+            // ignore
+          }
+        }
+        setError(message);
+        return;
       }
 
       await fetchEmployees();
@@ -205,6 +225,11 @@ export default function EmployeesSection() {
                 ×
               </button>
             </div>
+            {error && (
+              <div className="bg-white border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
@@ -220,11 +245,11 @@ export default function EmployeesSection() {
             </div>
             <div>
               <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
-                პ/ნ (პირადობის ნომერი) *
+                პ/ნ (პირადობის ნომერი) {(formData.position === "MANAGER" || formData.position === "MANAGER_ASSISTANT") ? "*" : ""}
               </label>
               <input
                 type="text"
-                required
+                required={formData.position === "MANAGER" || formData.position === "MANAGER_ASSISTANT"}
                 value={formData.personalId}
                 onChange={(e) => setFormData({ ...formData, personalId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
@@ -252,10 +277,14 @@ export default function EmployeesSection() {
                 value={formData.position}
                 onChange={(e) => {
                   const pos = e.target.value as any;
+                  const allowedLogin = ["MANAGER", "MANAGER_ASSISTANT", "COURIER"].includes(pos);
                   setFormData({ 
                     ...formData, 
                     position: pos,
-                    canLogin: ["MANAGER", "MANAGER_ASSISTANT", "COURIER"].includes(pos)
+                    // Don't auto-enable login; only auto-disable when not allowed
+                    canLogin: allowedLogin ? formData.canLogin : false,
+                    email: allowedLogin ? formData.email : "",
+                    password: allowedLogin ? formData.password : "",
                   });
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"

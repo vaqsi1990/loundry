@@ -250,12 +250,19 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { id: true, role: true, name: true, email: true },
     });
 
     if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
+
+    const sentBy = {
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      email: user.email,
+    };
 
     const body = await req.json();
     const { sheetId, to } = body;
@@ -442,6 +449,7 @@ export async function POST(req: NextRequest) {
               protectorsTotal,
               totalPrice,
               companyName,
+              sentBy,
             },
           },
         }),
@@ -476,6 +484,7 @@ export async function POST(req: NextRequest) {
               protectorsTotal,
               totalPrice,
               companyName,
+              sentBy,
             },
           },
         }),
