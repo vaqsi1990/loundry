@@ -369,7 +369,7 @@ export default function LegalDailySheetsPage() {
               <td className="border border-gray-300 px-2 py-1 text-center">-</td>
             </tr>
             {sheet.sheetType === "STANDARD" && sheet.totalWeight && (
-              <tr className="bg-white font-semibold">
+              <tr className="bg-blue-50 font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი წონა:
                 </td>
@@ -380,7 +380,7 @@ export default function LegalDailySheetsPage() {
               </tr>
             )}
             {sheet.pricePerKg && (
-              <tr className="bg-white font-semibold">
+              <tr className="bg-blue-50 font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   1 კგ-ის ფასი:
                 </td>
@@ -391,7 +391,7 @@ export default function LegalDailySheetsPage() {
               </tr>
             )}
             {hasProtectors && protectorsPrice > 0 && (
-              <tr className="bg-white font-semibold">
+              <tr className="bg-purple-50 font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
                   დამცავების ფასი:
                 </td>
@@ -403,7 +403,7 @@ export default function LegalDailySheetsPage() {
               </tr>
             )}
             {calculatedTotalPrice && (
-              <tr className="bg-white font-bold">
+              <tr className="bg-green-50 font-bold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი ფასი:
                 </td>
