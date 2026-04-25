@@ -66,7 +66,7 @@ function renderSection(
 
   return `
     <tr>
-      <td colspan="${colSpan}" style="border:1px solid #ccc;padding:6px;font-weight:600;background:#fff;">${title}</td>
+      <td colspan="${colSpan}" style="border:1px solid #ccc;padding:6px;font-weight:600;background:#FFEDD5;">${title}</td>
     </tr>
     ${rows}
   `;

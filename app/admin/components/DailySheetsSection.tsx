@@ -117,6 +117,7 @@ const PROTECTOR_PRICES: Record<string, number> = {
   "ბალიში დიდი": 7,
   "ბალიში პატარა": 5,
   "ბალიში საბავშვო": 5,
+  "პლედი": 5,
   "მძიმე წონა": 2.5,
 };
 
@@ -128,6 +129,7 @@ const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "PROTECTORS", itemNameKa: "ბალიში დიდი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 7 },
   { category: "PROTECTORS", itemNameKa: "ბალიში პატარა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
   { category: "PROTECTORS", itemNameKa: "ბალიში საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
+  { category: "PROTECTORS", itemNameKa: "პლედი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
   { category: "PROTECTORS", itemNameKa: "მძიმე წონა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 2.5 },
 ];
 
@@ -1616,7 +1618,7 @@ export default function DailySheetsSection() {
                         </div>
                         <div>
                           <label className="block text-[16px] font-medium text-black mb-1">
-                            1 ც-ის ფასი (₾) *
+                            1 კგ-ის ფასი (₾) *
                           </label>
                           <input
                             type="text"
