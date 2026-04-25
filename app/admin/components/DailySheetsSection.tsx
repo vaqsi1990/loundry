@@ -25,6 +25,7 @@ interface DailySheetItem {
   totalWeight: number;
   price?: number; // Price for PROTECTORS items
   comment?: string;
+  isCustom?: boolean;
 }
 
 interface DailySheet {
@@ -131,6 +132,8 @@ const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "PROTECTORS", itemNameKa: "ბალიში საბავშვო", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
   { category: "PROTECTORS", itemNameKa: "პლედი", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 5 },
   { category: "PROTECTORS", itemNameKa: "მძიმე წონა", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: 2.5 },
+  // Custom row below "მძიმე წონა" (manual entry)
+  { category: "PROTECTORS", itemNameKa: "", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: undefined, comment: "", isCustom: true },
 ];
 
 export default function DailySheetsSection() {
@@ -461,12 +464,18 @@ export default function DailySheetsSection() {
       const url = editingId ? `/api/admin/daily-sheets/${editingId}` : "/api/admin/daily-sheets";
       const method = editingId ? "PUT" : "POST";
 
+      const payload = {
+        ...formData,
+        // Don't send empty custom rows (API requires itemNameKa)
+        items: formData.items.filter((i) => String(i.itemNameKa ?? "").trim() !== ""),
+      };
+
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -1145,10 +1154,23 @@ export default function DailySheetsSection() {
                           {sortedItems.map((item, index) => {
                             const actualIndex = formData.items.findIndex((i) => i === item);
                             const isLinenOrTowel = item.category === "LINEN" || item.category === "TOWELS";
+                            const isCustom = !!item.isCustom;
+                            const displayOrEmpty = (n: number | undefined | null) =>
+                              isCustom && (n === 0 || n === undefined || n === null) ? "" : String(n ?? "");
                             return (
-                              <tr key={`${item.itemNameKa}-${actualIndex}`} className="bg-white">
+                              <tr key={isCustom ? `custom-${actualIndex}` : `${item.itemNameKa}-${actualIndex}`} className="bg-white">
                                 <td className="border border-gray-300 px-2 py-1">
-                                  {item.itemNameKa}
+                                  {isCustom ? (
+                                    <input
+                                      type="text"
+                                      value={item.itemNameKa}
+                                      onChange={(e) => handleItemChange(actualIndex, "itemNameKa", e.target.value)}
+                                      className="w-full px-1 py-1 border-0 text-black bg-transparent"
+                                      placeholder="დასახელება"
+                                    />
+                                  ) : (
+                                    item.itemNameKa
+                                  )}
                                 </td>
                                 {formData.sheetType === "INDIVIDUAL" && (
                                   <>
@@ -1156,7 +1178,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-weight`, String(item.weight ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-weight`, displayOrEmpty(item.weight))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-weight`, next);
@@ -1184,7 +1206,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-received`, String(item.received ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-received`, displayOrEmpty(item.received))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-received`, next);
@@ -1212,7 +1234,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-washCount`, String(item.washCount ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-washCount`, displayOrEmpty(item.washCount))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-washCount`, next);
@@ -1240,7 +1262,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-dispatched`, String(item.dispatched ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-dispatched`, displayOrEmpty(item.dispatched))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-dispatched`, next);
@@ -1268,7 +1290,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-shortage`, String(item.shortage ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-shortage`, displayOrEmpty(item.shortage))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-shortage`, next);
@@ -1306,7 +1328,9 @@ export default function DailySheetsSection() {
                                               String(
                                                 item.price !== undefined && item.price !== null
                                                   ? item.price
-                                                  : PROTECTOR_PRICES[item.itemNameKa] || ""
+                                                  : isCustom
+                                                    ? ""
+                                                    : PROTECTOR_PRICES[item.itemNameKa] || ""
                                               )
                                             )}
                                             onChange={(e) => {
@@ -1346,7 +1370,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-received`, String(item.received ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-received`, displayOrEmpty(item.received))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-received`, next);
@@ -1374,7 +1398,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-dispatched`, String(item.dispatched ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-dispatched`, displayOrEmpty(item.dispatched))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-dispatched`, next);
@@ -1402,7 +1426,7 @@ export default function DailySheetsSection() {
                                       <input
                                         type="text"
                                         inputMode="decimal"
-                                        value={getDraftValue(`item-${actualIndex}-shortage`, String(item.shortage ?? ""))}
+                                        value={getDraftValue(`item-${actualIndex}-shortage`, displayOrEmpty(item.shortage))}
                                         onChange={(e) => {
                                           const next = e.target.value;
                                           setDecimalDraft(`item-${actualIndex}-shortage`, next);
@@ -1437,7 +1461,9 @@ export default function DailySheetsSection() {
                                               String(
                                                 item.price !== undefined && item.price !== null
                                                   ? item.price
-                                                  : PROTECTOR_PRICES[item.itemNameKa] || ""
+                                                  : isCustom
+                                                    ? ""
+                                                    : PROTECTOR_PRICES[item.itemNameKa] || ""
                                               )
                                             )}
                                             onChange={(e) => {
