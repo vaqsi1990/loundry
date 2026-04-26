@@ -26,13 +26,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const hotels = await prisma.hotelDatabase.findMany({
-      orderBy: {
-        hotelName: "asc",
-      },
-    });
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+    const qParam = searchParams.get("q");
 
-    return NextResponse.json(hotels);
+    const page = Math.max(1, Number(pageParam ?? "1") || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(limitParam ?? "10") || 10));
+    const skip = (page - 1) * pageSize;
+    const q = (qParam ?? "").trim();
+
+    const where =
+      q.length > 0
+        ? {
+            OR: [
+              { hotelName: { contains: q, mode: "insensitive" as const } },
+              { email: { contains: q, mode: "insensitive" as const } },
+            ],
+          }
+        : undefined;
+
+    const [total, items] = await Promise.all([
+      prisma.hotelDatabase.count({ where }),
+      prisma.hotelDatabase.findMany({
+        where,
+        orderBy: { hotelName: "asc" },
+        skip,
+        take: pageSize,
+      }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return NextResponse.json({
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
+    });
   } catch (error) {
     console.error("Hotels fetch error:", error);
     return NextResponse.json(
