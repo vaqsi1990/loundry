@@ -65,15 +65,13 @@ export default function Header() {
             <Link href="/" className="text-black md:text-[18px] text-[16px] transition">
               მთავარი
             </Link>
-            <Link href="#services" className="text-black md:text-[18px] text-[16px] transition">
-              სერვისები
-            </Link>
             <Link href="#about" className="text-black md:text-[18px] text-[16px] transition">
               ჩვენს შესახებ
             </Link>
-            <Link href="/clean" className="text-black md:text-[18px] text-[16px] transition">
-              რეცხვის გარემო
+            <Link href="#services" className="text-black md:text-[18px] text-[16px] transition">
+              სერვისები
             </Link>
+           
 
             <Link href="#contact" className="text-black md:text-[18px] text-[16px] transition">
               კონტაქტი
@@ -157,22 +155,20 @@ export default function Header() {
               მთავარი
             </Link>
             <Link
-              href="#services"
-              className="block text-black text-[16px] transition"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              სერვისები
-            </Link>
-            <Link
               href="#about"
               className="block text-black text-[16px] transition"
               onClick={() => setIsMenuOpen(false)}
             >
               ჩვენს შესახებ
             </Link>
-            <Link href="/clean" className="text-black text-[16px] transition" onClick={() => setIsMenuOpen(false)}>
-              რეცხვის გარემო
+            <Link
+              href="#services"
+              className="block text-black text-[16px] transition"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              სერვისები
             </Link>
+          
             <Link
               href="#contact"
               className="block text-black text-[16px] transition"
