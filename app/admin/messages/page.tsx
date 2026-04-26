@@ -445,47 +445,11 @@ export default function AdminMessagesPage() {
               )}
             </div>
 
-            <div className="mt-3 flex gap-2">
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="შეტყობინება..."
-                className="flex-1 border rounded-lg px-3 py-2"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") send();
-                  if (e.key === "Escape") setText("");
-                }}
-                disabled={!activeThreadId || sending}
-              />
-              <button
-                type="button"
-                onClick={() => setText("")}
-                disabled={!text || sending}
-                className="border px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                გაუქმება
-              </button>
-              <button
-                onClick={send}
-                disabled={!activeThreadId || sending || !text.trim()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg disabled:bg-gray-400"
-              >
-                {sending ? "იგზავნება..." : "გაგზავნა"}
-              </button>
-              {sending && (
-                <button
-                  type="button"
-                  onClick={cancelSend}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg"
-                >
-                  შეწყვეტა
-                </button>
-              )}
-            </div>
+        
 
             <div className="mt-4 border-t pt-3">
               <div className="font-semibold text-black mb-2">
-                მასობრივი გაგზავნა ({selectedIds.length} მონიშნული)
+                გაგზავნა ({selectedIds.length} მონიშნული)
               </div>
               <textarea
                 value={bulkText}
