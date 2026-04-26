@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function About() {
   return (
     <section id="about" className="mt-24 ">
@@ -34,8 +36,8 @@ export default function About() {
               </div>
             </div>
           </div>
-          <div className="bg-gray-200 rounded-xl h-96 flex items-center justify-center">
-            <span className="text-black text-lg">სურათის ადგილი</span>
+          <div className=" rounded-xl h-96 flex items-center justify-center">
+            <Image src="/a9b0632d-23b1-4145-8d32-4143f311c94f.jpg" alt="About" className="rounded-xl" width={500} height={500} />
           </div>
         </div>
       </div>

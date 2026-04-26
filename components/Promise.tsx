@@ -24,8 +24,8 @@ export default function Promise() {
           {/* Left Image Section */}
           <div className="flex justify-center lg:justify-start">
             <div className="relative w-full max-w-md">
-              <div className="bg-gray-200 rounded-xl h-96 flex items-center justify-center">
-                <span className="text-black text-lg">სურათის ადგილი</span>
+              <div className="  h-96 flex items-center justify-center">
+                <Image  className="rounded-xl" src="/aa2d29f2-397f-4ebb-81e3-6d6893fb3e77.jpg" alt="Promise"  width={500} height={500} />
               </div>
             </div>
           </div>
