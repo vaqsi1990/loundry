@@ -8,24 +8,24 @@ export default function About() {
             King Laundry
             </h2>
             <p className="md:text-xl text-[18px]  text-black mb-3">
-              10+ წლის გამოცდილებით, Laundry City ემსახურება ათასობით კმაყოფილ
-              მომხმარებელს უმაღლესი ხარისხის ქიმწმენდისა და სამრეცხაო სერვისებით.
+              7+ წლიანი გამოცდილებით King Laundry ემსახურება ათობით კმაყოფილ
+              მომხმარებელს / სასტუმროს თეთრეულის უმაღლესი ხარისხის რეცხვის სერვისით.
             </p>
             <p className="md:text-xl text-[18px]  text-black mb-6">
-              ჩვენ ვიყენებთ ეკოლოგიურად უსაფრთხო რეცხვის საშუალებებსა და თანამედროვე
-              აღჭურვილობას
+              სრულად ორიენტირებულები ვართ ხარისხზე, რაც დამოკიდებულია ეკოლოგიურად სუფთა
+              სარეცხ საშუალებებსა და თანამედროვე ტექნოლოგიებზე
             </p>
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <div className="text-4xl  text-blue-600 mb-2">10+</div>
+                <div className="text-4xl  text-blue-600 mb-2">7+</div>
                 <div className="text-black">წლის გამოცდილება</div>
               </div>
               <div>
-                <div className="text-4xl  text-blue-600 mb-2">50K+</div>
+                <div className="text-4xl  text-blue-600 mb-2">50+</div>
                 <div className="text-black">კმაყოფილი მომხმარებელი</div>
               </div>
               <div>
-                <div className="text-4xl  text-blue-600 mb-2">100%</div>
+                <div className="text-4xl  text-blue-600 mb-2">99.9%</div>
                 <div className="text-black">კმაყოფილება</div>
               </div>
               <div>
