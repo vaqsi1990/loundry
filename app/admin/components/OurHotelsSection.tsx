@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface Hotel {
   id: string;
@@ -28,6 +29,14 @@ interface Hotel {
   } | null;
 }
 
+type OurHotelsApiResponse = {
+  items: Hotel[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 export default function OurHotelsSection() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +48,15 @@ export default function OurHotelsSection() {
   const [busy, setBusy] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [query, setQuery] = useState("");
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeQuery = (searchParams.get("q") ?? "").trim();
 
   // Form state
   const [hotelType, setHotelType] = useState<"PHYSICAL" | "LEGAL" | "">("");
@@ -63,17 +81,46 @@ export default function OurHotelsSection() {
   const [responsiblePersonName, setResponsiblePersonName] = useState("");
 
   useEffect(() => {
-    fetchHotels();
-  }, []);
+    const p = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+    setPage(p);
+    setQuery(searchParams.get("q") ?? "");
+  }, [searchParams]);
 
-  const fetchHotels = async () => {
+  useEffect(() => {
+    fetchHotels(page, activeQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, activeQuery]);
+
+  const setPageInUrl = (nextPage: number) => {
+    const next = Math.max(1, nextPage);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(next));
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const setQueryInUrl = (nextQuery: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmed = nextQuery.trim();
+    if (trimmed.length === 0) params.delete("q");
+    else params.set("q", trimmed);
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const fetchHotels = async (targetPage: number, q: string) => {
     try {
-      const response = await fetch("/api/admin/our-hotels");
+      setLoading(true);
+      const response = await fetch(
+        `/api/admin/our-hotels?page=${targetPage}&limit=10&q=${encodeURIComponent(q)}`
+      );
       if (!response.ok) {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
       }
-      const data = await response.json();
-      setHotels(data);
+      const data: OurHotelsApiResponse = await response.json();
+      setHotels(data.items);
+      setTotalPages(data.totalPages);
+      setTotal(data.total);
+      if (targetPage > data.totalPages) setPageInUrl(data.totalPages);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -185,7 +232,7 @@ export default function OurHotelsSection() {
       );
       resetForm();
       setShowForm(false);
-      fetchHotels();
+      fetchHotels(page, activeQuery);
     } catch (err) {
       setFormError("დაფიქსირდა შეცდომა. გთხოვთ სცადოთ თავიდან");
     } finally {
@@ -201,7 +248,7 @@ export default function OurHotelsSection() {
       const res = await fetch(`/api/admin/our-hotels?id=${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "წაშლა ვერ მოხერხდა");
-      await fetchHotels();
+      await fetchHotels(page, activeQuery);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -261,6 +308,36 @@ export default function OurHotelsSection() {
           {error}
         </div>
       )}
+
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") setQueryInUrl(query);
+          }}
+          placeholder="ძებნა სახელით ან მეილით…"
+          className="w-full sm:max-w-md px-3 py-2 border border-gray-300 rounded-md text-black"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setQueryInUrl(query)}
+            className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-black"
+          >
+            ძებნა
+          </button>
+          {activeQuery.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setQueryInUrl("")}
+              className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300"
+            >
+              გასუფთავება
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Modal Popup */}
       {showForm && (
@@ -821,7 +898,35 @@ export default function OurHotelsSection() {
         </table>
       </div>
 
-      {hotels.length === 0 && (
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-[14px] md:text-[16px] text-black">
+          სულ: <span className="font-semibold">{total}</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setPageInUrl(page - 1)}
+            disabled={page <= 1}
+            className="px-3 py-2 rounded-md border border-gray-300 text-black disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            ← წინა
+          </button>
+          <div className="text-[14px] md:text-[16px] text-black">
+            გვერდი <span className="font-semibold">{page}</span> /{" "}
+            <span className="font-semibold">{totalPages}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPageInUrl(page + 1)}
+            disabled={page >= totalPages}
+            className="px-3 py-2 rounded-md border border-gray-300 text-black disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            შემდეგ →
+          </button>
+        </div>
+      </div>
+
+      {hotels.length === 0 && !loading && (
         <div className="text-center py-8 text-black">
           სასტუმროები არ მოიძებნა
         </div>

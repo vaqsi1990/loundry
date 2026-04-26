@@ -152,24 +152,58 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all hotels (both registered and unregistered)
-    const hotels = await prisma.hotel.findMany({
-      orderBy: {
-        hotelName: "asc",
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            mobileNumber: true,
-          },
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+    const qParam = searchParams.get("q");
+
+    const page = Math.max(1, Number(pageParam ?? "1") || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(limitParam ?? "10") || 10));
+    const skip = (page - 1) * pageSize;
+    const q = (qParam ?? "").trim();
+
+    const where =
+      q.length > 0
+        ? {
+            OR: [
+              { hotelName: { contains: q, mode: "insensitive" as const } },
+              { email: { contains: q, mode: "insensitive" as const } },
+              { user: { is: { email: { contains: q, mode: "insensitive" as const } } } },
+            ],
+          }
+        : undefined;
+
+    const include = {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobileNumber: true,
         },
       },
-    });
+    } as const;
 
-    return NextResponse.json(hotels);
+    const [total, items] = await Promise.all([
+      prisma.hotel.count({ where }),
+      prisma.hotel.findMany({
+        where,
+        orderBy: { hotelName: "asc" },
+        skip,
+        take: pageSize,
+        include,
+      }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return NextResponse.json({
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
+    });
   } catch (error) {
     console.error("Our hotels fetch error:", error);
     return NextResponse.json(
