@@ -2,28 +2,40 @@ import Image from "next/image";
 export default function Services() {
   const services = [
     {
-      image: '/1.png',
-      title: "რეცხვა და დაკეცვა",
+      image: '/transport.png',
+      title: "ტრანსპორტირება",
       description:
-        "მოსახერხებელი რეცხვა და დაკეცვის სერვისი თქვენი ყოველდღიური სამრეცხაო საჭიროებებისთვის.",
-    },
-    {
-      image: '/2.png',
-      title: "კომერციული სერვისი",
-      description:
-        "პროფესიონალური სერვისი ბიზნესებისთვის. დიდი მოცულობის რეცხვა და თეთრეულის რეცხვა.",
-    },
-    {
-      image: '/3.png',
-      title: "ეკოლოგიური თეთრეულის რეცხვა",
-      description:
-        "ეკოლოგიურად უსაფრთხო თეთრეულის რეცხვა კოსტიუმების, კაბებისა და დელიკატური ქსოვილებისთვის.",
+        "პუნქტუალურობა მიღება-ჩაბარების თქვენთვის მოსახერხებელი და შეთანხმებული გრაფიკის მიხედვით",
     },
     {
       image: '/4.png',
-      title: "თვითმომსახურება",
+      title: "რეცხვა-შრობა-დაუთოება",
       description:
-        "თანამედროვე სამრეცხაო მანქანები და მშრალი გამოწმება თქვენი მოხერხებულობისთვის.",
+        "ინდუსტრიული მაღალი კლასის ტექნიკა და უმაღლესი ხარისხის და ეკოლოგიურად სუფთა სარეცხი საშუალებები",
+    },
+    {
+      image: '/dry.png',
+      title: "დაკეცვა-შეფუთვა",
+      description:
+        "თითოეული პარტიის ინდივიდუალური კონტროლი და უმაღლესი ხარისხი",
+    },
+    {
+      image: '/web.png',
+      title: "ელექტრონული სისტემა",
+      description:
+        "მომსახურების მარტივი ელექტრონული სისტემა საშუალებას გაძლევთ აკონტროლოთ მიღება-ჩაბარება ფინანსური ხარჯები",
+    },
+    {
+      image: '/washing.png',
+      title: "სატესტო რეცხვა",
+      description:
+        "პირველი თანამშრომლობის ფარგლებში გთავაზობთ სატესტო , რათა უშუალოდ დარწმუნდეთ ჩვენი სერვისის ხარისხში",
+    },
+    {
+      image: '/2.png',
+      title: "სასტუმროები-რესტორნები",
+      description:
+        "რესტორნები - ვემსახურებით მხოლოდ სასტუმროებს და რესტორნებს",
     },
   ];
 
@@ -31,7 +43,7 @@ export default function Services() {
     <section id="services" className="mt-24 ">
       <div className="container max-w-7xl mx-auto px-4">
         <h2 className="text-[18px] mb-8 text-center md:text-[24px] font-bold text-black mb-4">ჩვენი სერვისები</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {services.map((service, index) => (
             <div
               key={index}
@@ -41,11 +53,13 @@ export default function Services() {
                   <Image src={service.image} alt={service.title} width={96} height={96} />
               
 
-              {/* Title */}
-              <h3 className="md:text-xl text-[18px] font-bold text-black mb-3">{service.title}</h3>
+           
 
               {/* Description */}
-              <p className="text-black text-[16px] md:text-[18px] leading-relaxed">{service.description}</p>
+                <span className="md:text-[18px] text-[16px] font-semibold">{service.title} </span> 
+              <p className="text-black text-[16px] leading-relaxed">
+                <span>{service.description}</span>
+              </p>
             </div>
           ))}
         </div>
