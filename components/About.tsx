@@ -25,7 +25,7 @@ export default function About() {
                 <div className="text-black">კმაყოფილი მომხმარებელი</div>
               </div>
               <div>
-                <div className="text-4xl  text-blue-600 mb-2">99.9%</div>
+                <div className="text-4xl  text-blue-600 mb-2">100%</div>
                 <div className="text-black">კმაყოფილება</div>
               </div>
               <div>

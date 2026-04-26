@@ -154,6 +154,12 @@ export default function AdminPage() {
       description: "მართეთ kg ფასი დღის ხელფასისთვის",
       path: "/admin/kgprice"
     },
+    { 
+      id: "partniors",
+      label: "პარტნიორები",
+      description: "ატვირთეთ პარტნიორების ლოგოები და სახელები",
+      path: "/admin/partniors"
+    },
   ];
 
   // Admin sees all sections

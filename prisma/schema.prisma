@@ -605,3 +605,11 @@ model KgPrice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Partniors {
+  id        String   @id @default(cuid())
+  image     String[]
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

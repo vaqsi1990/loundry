@@ -1,10 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Exclude PDFKit from bundling to avoid font path issues
-  serverExternalPackages: ["pdfkit"],
-  // Empty turbopack config to silence warning
-  turbopack: {},
+  /* config options here */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "utfs.io",
+        pathname: "/f/**", 
+      },
+    ],
+  },
 };
 
 export default nextConfig;

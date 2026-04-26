@@ -114,6 +114,12 @@ export default function ManagerPage() {
       description: "ნახეთ სასტუმროების მოთხოვნები და დაადასტურეთ",
       path: "/manager/pickup-delivery"
     },
+    { 
+      id: "partniors",
+      label: "პარტნიორები",
+      description: "ატვირთეთ პარტნიორების ლოგოები და სახელები",
+      path: "/manager/partniors"
+    },
   ];
 
   return (
