@@ -1,5 +1,9 @@
 // Updated HowItWorks component styled like the reference image
+
+"use client";
+
 import Image from "next/image";
+import { motion } from "framer-motion";
 
 export default function HowItWorks() {
   const steps = [
@@ -46,7 +50,13 @@ export default function HowItWorks() {
       <div className="container max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left image */}
-          <div className="flex justify-center lg:justify-start">
+          <motion.div
+            className="flex justify-center lg:justify-start"
+            initial={{ opacity: 0, x: -40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <Image
               src="/photo-1666934209606-a955a12edd63.jpg" // Replace with your actual image
               width={500}
@@ -54,10 +64,15 @@ export default function HowItWorks() {
               alt="Laundry Stack"
               className="rounded-lg shadow-md object-cover"
             />
-          </div>
+          </motion.div>
 
           {/* Right Section */}
-          <div>
+          <motion.div
+            initial={{ opacity: 0, x: 40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+          >
             <h2 className="text-[18px] text-center mb-8 md:text-[24px] font-bold text-black">
              როგორ მუშაობს ჩვენი სერვისი
             </h2>
@@ -79,7 +94,7 @@ export default function HowItWorks() {
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

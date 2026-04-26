@@ -1,4 +1,8 @@
+
+"use client";
+
 import Image from "next/image";
+import { motion } from "framer-motion";
 
 export default function Promise() {
   const promises = [
@@ -22,16 +26,28 @@ export default function Promise() {
       <div className="container max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left Image Section */}
-          <div className="flex justify-center lg:justify-start">
+          <motion.div
+            className="flex justify-center lg:justify-start"
+            initial={{ opacity: 0, x: -40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <div className="relative w-full max-w-md">
               <div className="  h-96 flex items-center justify-center">
                 <Image  className="rounded-xl" src="/aa2d29f2-397f-4ebb-81e3-6d6893fb3e77.jpg" alt="Promise"  width={500} height={500} />
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Right Promises Section */}
-          <div className="space-y-8">
+          <motion.div
+            className="space-y-8"
+            initial={{ opacity: 0, x: 40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+          >
             {promises.map((promise, index) => (
               <div key={index} className="flex gap-4">
                 {/* Icon */}
@@ -48,7 +64,7 @@ export default function Promise() {
                 </div>
               </div>
             ))}
-          </div>
+          </motion.div>
         </div>
 
        

@@ -1,11 +1,20 @@
+
+"use client";
+
 import Image from "next/image";
+import { motion } from "framer-motion";
 
 export default function About() {
   return (
     <section id="about" className="mt-24 ">
       <div className="container max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div>
+          <motion.div
+            initial={{ opacity: 0, x: -40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <h2 className="text-[18px] mb-8  md:text-[24px] font-bold text-black mb-4">
             King Laundry
             </h2>
@@ -35,10 +44,16 @@ export default function About() {
                 <div className="text-black">მხარდაჭერა</div>
               </div>
             </div>
-          </div>
-          <div className=" rounded-xl h-96 flex items-center justify-center">
+          </motion.div>
+          <motion.div
+            className=" rounded-xl h-96 flex items-center justify-center"
+            initial={{ opacity: 0, x: 40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+          >
             <Image src="/a9b0632d-23b1-4145-8d32-4143f311c94f.jpg" alt="About" className="rounded-xl" width={500} height={500} />
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>
