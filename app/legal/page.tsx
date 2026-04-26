@@ -155,6 +155,12 @@ export default function LegalProfilePage() {
       description: "მოითხოვეთ წასაღები ან მოსატანი სერვისი",
       path: "/legal/pickup-delivery"
     },
+    { 
+      id: "messages",
+      label: "შეტყობინებები",
+      description: "მიწერეთ ადმინისტრაციას და მიიღეთ პასუხი",
+      path: "/legal/messages"
+    },
   ];
 
   const hotelName =

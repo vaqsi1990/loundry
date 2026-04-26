@@ -160,6 +160,12 @@ export default function AdminPage() {
       description: "ატვირთეთ პარტნიორების ლოგოები და სახელები",
       path: "/admin/partniors"
     },
+    { 
+      id: "messages",
+      label: "შეტყობინებები",
+      description: "მიწერეთ სასტუმროებს და ნახეთ მათი პასუხები",
+      path: "/admin/messages"
+    },
   ];
 
   // Admin sees all sections

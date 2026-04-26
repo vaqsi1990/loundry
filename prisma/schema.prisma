@@ -50,6 +50,12 @@ enum InventoryCategory {
   TETRI_STIKERI // თეთრი სტიკერი
 }
 
+enum MessageSenderType {
+  ADMIN
+  MANAGER
+  HOTEL
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -142,9 +148,41 @@ model Hotel {
 
   legalPickupDeliveryRequests    LegalPickupDeliveryRequest[]
   physicalPickupDeliveryRequests PhysicalPickupDeliveryRequest[]
+  conversations                 HotelConversation[]
 
   @@index([userId])
   @@index([email])
+}
+
+model HotelConversation {
+  id            String   @id @default(cuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages HotelMessage[]
+
+  @@unique([hotelId])
+  @@index([lastMessageAt])
+}
+
+model HotelMessage {
+  id             String            @id @default(cuid())
+  conversationId String
+  conversation   HotelConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderType   MessageSenderType
+  senderUserId String?
+  body         String            @db.Text
+
+  readByAdminAt DateTime?
+  readByHotelAt DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
 }
 
 model Employee {

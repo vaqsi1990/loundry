@@ -156,6 +156,12 @@ export default function PhysicalProfilePage() {
       description: "მოითხოვეთ წასაღები ან მოსატანი სერვისი",
       path: "/physical/pickup-delivery"
     },
+    { 
+      id: "messages",
+      label: "შეტყობინებები",
+      description: "მიწერეთ ადმინისტრაციას და მიიღეთ პასუხი",
+      path: "/physical/messages"
+    },
   ];
 
   const hotelName =
