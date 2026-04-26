@@ -6,19 +6,37 @@ export default function HowItWorks() {
     {
       number: "01",
     image: "/delivery.png",
-      title: "ირჩევთ წაღების დროს",
+      title: "ტრანსპორტირება",
       description: "Select any convenient delivery time",
     },
     { 
       number: "02",
       image: "/wash.png",
-      title: "ჩვენ ვასუფთავებთ",
+      title: "რეცხვა",
       description: "Professional washing and drying",
     },
     {
       number: "03",
-      image: "/returns.png",
-      title: "ჩვენ ვაბრუნებთ სუფთა პროდუქტს",
+      image: "/laundry.png",
+      title: "გაშრობა",
+      description: "Your clean items are safely returned",
+    },
+   
+    {
+      number: "04",
+      image: "/iron.png",
+      title: "დაუთოება",
+    },
+    {
+      number: "05",
+      image: "/box.png",
+      title: "შეფუთვა",
+      description: "Your clean items are safely returned",
+    },
+    {
+      number: "06",
+      image: "/weighing-machine.png",
+      title: "აწონვა",
       description: "Your clean items are safely returned",
     }
   ];
@@ -40,7 +58,7 @@ export default function HowItWorks() {
 
           {/* Right Section */}
           <div>
-            <h2 className="text-[18px] mb-8 md:text-[24px] font-bold text-black">
+            <h2 className="text-[18px] text-center mb-8 md:text-[24px] font-bold text-black">
              როგორ მუშაობს ჩვენი სერვისი
             </h2>
  
