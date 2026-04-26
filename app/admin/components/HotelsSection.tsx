@@ -31,6 +31,13 @@ export default function HotelsSection() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
+  const [emailHotel, setEmailHotel] = useState<Hotel | null>(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailInfo, setEmailInfo] = useState<string | null>(null);
+  const [emailModalError, setEmailModalError] = useState<string | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -169,6 +176,54 @@ export default function HotelsSection() {
     });
     setEditingId(hotel.id);
     setShowAddForm(true);
+  };
+
+  const openEmailModal = (hotel: Hotel) => {
+    setEmailModalError(null);
+    setEmailHotel(hotel);
+    setEmailTo(hotel.email || "");
+    setEmailSubject(`ქინგ ლონდრი - ${hotel.hotelName}`);
+    setEmailMessage("");
+  };
+
+  const closeEmailModal = () => {
+    setEmailHotel(null);
+    setEmailTo("");
+    setEmailSubject("");
+    setEmailMessage("");
+    setEmailModalError(null);
+    setSendingEmail(false);
+  };
+
+  const sendHotelEmail = async () => {
+    if (!emailHotel) return;
+    setEmailModalError(null);
+    setError("");
+    setSendingEmail(true);
+    try {
+      const resp = await fetch("/api/admin/hotels/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hotelId: emailHotel.id,
+          to: emailTo,
+          subject: emailSubject,
+          message: emailMessage,
+        }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error(data?.error || "გაგზავნა ვერ მოხერხდა");
+      }
+
+      setEmailInfo(data?.message || "გაგზავნილია");
+      closeEmailModal();
+    } catch (err) {
+      setEmailModalError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   if (loading) {
@@ -349,6 +404,15 @@ export default function HotelsSection() {
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
                   <div className="flex space-x-2">
                     <button
+                      type="button"
+                      onClick={() => openEmailModal(hotel)}
+                      disabled={!hotel.email}
+                      className="text-gray-900 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!hotel.email ? "ელ. ფოსტა არ არის მითითებული" : "წერილის გაგზავნა"}
+                    >
+                      მიწერა
+                    </button>
+                    <button
                       onClick={() => handleEdit(hotel)}
                       className="text-blue-600 hover:underline"
                     >
@@ -367,6 +431,12 @@ export default function HotelsSection() {
           </tbody>
         </table>
       </div>
+
+      {emailInfo && (
+        <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded">
+          {emailInfo}
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-4">
         <div className="text-[14px] md:text-[16px] text-black">
@@ -399,6 +469,98 @@ export default function HotelsSection() {
       {hotels.length === 0 && !loading && (
         <div className="text-center py-8 text-black">
           სასტუმროები არ მოიძებნა
+        </div>
+      )}
+
+      {emailHotel && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeEmailModal();
+          }}
+        >
+          <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-[18px] md:text-[20px] font-bold text-black">
+                  წერილის გაგზავნა
+                </h3>
+                <div className="text-[14px] md:text-[16px] text-gray-700">
+                  {emailHotel.hotelName}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeEmailModal}
+                className="text-gray-600 hover:text-black"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-[14px] md:text-[16px] font-medium text-black mb-1">
+                  To
+                </label>
+                <input
+                  type="email"
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[14px] md:text-[16px] font-medium text-black mb-1">
+                  სათაური
+                </label>
+                <input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[14px] md:text-[16px] font-medium text-black mb-1">
+                  ტექსტი
+                </label>
+                <textarea
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeEmailModal}
+                  className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300"
+                  disabled={sendingEmail}
+                >
+                  გაუქმება
+                </button>
+                <button
+                  type="button"
+                  onClick={sendHotelEmail}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={
+                    sendingEmail ||
+                    !emailTo.trim() ||
+                    !emailSubject.trim() ||
+                    !emailMessage.trim()
+                  }
+                >
+                  {sendingEmail ? "იგზავნება..." : "გაგზავნა"}
+                </button>
+              </div>
+              {emailModalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {emailModalError}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
