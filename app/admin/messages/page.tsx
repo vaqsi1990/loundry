@@ -89,7 +89,7 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     if (status !== "authenticated") return;
-    const role = (session?.user as any)?.role;
+    const role = (session?.user as { role?: string } | undefined)?.role;
     if (role !== "ADMIN" && role !== "MANAGER" && role !== "MANAGER_ASSISTANT") {
       router.push("/");
       return;
@@ -135,16 +135,29 @@ export default function AdminMessagesPage() {
   const fetchHotels = async () => {
     setLoadingHotels(true);
     try {
-      const res = await fetch("/api/admin/our-hotels");
+      // admin our-hotels API is paginated and returns { items, ... }
+      // still handle legacy/alternative shapes defensively
+      const res = await fetch("/api/admin/our-hotels?page=1&limit=250");
       if (!res.ok) throw new Error("სასტუმროების სიის ჩატვირთვა ვერ მოხერხდა");
-      const data = (await res.json()) as any[];
-      const mapped: Hotel[] = (data ?? []).map((h) => ({
-        id: h.id,
-        hotelName: h.hotelName,
-        type: h.type,
-        email: h.email,
-        mobileNumber: h.mobileNumber,
-      }));
+      const json: unknown = await res.json();
+      const items: unknown[] = Array.isArray(json)
+        ? json
+        : typeof json === "object" && json !== null && Array.isArray((json as { items?: unknown }).items)
+          ? ((json as { items: unknown[] }).items ?? [])
+          : typeof json === "object" && json !== null && Array.isArray((json as { data?: unknown }).data)
+            ? ((json as { data: unknown[] }).data ?? [])
+            : [];
+
+      const mapped: Hotel[] = items
+        .map((h) => h as Partial<Hotel> | null | undefined)
+        .filter((h): h is Partial<Hotel> => Boolean(h?.id))
+        .map((h) => ({
+          id: String(h.id),
+          hotelName: String(h.hotelName ?? ""),
+          type: String(h.type ?? ""),
+          email: String(h.email ?? ""),
+          mobileNumber: String(h.mobileNumber ?? ""),
+        }));
       setHotels(mapped);
     } catch (e) {
       setError(e instanceof Error ? e.message : "დაფიქსირდა შეცდომა");
