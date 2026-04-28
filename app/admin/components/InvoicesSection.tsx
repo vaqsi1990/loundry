@@ -648,8 +648,8 @@ export default function InvoicesSection() {
                                 {displayName}
                               </span>
                               <span className="text-[16px] md:text-[18px] text-black">
-                                {hotelInvoices.length} ინვოისი · {totalHotelAmount.toFixed(2)} ₾ ·{" "}
-                                {totalHotelWeight.toFixed(2)} კგ · დამცავები {totalHotelProtectors.toFixed(2)} ₾
+                                {hotelInvoices.length} ინვოისი · {totalHotelWeight.toFixed(2)} კგ · {totalHotelAmount.toFixed(2)} ₾ ·{" "}
+                                   დამცავები {totalHotelProtectors.toFixed(2)} ₾
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
