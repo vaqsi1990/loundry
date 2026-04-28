@@ -380,7 +380,7 @@ export default function AdminMessagesPage() {
               {loadingHotels ? (
                 <div className="text-gray-600">იტვირთება...</div>
               ) : (
-                <div className="space-y-2 max-h-[40vh] overflow-auto">
+                <div className="space-y-2 max-h-[55vh] overflow-auto">
                   {filteredHotels
                     .slice(0, 250)
                     .map((h) => (
