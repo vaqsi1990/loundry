@@ -643,13 +643,21 @@ export default function InvoicesSection() {
                             className="w-full px-6 py-3 flex items-center justify-between bg-white hover:bg-gray-50 cursor-pointer"
                             onClick={() => toggleHotel(monthKey, hotelKey)}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-[14px] md:text-[16px] font-semibold text-black">
+                            <div className="grid items-center gap-x-3 gap-y-1 min-w-0 tabular-nums grid-cols-[minmax(120px,1fr)_90px_110px_120px_170px] md:grid-cols-[260px_90px_110px_120px_180px]">
+                              <span className="text-[14px] md:text-[18px] font-semibold text-black truncate min-w-0">
                                 {displayName}
                               </span>
-                              <span className="text-[16px] md:text-[18px] text-black">
-                                {hotelInvoices.length} ინვოისი · {totalHotelWeight.toFixed(2)} კგ · {totalHotelAmount.toFixed(2)} ₾ ·{" "}
-                                   დამცავები {totalHotelProtectors.toFixed(2)} ₾
+                              <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap">
+                                {hotelInvoices.length} ინვოისი
+                              </span>
+                              <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
+                                {totalHotelWeight.toFixed(2)} კგ
+                              </span>
+                              <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
+                                {totalHotelAmount.toFixed(2)} ₾
+                              </span>
+                              <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
+                                დამცავები {totalHotelProtectors.toFixed(2)} ₾
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
