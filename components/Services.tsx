@@ -64,7 +64,7 @@ export default function Services() {
 
   return (
     <section id="services" className="mt-24 ">
-      <div className="container max-w-7xl mx-auto px-4">
+      <div className="container bg-white  max-w-7xl mx-auto px-4">
         <motion.h2
           initial={{ opacity: 0, y: 10 }}
           whileInView={{ opacity: 1, y: 0 }}
