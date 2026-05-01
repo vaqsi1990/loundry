@@ -263,34 +263,85 @@ export default function DailySheetsSection() {
   const fetchHotels = async () => {
     try {
       const apiPath = getApiPath("our-hotels");
-      const response = await fetch(apiPath);
-      if (!response.ok) {
-        throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
+
+      const fetchPage = async (page: number, limit: number) => {
+        const url = new URL(apiPath, window.location.origin);
+        url.searchParams.set("page", String(page));
+        url.searchParams.set("limit", String(limit));
+
+        const res = await fetch(url.toString());
+        if (!res.ok) {
+          throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
+        }
+        return (await res.json()) as unknown;
+      };
+
+      // our-hotels GET returns a paginated payload: { items, total, page, pageSize, totalPages }
+      // API clamps pageSize to max 50, so we fetch all pages.
+      const first = await fetchPage(1, 50);
+      const firstItems = Array.isArray(first)
+        ? first
+        : typeof first === "object" && first !== null && Array.isArray((first as { items?: unknown }).items)
+          ? (first as { items: unknown[] }).items
+          : [];
+
+      const totalPages =
+        typeof first === "object" &&
+        first !== null &&
+        typeof (first as { totalPages?: unknown }).totalPages === "number" &&
+        Number.isFinite((first as { totalPages: number }).totalPages)
+          ? Math.max(1, (first as { totalPages: number }).totalPages)
+          : 1;
+
+      const restPages: unknown[] = [];
+      for (let page = 2; page <= totalPages; page += 1) {
+        const next = await fetchPage(page, 50);
+        const nextItems = Array.isArray(next)
+          ? next
+          : typeof next === "object" && next !== null && Array.isArray((next as { items?: unknown }).items)
+            ? (next as { items: unknown[] }).items
+            : [];
+        restPages.push(...nextItems);
       }
-      const data = await response.json();
-      console.log("Fetched hotels from API:", data?.length || 0, "hotels");
+
+      const rawHotels = [...firstItems, ...restPages];
+      console.log("Fetched hotels from API:", rawHotels.length, "hotels");
+
       // Normalize shape from our-hotels API and sort by hotelName alphabetically
-      const normalizedHotels = Array.isArray(data)
-        ? data
-            .filter((hotel: any) => {
-              // Only filter out hotels that are null/undefined or have no hotelName
-              const isValid = hotel && hotel.hotelName && hotel.hotelName.trim() !== "";
-              if (!isValid) {
-                console.warn("Filtered out invalid hotel:", hotel);
-              }
-              return isValid;
-            })
-            .map((hotel: any) => ({
-              id: hotel.id,
-              hotelName: hotel.hotelName.trim(),
-              contactPhone: hotel.mobileNumber || "",
-              email: hotel.email || "",
-              pricePerKg: hotel.pricePerKg || 0,
-            }))
-        : [];
+      const normalizedHotels = rawHotels
+        .filter((hotel: unknown) => {
+          // Only filter out hotels that are null/undefined or have no hotelName
+          const maybe = hotel as { hotelName?: unknown };
+          const isValid = maybe && maybe.hotelName && String(maybe.hotelName).trim() !== "";
+          if (!isValid) {
+            console.warn("Filtered out invalid hotel:", hotel);
+          }
+          return isValid;
+        })
+        .map((hotel: unknown) => {
+          const h = hotel as {
+            id?: unknown;
+            hotelName?: unknown;
+            mobileNumber?: unknown;
+            user?: { mobileNumber?: unknown } | null;
+            email?: unknown;
+            hotelEmail?: unknown;
+            pricePerKg?: unknown;
+          };
+          return {
+            id: String(h.id),
+            hotelName: String(h.hotelName).trim(),
+            contactPhone: (h.mobileNumber as string) || (h.user?.mobileNumber as string) || "",
+            email: (h.email as string) || (h.hotelEmail as string) || "",
+            pricePerKg:
+              h.pricePerKg !== undefined && h.pricePerKg !== null && Number.isFinite(Number(h.pricePerKg))
+                ? Number(h.pricePerKg)
+                : undefined,
+          };
+        });
       console.log("Normalized hotels:", normalizedHotels.length, "hotels");
       // Sort hotels alphabetically by hotelName
-      normalizedHotels.sort((a, b) => {
+      normalizedHotels.sort((a: Hotel, b: Hotel) => {
         if (!a.hotelName) return 1;
         if (!b.hotelName) return -1;
         return a.hotelName.localeCompare(b.hotelName, 'ka', { sensitivity: 'base' });
