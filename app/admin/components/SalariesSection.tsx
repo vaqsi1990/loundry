@@ -1099,7 +1099,8 @@ export default function SalariesSection() {
                     const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
                     const debt = Number.isFinite(debtNum) ? debtNum : 0;
 
-                    return debt > 0 ? `${debt.toFixed(2)} ₾` : EMPTY_DISPLAY;
+                    // Treat tiny floating-point drift as zero (e.g. 0.0000001).
+                    return Math.abs(debt) > 0.005 ? `${debt.toFixed(2)} ₾` : EMPTY_DISPLAY;
                   })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px]">
@@ -1144,7 +1145,8 @@ export default function SalariesSection() {
                             const debtNum = typeof debtAny === "number" ? debtAny : Number(debtAny);
                             const debt = Number.isFinite(debtNum) ? debtNum : 0;
 
-                            return debt > 0 ? `${debt.toFixed(2)} ₾` : EMPTY_DISPLAY;
+                            // Treat tiny floating-point drift as zero (e.g. 0.0000001).
+                            return Math.abs(debt) > 0.005 ? `${debt.toFixed(2)} ₾` : EMPTY_DISPLAY;
                           })()}
                         </p>
                         <p className="text-sm text-black">
