@@ -3,6 +3,12 @@
  * `dailySheet`-ის მიხედვით — რადგან ფურცელი შეიძლება შეიცვალოს გაგზავნის შემდეგ.
  */
 
+import {
+  HEAVY_WEIGHT_ITEM_KA,
+  HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY,
+  heavyWeightProtectorsLineAmountGel,
+} from "./daily-sheet-heavy-weight";
+
 export type DailySheetForTotals = {
   sheetType?: string | null;
   totalWeight?: number | null;
@@ -53,16 +59,31 @@ export function liveDisplayedTotalWeightKg(
   return summedItemLineWeightKg(sheet);
 }
 
-/** დამცავები — იგივე send-email ფორმულა */
+/** მძიმე წონის ₾ ჯამი დამოუკიდებლად — დამცავების ზოგად ჯამში არ მოიაზრება */
+export function liveHeavyWeightProtectorsAmount(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  return heavyWeightProtectorsLineAmountGel(
+    sheet?.items ?? [],
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
+  );
+}
+
+/** დამცავები (სტანდარტულ ლუმპში შედება სრული თანხა — მძიმეს ვიკლავთ ხაზებიდან გამოთვლით) — მძიმე წონის გარეშე */
 export function liveProtectorsAmount(
   sheet: DailySheetForTotals | null | undefined
 ): number {
   if (!sheet?.items?.length) return 0;
+  const heavyAmt = liveHeavyWeightProtectorsAmount(sheet);
   if (sheet.sheetType === "STANDARD" && sheet.totalPrice != null) {
-    return num(sheet.totalPrice);
+    return Math.max(0, num(sheet.totalPrice) - heavyAmt);
   }
   return sheet.items
-    .filter((p) => p.category === "PROTECTORS")
+    .filter(
+      (p) =>
+        p.category === "PROTECTORS" &&
+        p.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+    )
     .reduce((sum, p) => sum + num(p.price) * num(p.dispatched), 0);
 }
 
@@ -128,6 +149,7 @@ export function liveGrandTotalAmountGel(
 ): number {
   return (
     liveLinenTowelsAmountGel(sheet, defaultPricePerKg) +
-    liveProtectorsAmount(sheet)
+    liveProtectorsAmount(sheet) +
+    liveHeavyWeightProtectorsAmount(sheet)
   );
 }

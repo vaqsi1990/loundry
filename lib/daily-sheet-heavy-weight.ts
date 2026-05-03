@@ -2,6 +2,11 @@
 
 export const HEAVY_WEIGHT_ITEM_KA = "მძიმე წონა";
 
+/** მინიმალური fallback მძიმე წონის ხაზის ₾ ჯამისთვის, როცა სრული PROTECTOR map არ გვაქვს (email / ინვოისი). */
+export const HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY: Record<string, number> = {
+  [HEAVY_WEIGHT_ITEM_KA]: 2.5,
+};
+
 type ItemLike = {
   category?: string | null;
   itemNameKa?: string | null;

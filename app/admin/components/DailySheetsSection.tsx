@@ -7,6 +7,7 @@ import { FormattedDateInput } from "./ui/DatePickerSection";
 import {
   HEAVY_WEIGHT_ITEM_KA,
   heavyWeightProtectorsKgUnitPriceGel,
+  heavyWeightProtectorsLineAmountGel,
 } from "@/lib/daily-sheet-heavy-weight";
 
 interface Hotel {
@@ -858,7 +859,11 @@ export default function DailySheetsSection() {
   //           = სულ: 51₾
   const calculateProtectorsPrice = (items: DailySheetItem[]): number => {
     return items
-      .filter(item => item.category === "PROTECTORS") // მხოლოდ დამცავები
+      .filter(
+        (item) =>
+          item.category === "PROTECTORS" &&
+          item.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+      )
       .reduce((sum, item) => {
         // აიღე ფასი: ან item.price-დან, ან PROTECTOR_PRICES-დან, ან 0
         const price = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
@@ -897,13 +902,15 @@ export default function DailySheetsSection() {
     // დამცავების ფასის გამოთვლა (STANDARD და INDIVIDUAL ტიპებისთვის)
     // თუ STANDARD ტიპია და totalPrice არის, გამოიყენე ის
     // წინააღმდეგ შემთხვევაში გამოთვალე პროდუქტებიდან: ფასი * მიღებული
+    const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
+      sheet.items,
+      PROTECTOR_PRICES
+    );
+
     if (hasProtectors) {
       if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-        // STANDARD ტიპისთვის: გამოიყენე ხელით შეყვანილი totalPrice
-        protectorsPrice = sheet.totalPrice;
+        protectorsPrice = Math.max(0, sheet.totalPrice - heavyProtectorsMoney);
       } else {
-        // INDIVIDUAL ტიპისთვის ან თუ totalPrice არ არის: გამოთვალე პროდუქტებიდან
-        // calculateProtectorsPrice ფუნქცია: თითოეული დამცავისთვის (ფასი * მიღებული)
         protectorsPrice = calculateProtectorsPrice(sheet.items);
       }
     }
@@ -911,9 +918,9 @@ export default function DailySheetsSection() {
     const heavyWeightKgPrice = hasHeavyWeightProtector
       ? heavyWeightProtectorsKgUnitPriceGel(sheet.items, PROTECTOR_PRICES)
       : 0;
-    
-    // Total sum
-    const totalSum = linenTowelsPrice + protectorsPrice;
+
+    const totalSum =
+      linenTowelsPrice + protectorsPrice + heavyProtectorsMoney;
     if (totalSum > 0) {
       calculatedTotalPrice = totalSum.toFixed(2);
     }
@@ -1725,12 +1732,29 @@ export default function DailySheetsSection() {
                 const linenTowelsPrice = formData.totalWeight && formData.pricePerKg 
                   ? formData.totalWeight * formData.pricePerKg 
                   : 0;
-                // Calculate protectors price from items: price * received
-                const protectorsPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
+                const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
+                  formData.items,
+                  PROTECTOR_PRICES
+                );
+                let protectorsPrice = 0;
+                if (hasProtectors) {
+                  if (formData.totalPrice != null) {
+                    protectorsPrice = Math.max(
+                      0,
+                      formData.totalPrice - heavyProtectorsMoney
+                    );
+                  } else {
+                    protectorsPrice =
+                      calculateProtectorsPrice(formData.items);
+                  }
+                }
                 const heavyWeightKgPrice = hasHeavyWeightProtector
                   ? heavyWeightProtectorsKgUnitPriceGel(formData.items, PROTECTOR_PRICES)
                   : 0;
-                const totalSum = linenTowelsPrice + protectorsPrice;
+                const totalSum =
+                  linenTowelsPrice +
+                  protectorsPrice +
+                  heavyProtectorsMoney;
                 
                 return (
                   <div className="mt-4 space-y-4">
@@ -1855,12 +1879,20 @@ export default function DailySheetsSection() {
                   const linenTowelsPrice = formData.pricePerKg && totals.totalWeight 
                     ? formData.pricePerKg * totals.totalWeight 
                     : 0;
-                  // Calculate protectors price from items: price * received
-                  const protectorsPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
+                  const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
+                    formData.items,
+                    PROTECTOR_PRICES
+                  );
+                  const protectorsPrice = hasProtectors
+                    ? calculateProtectorsPrice(formData.items)
+                    : 0;
                   const heavyWeightKgPrice = hasHeavyWeightProtector
                     ? heavyWeightProtectorsKgUnitPriceGel(formData.items, PROTECTOR_PRICES)
                     : 0;
-                  const totalSum = linenTowelsPrice + protectorsPrice;
+                  const totalSum =
+                    linenTowelsPrice +
+                    protectorsPrice +
+                    heavyProtectorsMoney;
                   
                   return (
                     <div className="mt-4 space-y-4">

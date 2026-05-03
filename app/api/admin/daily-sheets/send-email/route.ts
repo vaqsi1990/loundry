@@ -4,7 +4,9 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
   HEAVY_WEIGHT_ITEM_KA,
+  HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY,
   heavyWeightProtectorsKgUnitPriceGel,
+  heavyWeightProtectorsLineAmountGel,
 } from "@/lib/daily-sheet-heavy-weight";
 import nodemailer from "nodemailer";
 import path from "path";
@@ -104,14 +106,19 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
     { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
   );
 
-  // Prices (mirror DailySheetsSection)
-  // დამცავების ფასი: გაგზავნილი (dispatched) * ფასი
+  const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
+    sheet.items,
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
+  );
+
+  // დამცავები (ბლოკური რიცხვდან იკლება მძიმე წონის წვლო) — იხ. DailySheetsSection
   const protectorsTotal =
     sheet.sheetType === "STANDARD" && sheet.totalPrice
-      ? sheet.totalPrice
+      ? Math.max(0, Number(sheet.totalPrice) - heavyProtectorsMoney)
       : protectors.reduce((sum: number, p: any) => {
+          if (p.itemNameKa === HEAVY_WEIGHT_ITEM_KA) return sum;
           const price = Number(p.price ?? 0);
-          const qty = Number(p.dispatched ?? 0); // გამოიყენე dispatched-ის ნაცვლად received-ის
+          const qty = Number(p.dispatched ?? 0);
           return sum + price * qty;
         }, 0);
 
@@ -123,17 +130,15 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const linenTowelsPrice =
     sheet.pricePerKg && weightForPrice ? sheet.pricePerKg * weightForPrice : 0;
 
-  const totalPrice = linenTowelsPrice + protectorsTotal;
+  const totalPrice =
+    linenTowelsPrice + protectorsTotal + heavyProtectorsMoney;
 
   const hasHeavyWeightProtector = protectors.some(
     (p: any) => p.itemNameKa === HEAVY_WEIGHT_ITEM_KA
   );
-  const HEAVY_WEIGHT_EMAIL_FALLBACK: Record<string, number> = {
-    [HEAVY_WEIGHT_ITEM_KA]: 2.5,
-  };
   const heavyWeightKgUnitPrice = heavyWeightProtectorsKgUnitPriceGel(
     sheet.items,
-    HEAVY_WEIGHT_EMAIL_FALLBACK
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
   );
 
   return `
@@ -390,16 +395,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "სასტუმროს ელფოსტა არ არის მითითებული" }, { status: 400 });
     }
 
-    // Calculate amounts for persistence
-    // დამცავების ფასი: გაგზავნილი (dispatched) * ფასი
+    const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
+      sheet.items,
+      HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
+    );
+
     const protectorsTotal =
       sheet.sheetType === "STANDARD" && sheet.totalPrice
-        ? sheet.totalPrice
+        ? Math.max(0, Number(sheet.totalPrice) - heavyProtectorsMoney)
         : sheet.items
-            .filter((p: any) => p.category === "PROTECTORS")
+            .filter(
+              (p: any) =>
+                p.category === "PROTECTORS" &&
+                p.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+            )
             .reduce((sum: number, p: any) => {
               const price = Number(p.price ?? 0);
-              const qty = Number(p.dispatched ?? 0); // გამოიყენე dispatched-ის ნაცვლად received-ის
+              const qty = Number(p.dispatched ?? 0);
               return sum + price * qty;
             }, 0);
 
@@ -422,7 +434,8 @@ export async function POST(req: NextRequest) {
     const linenTowelsPrice =
       sheet.pricePerKg && weightForPrice ? sheet.pricePerKg * weightForPrice : 0;
 
-    const totalPrice = linenTowelsPrice + protectorsTotal;
+    const totalPrice =
+      linenTowelsPrice + protectorsTotal + heavyProtectorsMoney;
 
     // Get logo path
     const logoPath = path.join(process.cwd(), "public", "logo.jpg");

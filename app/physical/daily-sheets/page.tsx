@@ -8,6 +8,7 @@ import React from "react";
 import {
   HEAVY_WEIGHT_ITEM_KA,
   heavyWeightProtectorsKgUnitPriceGel,
+  heavyWeightProtectorsLineAmountGel,
 } from "@/lib/daily-sheet-heavy-weight";
 
 interface DailySheetItem {
@@ -125,7 +126,11 @@ const calculateTotals = (items: DailySheetItem[]) =>
 
 const calculateProtectorsPrice = (items: DailySheetItem[]): number => {
   return items
-    .filter(item => item.category === "PROTECTORS")
+    .filter(
+      (item) =>
+        item.category === "PROTECTORS" &&
+        item.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+    )
     .reduce((sum, item) => {
       const price = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
       return sum + (price * (item.dispatched || 0));
@@ -370,9 +375,12 @@ export default function PhysicalDailySheetsPage() {
       }
     }
     
+    const heavyProtectorsMoney =
+      heavyWeightProtectorsLineAmountGel(sheet.items, PROTECTOR_PRICES);
+
     if (hasProtectors) {
       if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-        protectorsPrice = sheet.totalPrice;
+        protectorsPrice = Math.max(0, sheet.totalPrice - heavyProtectorsMoney);
       } else {
         protectorsPrice = calculateProtectorsPrice(sheet.items);
       }
@@ -382,7 +390,8 @@ export default function PhysicalDailySheetsPage() {
       ? heavyWeightProtectorsKgUnitPriceGel(sheet.items, PROTECTOR_PRICES)
       : 0;
     
-    const totalSum = linenTowelsPrice + protectorsPrice;
+    const totalSum =
+      linenTowelsPrice + protectorsPrice + heavyProtectorsMoney;
     if (totalSum > 0) {
       calculatedTotalPrice = totalSum.toFixed(2);
     }
