@@ -6,7 +6,7 @@ import { monthKeyFromSheetDate, dayKeyFromSheetDate } from "@/lib/daily-sheet-da
 import { FormattedDateInput } from "./ui/DatePickerSection";
 import {
   HEAVY_WEIGHT_ITEM_KA,
-  heavyWeightProtectorsLineAmountGel,
+  heavyWeightProtectorsKgUnitPriceGel,
 } from "@/lib/daily-sheet-heavy-weight";
 
 interface Hotel {
@@ -908,8 +908,8 @@ export default function DailySheetsSection() {
       }
     }
 
-    const heavyWeightPrice = hasHeavyWeightProtector
-      ? heavyWeightProtectorsLineAmountGel(sheet.items, PROTECTOR_PRICES)
+    const heavyWeightKgPrice = hasHeavyWeightProtector
+      ? heavyWeightProtectorsKgUnitPriceGel(sheet.items, PROTECTOR_PRICES)
       : 0;
     
     // Total sum
@@ -1033,13 +1033,13 @@ export default function DailySheetsSection() {
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             )}
-            {hasHeavyWeightProtector && heavyWeightPrice > 0 && (
+            {hasHeavyWeightProtector && heavyWeightKgPrice > 0 && (
               <tr className="bg-purple-50 font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
-                  მძიმე წონის ფასი:
+                  მძიმე წონის 1 კგ-ის ფასი :
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {heavyWeightPrice.toFixed(2)} ₾
+                  {heavyWeightKgPrice.toFixed(2)} ₾
                 </td>
                 {showPriceColumn && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
@@ -1727,8 +1727,8 @@ export default function DailySheetsSection() {
                   : 0;
                 // Calculate protectors price from items: price * received
                 const protectorsPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
-                const heavyWeightPrice = hasHeavyWeightProtector
-                  ? heavyWeightProtectorsLineAmountGel(formData.items, PROTECTOR_PRICES)
+                const heavyWeightKgPrice = hasHeavyWeightProtector
+                  ? heavyWeightProtectorsKgUnitPriceGel(formData.items, PROTECTOR_PRICES)
                   : 0;
                 const totalSum = linenTowelsPrice + protectorsPrice;
                 
@@ -1817,12 +1817,12 @@ export default function DailySheetsSection() {
                         </div>
                       </div>
                     )}
-                    {hasHeavyWeightProtector && heavyWeightPrice > 0 && (
+                    {hasHeavyWeightProtector && heavyWeightKgPrice > 0 && (
                       <div className="bg-white border border-purple-200 rounded-md p-4">
                         <div className="flex justify-between items-center">
-                          <span className="text-[16px] font-semibold text-black">მძიმე წონის ფასი:</span>
+                          <span className="text-[16px] font-semibold text-black">მძიმე წონის 1 კგ-ის ფასი :</span>
                           <span className="text-[18px] font-bold text-purple-700">
-                            {heavyWeightPrice.toFixed(2)} ₾
+                            {heavyWeightKgPrice.toFixed(2)} ₾
                           </span>
                         </div>
                       </div>
@@ -1857,8 +1857,8 @@ export default function DailySheetsSection() {
                     : 0;
                   // Calculate protectors price from items: price * received
                   const protectorsPrice = hasProtectors ? calculateProtectorsPrice(formData.items) : 0;
-                  const heavyWeightPrice = hasHeavyWeightProtector
-                    ? heavyWeightProtectorsLineAmountGel(formData.items, PROTECTOR_PRICES)
+                  const heavyWeightKgPrice = hasHeavyWeightProtector
+                    ? heavyWeightProtectorsKgUnitPriceGel(formData.items, PROTECTOR_PRICES)
                     : 0;
                   const totalSum = linenTowelsPrice + protectorsPrice;
                   
@@ -1874,12 +1874,12 @@ export default function DailySheetsSection() {
                           </div>
                         </div>
                       )}
-                      {hasHeavyWeightProtector && heavyWeightPrice > 0 && (
+                      {hasHeavyWeightProtector && heavyWeightKgPrice > 0 && (
                         <div className="bg-white border border-purple-200 rounded-md p-4">
                           <div className="flex justify-between items-center">
-                            <span className="text-[16px] font-semibold text-black">მძიმე წონის ფასი:</span>
+                            <span className="text-[16px] font-semibold text-black">მძიმე წონის 1 კგ-ის ფასი :</span>
                             <span className="text-[18px] font-bold text-purple-700">
-                              {heavyWeightPrice.toFixed(2)} ₾
+                              {heavyWeightKgPrice.toFixed(2)} ₾
                             </span>
                           </div>
                         </div>

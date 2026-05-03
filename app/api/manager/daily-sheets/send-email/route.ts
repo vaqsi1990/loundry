@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
   HEAVY_WEIGHT_ITEM_KA,
-  heavyWeightProtectorsLineAmountGel,
+  heavyWeightProtectorsKgUnitPriceGel,
 } from "@/lib/daily-sheet-heavy-weight";
 import nodemailer from "nodemailer";
 import path from "path";
@@ -131,7 +131,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const HEAVY_WEIGHT_EMAIL_FALLBACK: Record<string, number> = {
     [HEAVY_WEIGHT_ITEM_KA]: 2.5,
   };
-  const heavyWeightTotal = heavyWeightProtectorsLineAmountGel(
+  const heavyWeightKgUnitPrice = heavyWeightProtectorsKgUnitPriceGel(
     sheet.items,
     HEAVY_WEIGHT_EMAIL_FALLBACK
   );
@@ -239,11 +239,11 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
               : ""
           }
           ${
-            hasHeavyWeightProtector && heavyWeightTotal > 0
+            hasHeavyWeightProtector && heavyWeightKgUnitPrice > 0
               ? `
                 <tr style="background:#fff;font-weight:600;">
-                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი (იც):</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightTotal.toFixed(2)} ₾</td>
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის 1 კგ-ის ფასი (იც):</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightKgUnitPrice.toFixed(2)} ₾</td>
                   ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
