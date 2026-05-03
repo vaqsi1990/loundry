@@ -1002,7 +1002,7 @@ export default function DailySheetsSection() {
             {sheet.sheetType === "STANDARD" && sheet.totalWeight && (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
-                  მთლიანი წონა:
+                წონა -კგ:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
                   {sheet.totalWeight.toFixed(2)} კგ
@@ -1738,7 +1738,7 @@ export default function DailySheetsSection() {
                       <>
                         <div>
                           <label className="block text-[16px] font-medium text-black mb-1">
-                            მთლიანი წონა (კგ) *
+                            წონა -კგ *
                           </label>
                           <input
                             type="text"
@@ -1766,7 +1766,7 @@ export default function DailySheetsSection() {
                               })
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
-                            placeholder="შეიყვანეთ მთლიანი წონა"
+                            placeholder="შეიყვანეთ წონა -კგ"
                           />
                         </div>
                         <div>
