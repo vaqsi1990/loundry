@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import React from "react";
+import {
+  HEAVY_WEIGHT_ITEM_KA,
+  heavyWeightProtectorsLineAmountGel,
+} from "@/lib/daily-sheet-heavy-weight";
 
 interface DailySheetItem {
   id?: string;
@@ -344,6 +348,11 @@ export default function PhysicalDailySheetsPage() {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
     const totals = calculateTotals(sheet.items);
     const hasProtectors = sheet.items.some(item => item.category === "PROTECTORS");
+    const hasHeavyWeightProtector = sheet.items.some(
+      (item) =>
+        item.category === "PROTECTORS" &&
+        item.itemNameKa === HEAVY_WEIGHT_ITEM_KA
+    );
     const hasLinenOrTowels = sheet.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
     const showPriceColumn = hasProtectors || hasLinenOrTowels;
     
@@ -368,6 +377,10 @@ export default function PhysicalDailySheetsPage() {
         protectorsPrice = calculateProtectorsPrice(sheet.items);
       }
     }
+
+    const heavyWeightPrice = hasHeavyWeightProtector
+      ? heavyWeightProtectorsLineAmountGel(sheet.items, PROTECTOR_PRICES)
+      : 0;
     
     const totalSum = linenTowelsPrice + protectorsPrice;
     if (totalSum > 0) {
@@ -613,6 +626,18 @@ export default function PhysicalDailySheetsPage() {
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
                   {protectorsPrice.toFixed(2)} ₾
+                </td>
+                {showPriceColumn && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            )}
+            {hasHeavyWeightProtector && heavyWeightPrice > 0 && (
+              <tr className="bg-purple-50 font-semibold">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
+                  მძიმე წონის ფასი:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {heavyWeightPrice.toFixed(2)} ₾
                 </td>
                 {showPriceColumn && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>

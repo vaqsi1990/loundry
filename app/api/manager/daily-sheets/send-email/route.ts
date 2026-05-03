@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  HEAVY_WEIGHT_ITEM_KA,
+  heavyWeightProtectorsLineAmountGel,
+} from "@/lib/daily-sheet-heavy-weight";
 import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
@@ -121,6 +125,17 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
 
   const totalPrice = linenTowelsPrice + protectorsTotal;
 
+  const hasHeavyWeightProtector = protectors.some(
+    (p: any) => p.itemNameKa === HEAVY_WEIGHT_ITEM_KA
+  );
+  const HEAVY_WEIGHT_EMAIL_FALLBACK: Record<string, number> = {
+    [HEAVY_WEIGHT_ITEM_KA]: 2.5,
+  };
+  const heavyWeightTotal = heavyWeightProtectorsLineAmountGel(
+    sheet.items,
+    HEAVY_WEIGHT_EMAIL_FALLBACK
+  );
+
   return `
     <div style="font-family:Arial,sans-serif;color:#222;">
       <div style="display:flex;align-items:center;gap:30px;margin-bottom:16px;">
@@ -217,6 +232,18 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                 <tr style="background:#fff;font-weight:600;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">დამცავების ფასი (იც):</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal.toFixed(2)} ₾</td>
+                  ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
+            hasHeavyWeightProtector && heavyWeightTotal > 0
+              ? `
+                <tr style="background:#fff;font-weight:600;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი (იც):</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightTotal.toFixed(2)} ₾</td>
                   ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
