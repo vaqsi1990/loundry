@@ -208,7 +208,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
             sheet.sheetType === "STANDARD" && sheet.totalWeight
               ? `
                 <tr style="background:#fff;font-weight:600;">
-                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">წონა -კგ:</td>
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">წონა - კგ:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.totalWeight.toFixed(2)} კგ</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>

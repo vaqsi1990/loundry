@@ -559,7 +559,7 @@ export default function LegalDailySheetsPage() {
             {sheet.sheetType === "STANDARD" && (handlers || sheet.totalWeight) ? (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
-                წონა -კგ:
+                წონა - კგ:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
                   {handlers ? (
