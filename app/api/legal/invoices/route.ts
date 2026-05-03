@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  liveDisplayedTotalWeightKg,
+  liveGrandTotalAmountGel,
+  liveProtectorsAmount,
+} from "@/lib/daily-sheet-email-send-financial";
 
 // Normalize hotel name for case-insensitive matching
 const normalizeHotel = (name: string | null) => {
@@ -119,6 +124,9 @@ export async function GET(request: NextRequest) {
     // Create invoice detail rows from emailSends (like PDF does - one row per emailSend)
     // Get price per kg from hotel
     const pricePerKg = hotel.pricePerKg || 1.8;
+
+    const lineTotal = (es: (typeof emailSends)[number]) =>
+      liveGrandTotalAmountGel(es.dailySheet, pricePerKg);
     
     // Create a map to track which invoices contain which emailSends
     const invoiceEmailSendMap = new Map<string, string[]>(); // invoiceId -> emailSendIds[]
@@ -205,46 +213,10 @@ export async function GET(request: NextRequest) {
       
       for (const [groupKey, groupEmailSends] of emailSendGroups.entries()) {
         // Calculate total amount for this group
-        const groupTotal = groupEmailSends.reduce((sum, es) => {
-          const weight = es.totalWeight ?? 0;
-          const protectorsAmount = es.protectorsAmount ?? 0;
-          let itemAmount = 0;
-          
-          if (weight > 0) {
-            const hasTablecloths = es.dailySheet?.items?.some(
-              (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-            ) || false;
-            
-            if (hasTablecloths) {
-              const tableclothsItems = es.dailySheet?.items?.filter(
-                (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-              ) || [];
-              const regularItems = es.dailySheet?.items?.filter(
-                (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-              ) || [];
-              
-              const tableclothsWeight = tableclothsItems.reduce(
-                (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-                0
-              );
-              const regularWeight = regularItems.reduce(
-                (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-                0
-              );
-              
-              if (regularWeight > 0) {
-                itemAmount += regularWeight * pricePerKg;
-              }
-              if (tableclothsWeight > 0) {
-                itemAmount += tableclothsWeight * 3.00;
-              }
-            } else {
-              itemAmount = weight * pricePerKg;
-            }
-          }
-          itemAmount += protectorsAmount;
-          return sum + itemAmount;
-        }, 0);
+        const groupTotal = groupEmailSends.reduce(
+          (sum, es) => sum + lineTotal(es),
+          0
+        );
         
         const groupTotalRounded = parseFloat(groupTotal.toFixed(2));
         
@@ -317,54 +289,10 @@ export async function GET(request: NextRequest) {
       // Use sentAt for date field as well (invoice sending date)
       const dateKey = groupingDate.toISOString().split("T")[0];
       
-      // Calculate amount for this emailSend (like PDF does)
-      const weight = emailSend.totalWeight ?? 0;
-      const protectorsAmount = emailSend.protectorsAmount ?? 0;
-      
-      let itemAmount = 0;
-      
-      if (weight > 0) {
-        // Check if this sheet has tablecloths (სუფრები)
-        const hasTablecloths = emailSend.dailySheet?.items?.some(
-          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-        ) || false;
-        
-        if (hasTablecloths) {
-          // Separate regular linen and tablecloths
-          const tableclothsItems = emailSend.dailySheet?.items?.filter(
-            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-          const regularItems = emailSend.dailySheet?.items?.filter(
-            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-          
-          const tableclothsWeight = tableclothsItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          const regularWeight = regularItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          
-          // Add regular linen amount
-          if (regularWeight > 0) {
-            itemAmount += regularWeight * pricePerKg;
-          }
-          
-          // Add tablecloths amount
-          if (tableclothsWeight > 0) {
-            const tableclothsPrice = 3.00;
-            itemAmount += tableclothsWeight * tableclothsPrice;
-          }
-        } else {
-          // Regular linen item (no tablecloths)
-          itemAmount = weight * pricePerKg;
-        }
-      }
-      
-      // Add protectors amount
-      itemAmount += protectorsAmount;
+      const sheet = emailSend.dailySheet;
+      const weight = liveDisplayedTotalWeightKg(sheet);
+      const protectorsAmount = liveProtectorsAmount(sheet);
+      const itemAmount = lineTotal(emailSend);
       
       // Find which invoice this emailSend belongs to
       let invoiceId: string | undefined;
@@ -379,46 +307,10 @@ export async function GET(request: NextRequest) {
             // Calculate total amount of all emailSends in this invoice group
             // This ensures correct proportional distribution
             const invoiceEmailSends = emailSends.filter(es => emailSendIds.includes(es.id));
-            const invoiceEmailSendsTotal = invoiceEmailSends.reduce((sum, es) => {
-              const weight = es.totalWeight ?? 0;
-              const protectorsAmount = es.protectorsAmount ?? 0;
-              let esItemAmount = 0;
-              
-              if (weight > 0) {
-                const hasTablecloths = es.dailySheet?.items?.some(
-                  (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-                ) || false;
-                
-                if (hasTablecloths) {
-                  const tableclothsItems = es.dailySheet?.items?.filter(
-                    (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-                  ) || [];
-                  const regularItems = es.dailySheet?.items?.filter(
-                    (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-                  ) || [];
-                  
-                  const tableclothsWeight = tableclothsItems.reduce(
-                    (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-                    0
-                  );
-                  const regularWeight = regularItems.reduce(
-                    (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-                    0
-                  );
-                  
-                  if (regularWeight > 0) {
-                    esItemAmount += regularWeight * pricePerKg;
-                  }
-                  if (tableclothsWeight > 0) {
-                    esItemAmount += tableclothsWeight * 3.00;
-                  }
-                } else {
-                  esItemAmount = weight * pricePerKg;
-                }
-              }
-              esItemAmount += protectorsAmount;
-              return sum + esItemAmount;
-            }, 0);
+            const invoiceEmailSendsTotal = invoiceEmailSends.reduce(
+              (sum, es) => sum + lineTotal(es),
+              0
+            );
             
             // Distribute paid amount proportionally based on actual emailSends total
             const invoicePaid = Number(invoice.paidAmount ?? 0);
@@ -460,46 +352,10 @@ export async function GET(request: NextRequest) {
             return dateDiff <= 1;
           });
           
-          const invoiceEmailSendsTotal = invoiceEmailSends.reduce((sum, es) => {
-            const weight = es.totalWeight ?? 0;
-            const protectorsAmount = es.protectorsAmount ?? 0;
-            let esItemAmount = 0;
-            
-            if (weight > 0) {
-              const hasTablecloths = es.dailySheet?.items?.some(
-                (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-              ) || false;
-              
-              if (hasTablecloths) {
-                const tableclothsItems = es.dailySheet?.items?.filter(
-                  (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
-                ) || [];
-                const regularItems = es.dailySheet?.items?.filter(
-                  (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-                ) || [];
-                
-                const tableclothsWeight = tableclothsItems.reduce(
-                  (sum: number, item: any) => sum + (item.totalWeight || item.weight || 0), 
-                  0
-                );
-                const regularWeight = regularItems.reduce(
-                  (sum: number, item: any) => sum + (item.totalWeight || item.weight || 0), 
-                  0
-                );
-                
-                if (regularWeight > 0) {
-                  esItemAmount += regularWeight * pricePerKg;
-                }
-                if (tableclothsWeight > 0) {
-                  esItemAmount += tableclothsWeight * 3.00;
-                }
-              } else {
-                esItemAmount = weight * pricePerKg;
-              }
-            }
-            esItemAmount += protectorsAmount;
-            return sum + esItemAmount;
-          }, 0);
+          const invoiceEmailSendsTotal = invoiceEmailSends.reduce(
+            (sum, es) => sum + lineTotal(es),
+            0
+          );
           
           const invoicePaid = Number(matchingInvoice.paidAmount ?? 0);
           if (invoiceEmailSendsTotal > 0) {

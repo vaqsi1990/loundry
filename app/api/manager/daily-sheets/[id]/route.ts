@@ -6,6 +6,10 @@ import {
   serializeDailySheetForClient,
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
+import {
+  syncEmailSendTotalsAfterSheetSaveLegal,
+  syncEmailSendTotalsAfterSheetSavePhysical,
+} from "@/lib/sync-daily-sheet-email-send-totals";
 
 export async function PUT(
   request: NextRequest,
@@ -146,6 +150,13 @@ export async function PUT(
             items: true,
           },
         });
+
+    try {
+      if (isLegal) await syncEmailSendTotalsAfterSheetSaveLegal(id);
+      else await syncEmailSendTotalsAfterSheetSavePhysical(id);
+    } catch (e) {
+      console.error("Sync email-send totals after daily sheet update:", e);
+    }
 
     return NextResponse.json(serializeDailySheetForClient(sheet as Record<string, unknown>));
   } catch (error) {

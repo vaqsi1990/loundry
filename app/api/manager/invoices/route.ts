@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  liveDisplayedTotalWeightKg,
+  liveGrandTotalAmountGel,
+  liveProtectorsAmount,
+  num as finNum,
+} from "@/lib/daily-sheet-email-send-financial";
 
 // Fallback prices for protectors (match DailySheetsSection UI defaults)
 const PROTECTOR_PRICES: Record<string, number> = {
@@ -273,11 +279,11 @@ export async function GET(request: NextRequest) {
     const invoiceEntries = Array.from(sheetGroups.values()).map((group) => {
       const firstSend = group[0];
       const sheet = firstSend.dailySheet;
+      const defaultPg = finNum(firstSend.pricePerKg) || 1.8;
 
-      // Use values from DailySheetEmailSend record (same for all sends of this sheet)
-      const emailWeight = firstSend.totalWeight ?? 0;
-      const emailProtectorsAmount = firstSend.protectorsAmount ?? 0;
-      const emailTotalAmount = firstSend.totalAmount ?? 0;
+      const emailWeight = liveDisplayedTotalWeightKg(sheet);
+      const emailProtectorsAmount = liveProtectorsAmount(sheet);
+      const emailTotalAmount = liveGrandTotalAmountGel(sheet, defaultPg);
 
       // Track by service date (sheet date) using UTC to avoid timezone issues
       const dateObj = new Date(firstSend.date);

@@ -6,6 +6,7 @@ import {
   serializeDailySheetForClient,
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
+import { syncEmailSendTotalsAfterSheetSavePhysical } from "@/lib/sync-daily-sheet-email-send-totals";
 
 const normalizeHotel = (name: string | null) => {
   if (!name) return "";
@@ -194,6 +195,12 @@ export async function PUT(
       data: updateData,
       include: { items: true },
     });
+
+    try {
+      await syncEmailSendTotalsAfterSheetSavePhysical(id);
+    } catch (e) {
+      console.error("Sync physical email-send totals after sheet update:", e);
+    }
 
     return NextResponse.json(serializeDailySheetForClient(sheet as Record<string, unknown>));
   } catch (error) {

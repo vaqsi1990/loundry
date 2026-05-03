@@ -6,6 +6,7 @@ import {
   serializeDailySheetForClient,
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
+import { syncEmailSendTotalsAfterSheetSaveLegal } from "@/lib/sync-daily-sheet-email-send-totals";
 
 // Hotel user: update emailed daily sheet line items / notes (immutable date/hotel locked on server).
 export async function PUT(
@@ -174,6 +175,12 @@ export async function PUT(
       data: updateData,
       include: { items: true },
     });
+
+    try {
+      await syncEmailSendTotalsAfterSheetSaveLegal(id);
+    } catch (e) {
+      console.error("Sync legal email-send totals after sheet update:", e);
+    }
 
     return NextResponse.json(serializeDailySheetForClient(sheet as Record<string, unknown>));
   } catch (error) {

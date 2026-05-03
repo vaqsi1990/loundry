@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  effectiveKgPriceFromSheetAndDefault,
+  liveDisplayedTotalWeightKg,
+  liveLinensWeightBasisKg,
+  liveProtectorsAmount,
+} from "@/lib/daily-sheet-email-send-financial";
 import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
@@ -439,8 +445,8 @@ export async function GET(request: NextRequest) {
       // Filter emailSends to match the exact invoice criteria (date, weight, protectors)
       // We match by weight and protectors because these uniquely identify an invoice row
       emailSends = emailSends.filter((es) => {
-        const esWeight = es.totalWeight ?? 0;
-        const esProtectors = es.protectorsAmount ?? 0;
+        const esWeight = liveDisplayedTotalWeightKg(es.dailySheet);
+        const esProtectors = liveProtectorsAmount(es.dailySheet);
         
         // Match if weight and protectors match (with small tolerance for floating point)
         return Math.abs(esWeight - targetWeight) < 0.01 &&
@@ -504,66 +510,66 @@ export async function GET(request: NextRequest) {
       const dailySheetDate = new Date(emailSend.date);
       const sentLabel = formatDateGe(dailySheetDate);
 
-      const weight = emailSend.totalWeight ?? 0;
-      
-      if (weight > 0) {
-        // Check if this sheet has tablecloths (სუფრები)
-        const hasTablecloths = emailSend.dailySheet?.items?.some(
-          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+      const ds = emailSend.dailySheet;
+      const kgPriceForSheet = effectiveKgPriceFromSheetAndDefault(ds, pricePerKg);
+      const hasTablecloths =
+        ds?.items?.some((item: any) =>
+          item.itemNameKa?.toLowerCase().includes("სუფრ")
         ) || false;
-        
-        if (hasTablecloths) {
-          // Separate regular linen and tablecloths
-          const tableclothsItems = emailSend.dailySheet?.items?.filter(
-            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+      const linenBasisKg = liveLinensWeightBasisKg(ds);
+
+      if (hasTablecloths && ds?.items?.length) {
+        const tableclothsItems =
+          ds.items.filter((item: any) =>
+            item.itemNameKa?.toLowerCase().includes("სუფრ")
           ) || [];
-          const regularItems = emailSend.dailySheet?.items?.filter(
+        const regularItems =
+          ds.items.filter(
             (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
           ) || [];
-          
-          const tableclothsWeight = tableclothsItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          const regularWeight = regularItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          
-          // Add regular linen item
-          if (regularWeight > 0) {
-            items.push({
-              description: sentLabel,
-              quantity: `${regularWeight.toFixed(1)} კგ`,
-              unitPrice: pricePerKg,
-              total: regularWeight * pricePerKg,
-            });
-          }
-          
-          // Add tablecloths item
-          if (tableclothsWeight > 0) {
-            const tableclothsPrice = 3.00; // Price for tablecloths
-            items.push({
-              description: `${sentLabel} - სუფრები`,
-              quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-              unitPrice: tableclothsPrice,
-              total: tableclothsWeight * tableclothsPrice,
-            });
-          }
-        } else {
-          // Regular linen item (no tablecloths)
+
+        const tableclothsWeight = tableclothsItems.reduce(
+          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
+          0
+        );
+        const regularWeight = regularItems.reduce(
+          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
+          0
+        );
+
+        if (regularWeight > 0) {
           items.push({
             description: sentLabel,
-            quantity: `${weight.toFixed(1)} კგ`,
-            unitPrice: pricePerKg,
-            total: weight * pricePerKg,
+            quantity: `${regularWeight.toFixed(1)} კგ`,
+            unitPrice: kgPriceForSheet,
+            total: regularWeight * kgPriceForSheet,
           });
         }
+
+        if (tableclothsWeight > 0) {
+          const tableclothsPrice = 3.0;
+          items.push({
+            description: `${sentLabel} - სუფრები`,
+            quantity: `${tableclothsWeight.toFixed(1)} კგ`,
+            unitPrice: tableclothsPrice,
+            total: tableclothsWeight * tableclothsPrice,
+          });
+        }
+      } else if (linenBasisKg > 0) {
+        items.push({
+          description: sentLabel,
+          quantity: `${linenBasisKg.toFixed(1)} კგ`,
+          unitPrice: kgPriceForSheet,
+          total: linenBasisKg * kgPriceForSheet,
+        });
       }
     });
     
     // Add protectors if any (as separate item) - same as admin send-pdf and physical
-    const totalProtectors = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
+    const totalProtectors = emailSends.reduce(
+      (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
+      0
+    );
     if (totalProtectors > 0) {
       items.push({
         description: "დამცავები",

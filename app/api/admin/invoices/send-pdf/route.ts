@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  effectiveKgPriceFromSheetAndDefault,
+  liveLinensWeightBasisKg,
+  liveProtectorsAmount,
+} from "@/lib/daily-sheet-email-send-financial";
 import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
@@ -574,66 +579,66 @@ export async function POST(request: NextRequest) {
         sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
       }
 
-      const weight = emailSend.totalWeight ?? 0;
-      
-      if (weight > 0) {
-        // Check if this sheet has tablecloths (სუფრები)
-        const hasTablecloths = emailSend.dailySheet?.items?.some(
-          (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+      const ds = emailSend.dailySheet;
+      const kgPriceForSheet = effectiveKgPriceFromSheetAndDefault(ds, pricePerKg);
+      const hasTablecloths =
+        ds?.items?.some((item: any) =>
+          item.itemNameKa?.toLowerCase().includes("სუფრ")
         ) || false;
-        
-        if (hasTablecloths) {
-          // Separate regular linen and tablecloths
-          const tableclothsItems = emailSend.dailySheet?.items?.filter(
-            (item: any) => item.itemNameKa?.toLowerCase().includes("სუფრ")
+      const linenBasisKg = liveLinensWeightBasisKg(ds);
+
+      if (hasTablecloths && ds?.items?.length) {
+        const tableclothsItems =
+          ds.items.filter((item: any) =>
+            item.itemNameKa?.toLowerCase().includes("სუფრ")
           ) || [];
-          const regularItems = emailSend.dailySheet?.items?.filter(
+        const regularItems =
+          ds.items.filter(
             (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
           ) || [];
-          
-          const tableclothsWeight = tableclothsItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          const regularWeight = regularItems.reduce(
-            (sum, item: any) => sum + (item.totalWeight || item.weight || 0), 
-            0
-          );
-          
-          // Add regular linen item
-          if (regularWeight > 0) {
-            items.push({
-              description: sentLabel,
-              quantity: `${regularWeight.toFixed(1)} კგ`,
-              unitPrice: pricePerKg,
-              total: regularWeight * pricePerKg,
-            });
-          }
-          
-          // Add tablecloths item
-          if (tableclothsWeight > 0) {
-            const tableclothsPrice = 3.00; // Price for tablecloths
-            items.push({
-              description: `${sentLabel} - სუფრები`,
-              quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-              unitPrice: tableclothsPrice,
-              total: tableclothsWeight * tableclothsPrice,
-            });
-          }
-        } else {
-          // Regular linen item (no tablecloths)
+
+        const tableclothsWeight = tableclothsItems.reduce(
+          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
+          0
+        );
+        const regularWeight = regularItems.reduce(
+          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
+          0
+        );
+
+        if (regularWeight > 0) {
           items.push({
             description: sentLabel,
-            quantity: `${weight.toFixed(1)} კგ`,
-            unitPrice: pricePerKg,
-            total: weight * pricePerKg,
+            quantity: `${regularWeight.toFixed(1)} კგ`,
+            unitPrice: kgPriceForSheet,
+            total: regularWeight * kgPriceForSheet,
           });
         }
+
+        if (tableclothsWeight > 0) {
+          const tableclothsPrice = 3.0;
+          items.push({
+            description: `${sentLabel} - სუფრები`,
+            quantity: `${tableclothsWeight.toFixed(1)} კგ`,
+            unitPrice: tableclothsPrice,
+            total: tableclothsWeight * tableclothsPrice,
+          });
+        }
+      } else if (linenBasisKg > 0) {
+        items.push({
+          description: sentLabel,
+          quantity: `${linenBasisKg.toFixed(1)} კგ`,
+          unitPrice: kgPriceForSheet,
+          total: linenBasisKg * kgPriceForSheet,
+        });
       }
     });
     
     // Add protectors if any (as separate item)
-    const totalProtectors = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
+    const totalProtectors = emailSends.reduce(
+      (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
+      0
+    );
     if (totalProtectors > 0) {
       items.push({
         description: "დამცავები",
@@ -650,7 +655,10 @@ export async function POST(request: NextRequest) {
       const num = match ? parseFloat(match[1]) : 0;
       return sum + num;
     }, 0);
-    const protectorsAmount = emailSends.reduce((sum, es) => sum + (es.protectorsAmount ?? 0), 0);
+    const protectorsAmount = emailSends.reduce(
+      (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
+      0
+    );
 
     // Create LegalInvoice or PhysicalInvoice based on hotel type
     // Note: We don't create AdminInvoice anymore to avoid duplicates
