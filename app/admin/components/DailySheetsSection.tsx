@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import { monthKeyFromSheetDate, dayKeyFromSheetDate } from "@/lib/daily-sheet-dates";
 import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface Hotel {
@@ -36,6 +37,7 @@ interface DailySheet {
   shiftType?: string | null;
   description: string | null;
   notes: string | null;
+  comment?: string | null;
   pricePerKg: number | null;
   sheetType: string;
   totalWeight: number | null;
@@ -167,13 +169,16 @@ export default function DailySheetsSection() {
   });
   const [savingWeightId, setSavingWeightId] = useState<string | null>(null);
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
-  
+  /** პირველ ჩატვირთვაზე იხსნება თვეებისა და დღეების ბლოკები, რომ ფურცლების სია დაინახოს დამატებითი დაჭერის გარეშე */
+  const expandedDefaultsAppliedRef = useRef(false);
+
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     hotelName: "",
     shiftType: "DAY" as "" | "DAY" | "NIGHT",
     description: "",
     notes: "",
+    comment: "",
     sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
     totalWeight: null as number | null,
     pricePerKg: null as number | null,
@@ -252,6 +257,28 @@ export default function DailySheetsSection() {
     fetchSheets();
     fetchHotels();
   }, []);
+
+  useEffect(() => {
+    if (loading || sheets.length === 0) {
+      if (!loading && sheets.length === 0) {
+        expandedDefaultsAppliedRef.current = false;
+      }
+      return;
+    }
+    if (expandedDefaultsAppliedRef.current) return;
+    expandedDefaultsAppliedRef.current = true;
+
+    const months = new Set<string>();
+    const days = new Set<string>();
+    sheets.forEach((s) => {
+      const mk = monthKeyFromSheetDate(s.date);
+      if (mk) months.add(mk);
+      const dk = dayKeyFromSheetDate(s.date);
+      if (dk) days.add(dk);
+    });
+    setExpandedMonths(months);
+    setExpandedDays(days);
+  }, [loading, sheets]);
 
   useEffect(() => {
     console.log("Hotels state updated:", hotels.length, "hotels");
@@ -383,13 +410,11 @@ export default function DailySheetsSection() {
       const sheetsData: DailySheet[] = data || [];
       setSheets(sheetsData);
 
-      // Extract available months from daily sheet dates
+      // Extract available months from daily sheet dates (UTC-safe, consistent with გაფილტვრა)
       const months = new Set<string>();
       sheetsData.forEach((sheet) => {
-        const d = new Date(sheet.date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        months.add(`${year}-${month}`);
+        const mk = monthKeyFromSheetDate(sheet.date);
+        if (mk) months.add(mk);
       });
       setAllMonths(Array.from(months).sort().reverse());
     } catch (err) {
@@ -468,7 +493,7 @@ export default function DailySheetsSection() {
     setSavingWeightId(sheet.id);
 
     try {
-      const url = `/api/admin/daily-sheets/${sheet.id}`;
+      const url = `${getApiPath("daily-sheets")}/${sheet.id}`;
 
       const body = {
         date: sheet.date,
@@ -476,6 +501,7 @@ export default function DailySheetsSection() {
         roomNumber: sheet.roomNumber ?? null,
         description: sheet.description,
         notes: sheet.notes,
+        comment: sheet.comment ?? null,
         sheetType: sheet.sheetType,
         shiftType: sheet.shiftType ?? null,
         totalWeight: parsed,
@@ -519,7 +545,9 @@ export default function DailySheetsSection() {
     }
 
     try {
-      const url = editingId ? `/api/admin/daily-sheets/${editingId}` : "/api/admin/daily-sheets";
+      const url = editingId
+        ? `${getApiPath("daily-sheets")}/${editingId}`
+        : getApiPath("daily-sheets");
       const method = editingId ? "PUT" : "POST";
 
       const payload = {
@@ -592,6 +620,7 @@ export default function DailySheetsSection() {
       shiftType: (sheet.shiftType as "" | "DAY" | "NIGHT") || "",
       description: sheet.description || "",
       notes: sheet.notes || "",
+      comment: sheet.comment || "",
       sheetType: (sheet.sheetType || "INDIVIDUAL") as "INDIVIDUAL" | "STANDARD",
       totalWeight: sheet.totalWeight,
       pricePerKg: sheet.pricePerKg,
@@ -635,6 +664,7 @@ export default function DailySheetsSection() {
       shiftType: "DAY" as "" | "DAY" | "NIGHT",
       description: "",
       notes: "",
+      comment: "",
       sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
       totalWeight: null,
       pricePerKg: null,
@@ -652,6 +682,7 @@ export default function DailySheetsSection() {
       shiftType: "DAY" as "" | "DAY" | "NIGHT",
       description: "",
       notes: "",
+      comment: "",
       sheetType: "STANDARD" as "INDIVIDUAL" | "STANDARD",
       totalWeight: null,
       pricePerKg: null,
@@ -675,14 +706,6 @@ export default function DailySheetsSection() {
     return `${year}-${month}-${day}`;
   };
   
-  // Helper to get YYYY-MM key from date
-  const getMonthKey = (date: string | Date): string => {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    return `${year}-${month}`;
-  };
-
   const formatMonthGe = (monthKey: string) => {
     const [year, monthNum] = monthKey.split("-");
     const months = [
@@ -704,7 +727,7 @@ export default function DailySheetsSection() {
   };
 
   const filteredSheets = sheets.filter(sheet => {
-    const monthKey = getMonthKey(sheet.date);
+    const monthKey = monthKeyFromSheetDate(sheet.date);
     const monthMatch = !selectedMonth || monthKey === selectedMonth;
     const hotelMatch = !selectedHotel || sheet.hotelName === selectedHotel;
     return monthMatch && hotelMatch;
@@ -748,7 +771,8 @@ export default function DailySheetsSection() {
 
   // Group filtered sheets by month for accordion-style display
   const sheetsByMonth = filteredSheets.reduce<Record<string, DailySheet[]>>((acc, sheet) => {
-    const key = getMonthKey(sheet.date);
+    const key = monthKeyFromSheetDate(sheet.date);
+    if (!key) return acc;
     if (!acc[key]) acc[key] = [];
     acc[key].push(sheet);
     return acc;
@@ -1184,8 +1208,20 @@ export default function DailySheetsSection() {
                 </div>
               </div>
 
-              {/* Notes Field */}
-
+              <div className="mt-2">
+                <label className="block text-[16px] font-medium text-black mb-1">
+                  კომენტარი
+                </label>
+                <textarea
+                  value={formData.comment}
+                  onChange={(e) =>
+                    setFormData({ ...formData, comment: e.target.value })
+                  }
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                  placeholder="არასავალდებულო — მოკლე კომენტარი ფურცლის შესახებ"
+                />
+              </div>
 
               {/* Items Table */}
               <div className="mt-6">
@@ -1977,6 +2013,17 @@ export default function DailySheetsSection() {
                                                       ცვლა: {sheet.shiftType === "DAY" ? "დღის" : "ღამის"}
                                                     </span>
                                                   )}
+                                                  {sheet.comment && sheet.comment.trim() !== "" && (
+                                                    <span
+                                                      className="inline-flex items-start rounded-full bg-gray-50 text-gray-800 px-3 py-1 text-xs font-medium border border-gray-200 max-w-full"
+                                                      title={sheet.comment}
+                                                    >
+                                                      კომენტარი:{" "}
+                                                      {sheet.comment.length > 80
+                                                        ? `${sheet.comment.slice(0, 80)}…`
+                                                        : sheet.comment}
+                                                    </span>
+                                                  )}
                                                   <span className="inline-flex items-center rounded-full  text-blue-700 px-3 py-1 text-xs font-semibold">
                                                     გაგზავნილი {sheet.emailSendCount ?? 0}x
                                                   </span>
@@ -2115,7 +2162,12 @@ export default function DailySheetsSection() {
                                           </div>
                                           {/* Content - Collapsible */}
                                           {isExpanded && (
-                                            <div className="px-6 pb-6 border-t border-gray-200 pt-4">
+                                            <div className="px-6 pb-6 border-t border-gray-200 pt-4 space-y-3">
+                                              {sheet.comment && sheet.comment.trim() !== "" && (
+                                                <p className="text-gray-800 text-sm md:text-base">
+                                                  <strong>კომენტარი:</strong> {sheet.comment}
+                                                </p>
+                                              )}
                                               {renderSheetTable(sheet)}
                                             </div>
                                           )}

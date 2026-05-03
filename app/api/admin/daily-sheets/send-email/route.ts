@@ -134,7 +134,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
      
       ${sheet.roomNumber ? `<p style="margin:0 0 8px 0;"><strong>ოთახი:</strong> ${sheet.roomNumber}</p>` : ""}
       ${sheet.description ? `<p style="margin:0 0 8px 0;"><strong>აღწერა:</strong> ${sheet.description}</p>` : ""}
-      ${sheet.notes ? `<p style="margin:0 0 8px 0;"><strong>შენიშვნები:</strong> ${sheet.notes}</p>` : ""}
+      ${sheet.notes ? `<p style="margin:0 0 8px 0;"><strong>კომენტარი:</strong> ${sheet.notes}</p>` : ""}
 
       <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:14px;">
         <thead>

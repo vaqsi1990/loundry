@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  serializeDailySheetForClient,
+  sheetNotesFromBody,
+} from "@/lib/daily-sheet-api";
 
 export async function PUT(
   request: NextRequest,
@@ -31,7 +35,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items, shiftType } = body;
+    const { date, hotelName, roomNumber, description, notes, comment, sheetType, totalWeight, pricePerKg, totalPrice, items, shiftType } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -105,7 +109,7 @@ export async function PUT(
       hotelName: hotelName,
       roomNumber: roomNumber || null,
       description: description || null,
-      notes: notes || null,
+      notes: sheetNotesFromBody(comment, notes),
       shiftType: shiftType && typeof shiftType === "string" ? shiftType : null,
       pricePerKg: finalPricePerKg,
       sheetType: sheetType || "INDIVIDUAL",
@@ -143,7 +147,7 @@ export async function PUT(
           },
         });
 
-    return NextResponse.json(sheet);
+    return NextResponse.json(serializeDailySheetForClient(sheet as Record<string, unknown>));
   } catch (error) {
     console.error("Daily sheet update error:", error);
     return NextResponse.json(

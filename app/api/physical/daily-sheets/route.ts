@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { serializeDailySheetForClient } from "@/lib/daily-sheet-api";
 
 // Normalize hotel name for case/spacing-insensitive matching
 const normalizeHotel = (name: string | null) => {
@@ -105,7 +106,9 @@ export async function GET(request: NextRequest) {
       emailSends: sheet.emailSends || [],
     }));
 
-    return NextResponse.json(sheetsWithEmailSends);
+    return NextResponse.json(
+      sheetsWithEmailSends.map(serializeDailySheetForClient)
+    );
   } catch (error) {
     console.error("Physical daily sheets fetch error:", error);
     return NextResponse.json(

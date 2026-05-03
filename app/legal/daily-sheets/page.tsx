@@ -26,6 +26,7 @@ interface DailySheet {
   hotelName: string | null;
   description: string | null;
   notes: string | null;
+  comment?: string | null;
   pricePerKg: number | null;
   sheetType: string;
   totalWeight: number | null;
@@ -288,7 +289,12 @@ export default function LegalDailySheetsPage() {
       });
 
     return (
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto space-y-2">
+        {sheet.comment && sheet.comment.trim() !== "" && (
+          <p className="text-gray-800 md:text-[16px] text-[14px]">
+            <strong>კომენტარი:</strong> {sheet.comment}
+          </p>
+        )}
         <table className="w-full border-collapse border border-gray-300 md:text-[18px] text-[16px]">
           <thead>
             <tr className="bg-orange-100">

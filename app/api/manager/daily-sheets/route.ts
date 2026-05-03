@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  serializeDailySheetForClient,
+  sheetNotesFromBody,
+} from "@/lib/daily-sheet-api";
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,7 +92,9 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      return NextResponse.json(sheetsWithConfirmation);
+      return NextResponse.json(
+        sheetsWithConfirmation.map(serializeDailySheetForClient)
+      );
     } catch (dbError: any) {
       console.error("Database query error:", dbError);
       console.error("Error code:", dbError?.code);
@@ -97,7 +103,21 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error("Daily sheets fetch error:", error);
-    const errorMessage = error instanceof Error ? error.message : "უცნობი შეცდომა";
+    let errorMessage =
+      error instanceof Error ? error.message : "უცნობი შეცდომა";
+    const prismaCode = error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+    if (prismaCode) {
+      errorMessage = `${errorMessage} (${prismaCode})`.trim();
+    }
+    const prismaMeta =
+      error && typeof error === "object" && "meta" in error
+        ? (error as { meta?: unknown }).meta
+        : undefined;
+    if (prismaMeta && typeof prismaMeta === "object") {
+      console.error("Prisma meta:", JSON.stringify(prismaMeta));
+    }
     return NextResponse.json(
       { error: `დღის ფურცლების ჩატვირთვისას მოხდა შეცდომა: ${errorMessage}` },
       { status: 500 }
@@ -131,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, sheetType, totalWeight, pricePerKg, totalPrice, items } = body;
+    const { date, hotelName, roomNumber, description, notes, comment, sheetType, totalWeight, pricePerKg, totalPrice, items } = body;
 
     if (!date) {
       return NextResponse.json(
@@ -245,7 +265,7 @@ export async function POST(request: NextRequest) {
       hotelName: cleanHotelName,
       roomNumber: (roomNumber && String(roomNumber).trim()) ? String(roomNumber).trim() : null,
       description: (description && String(description).trim()) ? String(description).trim() : null,
-      notes: (notes && String(notes).trim()) ? String(notes).trim() : null,
+      notes: sheetNotesFromBody(comment, notes),
       pricePerKg: finalPricePerKg,
       sheetType: sheetType || "INDIVIDUAL",
       totalWeight: totalWeight ? parseFloat(totalWeight) : null,
@@ -317,7 +337,10 @@ export async function POST(request: NextRequest) {
       throw createError;
     }
 
-    return NextResponse.json(sheet, { status: 201 });
+    return NextResponse.json(
+      serializeDailySheetForClient(sheet as Record<string, unknown>),
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Daily sheet create error:", error);
     console.error("Request body:", body);
