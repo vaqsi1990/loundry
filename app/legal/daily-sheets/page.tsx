@@ -24,6 +24,8 @@ interface DailySheet {
   id: string;
   date: string;
   hotelName: string | null;
+  roomNumber?: string | null;
+  shiftType?: string | null;
   description: string | null;
   notes: string | null;
   comment?: string | null;
@@ -41,6 +43,16 @@ interface DailySheet {
     confirmedBy: string | null;
   }>;
 }
+
+type SheetEditHandlers = {
+  patchItem: (
+    category: string,
+    itemNameKa: string,
+    patch: Partial<DailySheetItem>
+  ) => void;
+  setComment: (v: string) => void;
+  setTotalWeight: (v: number | null) => void;
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   LINEN: "თეთრეული",
@@ -125,6 +137,96 @@ export default function LegalDailySheetsPage() {
   const [selectedDay, setSelectedDay] = useState("");
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set());
+  const [editingSheetId, setEditingSheetId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<DailySheet | null>(null);
+  const [saveEditError, setSaveEditError] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const cloneSheet = (sheet: DailySheet): DailySheet =>
+    JSON.parse(JSON.stringify(sheet));
+
+  const beginEditSheet = (sheet: DailySheet) => {
+    setEditingSheetId(sheet.id);
+    setEditDraft(cloneSheet(sheet));
+    setSaveEditError("");
+  };
+
+  const cancelEditSheet = () => {
+    setEditingSheetId(null);
+    setEditDraft(null);
+    setSaveEditError("");
+  };
+
+  const patchDraftItem = (
+    category: string,
+    itemNameKa: string,
+    patch: Partial<DailySheetItem>
+  ) => {
+    setEditDraft((prev) => {
+      if (!prev) return prev;
+      const items = prev.items.map((i) => {
+        if (i.category !== category || i.itemNameKa !== itemNameKa) return i;
+        const next = { ...i, ...patch } as DailySheetItem;
+        if (patch.weight !== undefined) {
+          next.totalWeight =
+            typeof patch.weight === "number"
+              ? patch.weight
+              : Number(patch.weight) || 0;
+        }
+        return next;
+      });
+      return { ...prev, items };
+    });
+  };
+
+  const saveHotelSheetEdit = async () => {
+    if (!editDraft) return;
+    setSavingEdit(true);
+    setSaveEditError("");
+    try {
+      const res = await fetch(`/api/legal/daily-sheets/${editDraft.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomNumber: editDraft.roomNumber ?? null,
+          description: editDraft.description ?? null,
+          notes: editDraft.notes ?? null,
+          comment: editDraft.comment ?? null,
+          shiftType: editDraft.shiftType ?? null,
+          sheetType: editDraft.sheetType,
+          totalWeight: editDraft.totalWeight,
+          pricePerKg: editDraft.pricePerKg,
+          totalPrice: editDraft.totalPrice,
+          items: editDraft.items.map((i) => ({
+            category: i.category,
+            itemNameKa: i.itemNameKa,
+            weight: i.weight ?? 0,
+            received: i.received ?? 0,
+            washCount: i.washCount ?? 0,
+            dispatched: i.dispatched ?? 0,
+            shortage: i.shortage ?? 0,
+            totalWeight: i.totalWeight ?? i.weight ?? 0,
+            price: i.price ?? null,
+            comment: i.comment ?? null,
+          })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "შენახვა ვერ მოხერხდა"
+        );
+      }
+      cancelEditSheet();
+      await fetchDailySheets();
+    } catch (e) {
+      setSaveEditError(
+        e instanceof Error ? e.message : "შენახვისას მოხდა შეცდომა"
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -212,7 +314,13 @@ export default function LegalDailySheetsPage() {
   };
 
 
-  const renderSheetTable = (sheet: DailySheet) => {
+  const parseNumCellInput = (raw: string) => {
+    if (raw === "" || raw === "-") return 0;
+    const n = parseFloat(raw.replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const renderSheetTable = (sheet: DailySheet, handlers?: SheetEditHandlers) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
     const totals = calculateTotals(sheet.items);
     const hasProtectors = sheet.items.some(item => item.category === "PROTECTORS");
@@ -252,49 +360,110 @@ export default function LegalDailySheetsPage() {
         const isLinenOrTowel = item.category === "LINEN" || item.category === "TOWELS";
         const itemPrice = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
         const itemTotalPrice = isProtector ? (itemPrice * (item.dispatched || 0)) : 0;
+
+        const numInputTd = (
+          field:
+            | "weight"
+            | "received"
+            | "washCount"
+            | "dispatched"
+            | "shortage"
+            | "totalWeight",
+          step: string
+        ) =>
+          handlers ? (
+            <td key={field} className="border border-gray-300 px-1 py-1 text-center">
+              <input
+                type="number"
+                step={step}
+                className="w-14 md:w-[4.25rem] text-center border border-gray-300 rounded px-0.5 py-0.5 text-[13px] md:text-[15px]"
+                value={typeof item[field] === "number" ? item[field] : 0}
+                onChange={(e) => {
+                  const n = parseNumCellInput(e.target.value);
+                  const patch = { [field]: n } as Partial<DailySheetItem>;
+                  if (field === "weight") patch.totalWeight = n;
+                  handlers.patchItem(item.category, item.itemNameKa, patch);
+                }}
+              />
+            </td>
+          ) : (
+            <td key={field} className="border border-gray-300 px-2 py-1 text-center">
+              {field === "weight"
+                ? (item.weight || 0).toFixed(3)
+                : field === "totalWeight"
+                  ? (item.totalWeight || 0).toFixed(2)
+                  : Number(item[field] ?? 0)}
+            </td>
+          );
+
+        const priceCell =
+          showPriceColumn && (
+            <td key="price-col" className="border border-gray-300 px-2 py-1 text-center">
+              {isProtector ? itemTotalPrice.toFixed(2) : (isLinenOrTowel ? "0" : "-")}
+            </td>
+          );
         
         return (
           <tr key={`${item.itemNameKa}-${idx}`} className="bg-white">
             <td className="border border-gray-300 px-2 py-1">{item.itemNameKa}</td>
             {sheet.sheetType === "INDIVIDUAL" && (
               <>
-                <td className="border border-gray-300 px-2 py-1 text-center">{(item.weight || 0).toFixed(3)}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.washCount}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{(item.totalWeight || 0).toFixed(2)}</td>
-                {showPriceColumn && (
-                  <td className="border border-gray-300 px-2 py-1 text-center">
-                    {isProtector ? itemTotalPrice.toFixed(2) : (isLinenOrTowel ? "0" : "-")}
-                  </td>
-                )}
+                {numInputTd("weight", "0.001")}
+                {numInputTd("received", "1")}
+                {numInputTd("washCount", "1")}
+                {numInputTd("dispatched", "1")}
+                {numInputTd("shortage", "1")}
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {(item.totalWeight || 0).toFixed(2)}
+                </td>
+                {priceCell}
               </>
             )}
             {sheet.sheetType === "STANDARD" && (
               <>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.received}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.dispatched}</td>
-                <td className="border border-gray-300 px-2 py-1 text-center">{item.shortage}</td>
-                {showPriceColumn && (
-                  <td className="border border-gray-300 px-2 py-1 text-center">
-                    {isProtector ? itemTotalPrice.toFixed(2) : (isLinenOrTowel ? "0" : "-")}
-                  </td>
-                )}
+                {numInputTd("received", "1")}
+                {numInputTd("dispatched", "1")}
+                {numInputTd("shortage", "1")}
+                {priceCell}
               </>
             )}
-            <td className="border border-gray-300 px-2 py-1">{item.comment || ""}</td>
+            <td className="border border-gray-300 px-2 py-1 align-top">
+              {handlers ? (
+                <input
+                  type="text"
+                  className="w-full min-w-[8rem] border border-gray-300 rounded px-1 py-1 text-[13px] md:text-[15px]"
+                  value={item.comment ?? ""}
+                  onChange={(e) =>
+                    handlers.patchItem(item.category, item.itemNameKa, {
+                      comment: e.target.value,
+                    })
+                  }
+                />
+              ) : (
+                item.comment || ""
+              )}
+            </td>
           </tr>
         );
       });
 
     return (
       <div className="overflow-x-auto space-y-2">
-        {sheet.comment && sheet.comment.trim() !== "" && (
+        {handlers ? (
+          <div className="space-y-1">
+            <label className="block text-[14px] font-medium text-gray-700">კომენტარი</label>
+            <textarea
+              value={sheet.comment ?? ""}
+              onChange={(e) => handlers.setComment(e.target.value)}
+              rows={2}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-[15px]"
+            />
+          </div>
+        ) : sheet.comment?.trim() ? (
           <p className="text-gray-800 md:text-[16px] text-[14px]">
             <strong>კომენტარი:</strong> {sheet.comment}
           </p>
-        )}
+        ) : null}
         <table className="w-full border-collapse border border-gray-300 md:text-[18px] text-[16px]">
           <thead>
             <tr className="bg-orange-100">
@@ -374,17 +543,38 @@ export default function LegalDailySheetsPage() {
               )}
               <td className="border border-gray-300 px-2 py-1 text-center">-</td>
             </tr>
-            {sheet.sheetType === "STANDARD" && sheet.totalWeight && (
+            {sheet.sheetType === "STANDARD" && (handlers || sheet.totalWeight) ? (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
                   მთლიანი წონა:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {sheet.totalWeight.toFixed(2)} კგ
+                  {handlers ? (
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <input
+                        type="number"
+                        step="0.001"
+                        className="w-24 text-center border border-gray-300 rounded px-1 py-0.5"
+                        value={sheet.totalWeight ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            handlers.setTotalWeight(null);
+                            return;
+                          }
+                          const n = parseFloat(raw.replace(",", "."));
+                          handlers.setTotalWeight(Number.isFinite(n) ? n : null);
+                        }}
+                      />
+                      <span className="text-[14px]">კგ</span>
+                    </span>
+                  ) : (
+                    sheet.totalWeight != null && `${sheet.totalWeight.toFixed(2)} კგ`
+                  )}
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
-            )}
+            ) : null}
             {sheet.pricePerKg && (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
@@ -539,22 +729,71 @@ export default function LegalDailySheetsPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
-                      {!sheet.confirmedAt && (
-                        <button
-                          onClick={() => confirmDailySheet(sheet.id)}
-                          className="bg-green-600 font-bold text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-green-700"
-                        >
-                          დადასტურება
-                        </button>
+                    <div className="flex flex-wrap gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
+                      {editingSheetId === sheet.id ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void saveHotelSheetEdit()}
+                            disabled={savingEdit || !editDraft}
+                            className="bg-blue-600 font-bold text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {savingEdit ? "მიმდინარეობს..." : "შენახვა"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditSheet}
+                            disabled={savingEdit}
+                            className="bg-gray-200 font-semibold text-black px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-gray-300 disabled:opacity-50"
+                          >
+                            გაუქმება
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!expandedSheets.has(sheet.id)) toggleSheet(sheet.id);
+                              beginEditSheet(sheet);
+                            }}
+                            className="bg-white border border-blue-600 text-blue-700 font-semibold px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-blue-50"
+                          >
+                            რედაქტირება
+                          </button>
+                          {!sheet.confirmedAt && (
+                            <button
+                              type="button"
+                              onClick={() => confirmDailySheet(sheet.id)}
+                              className="bg-green-600 font-bold text-white px-4 py-2 rounded-lg text-[14px] md:text-[16px] hover:bg-green-700"
+                            >
+                              დადასტურება
+                            </button>
+                          )}
+                        </>
                       )}
-                  
                     </div>
                   </div>
                   {/* Content - Collapsible */}
                   {isExpanded && (
-                    <div className="px-6 pb-6 border-t border-gray-200 pt-4">
-                      {renderSheetTable(sheet)}
+                    <div className="px-6 pb-6 border-t border-gray-200 pt-4 space-y-2">
+                      {editingSheetId === sheet.id && saveEditError && (
+                        <p className="text-red-600 text-sm">{saveEditError}</p>
+                      )}
+                      {renderSheetTable(
+                        editingSheetId === sheet.id && editDraft ? editDraft : sheet,
+                        editingSheetId === sheet.id && editDraft
+                          ? {
+                              patchItem: patchDraftItem,
+                              setComment: (v) =>
+                                setEditDraft((d) =>
+                                  d ? { ...d, comment: v, notes: v } : d
+                                ),
+                              setTotalWeight: (v) =>
+                                setEditDraft((d) => (d ? { ...d, totalWeight: v } : d)),
+                            }
+                          : undefined
+                      )}
                     </div>
                   )}
                 </div>
