@@ -14,6 +14,7 @@ interface DateDetail {
   emailSendCount: number;
   weightKg: number;
   protectorsAmount: number;
+  heavyWeightAmount?: number;
   totalAmount: number;
   sentAt: string | null;
   confirmedAt: string | null;
@@ -732,6 +733,10 @@ export default function InvoicesSection() {
                         (sum, inv) => sum + (inv.detail.protectorsAmount || 0),
                         0
                       );
+                      const totalHotelHeavyWeight = hotelInvoices.reduce(
+                        (sum, inv) => sum + (inv.detail.heavyWeightAmount || 0),
+                        0
+                      );
                       const dateDetailsForHotel = hotelInvoices.map((inv) => inv.detail);
                       const allConfirmed =
                         dateDetailsForHotel.length > 0 &&
@@ -745,7 +750,7 @@ export default function InvoicesSection() {
                             className="w-full px-6 py-3 flex items-center justify-between bg-white hover:bg-gray-50 cursor-pointer"
                             onClick={() => toggleHotel(monthKey, hotelKey)}
                           >
-                            <div className="grid items-center gap-x-3 gap-y-1 min-w-0 tabular-nums grid-cols-[minmax(120px,1fr)_90px_110px_120px_170px] md:grid-cols-[260px_90px_110px_120px_180px]">
+                            <div className="grid items-center gap-x-3 gap-y-1 min-w-0 tabular-nums grid-cols-[minmax(120px,1fr)_90px_110px_120px_140px_170px] md:grid-cols-[260px_90px_110px_120px_150px_180px]">
                               <span className="text-[14px] md:text-[18px] font-semibold text-black truncate min-w-0">
                                 {displayName}
                               </span>
@@ -754,6 +759,9 @@ export default function InvoicesSection() {
                               </span>
                               <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
                                 {totalHotelWeight.toFixed(2)} კგ
+                              </span>
+                              <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
+                                მძიმე {totalHotelHeavyWeight.toFixed(2)} ₾
                               </span>
                               <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
                                 {totalHotelAmount.toFixed(2)} ₾
@@ -830,6 +838,9 @@ export default function InvoicesSection() {
                                           დამცავები (₾)
                                         </th>
                                         <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          მძიმე (₾)
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
                                           სულ (₾)
                                         </th>
                                       </tr>
@@ -857,6 +868,9 @@ export default function InvoicesSection() {
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
                                               {(detail.protectorsAmount || 0).toFixed(2)} ₾
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              {(detail.heavyWeightAmount || 0).toFixed(2)} ₾
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
                                               {(detail.totalAmount || 0).toFixed(2)} ₾

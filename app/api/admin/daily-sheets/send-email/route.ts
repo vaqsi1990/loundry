@@ -118,7 +118,12 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const linenTowelsPrice =
     sheet.pricePerKg && weightForPrice ? sheet.pricePerKg * weightForPrice : 0;
 
-  const totalPrice = linenTowelsPrice + protectorsTotal;
+  const heavyWeightPrice =
+    sheet.heavyWeight && sheet.heavyPricePerKg
+      ? Number(sheet.heavyWeight) * Number(sheet.heavyPricePerKg)
+      : 0;
+
+  const totalPrice = linenTowelsPrice + heavyWeightPrice + protectorsTotal;
 
   return `
     <div style="font-family:Arial,sans-serif;color:#222;">
@@ -211,12 +216,45 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
               : ""
           }
           ${
+            sheet.heavyWeight
+              ? `
+                <tr style="background:#fff;font-weight:600;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონა - კგ:</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${Number(sheet.heavyWeight).toFixed(2)} კგ</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
+            sheet.heavyPricePerKg
+              ? `
+                <tr style="background:#fff;font-weight:600;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი / 1 კგ:</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${Number(sheet.heavyPricePerKg).toFixed(2)} ₾</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
             hasProtectors && protectorsTotal > 0
               ? `
                 <tr style="background:#fff;font-weight:600;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">დამცავების ფასი (იც):</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal.toFixed(2)} ₾</td>
                   ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+                </tr>
+              `
+              : ""
+          }
+          ${
+            heavyWeightPrice > 0
+              ? `
+                <tr style="background:#fff3e0;font-weight:600;">
+                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი:</td>
+                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightPrice.toFixed(2)} ₾</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
               `

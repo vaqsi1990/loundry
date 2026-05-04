@@ -14,6 +14,8 @@ export type DailySheetForTotals = {
   totalWeight?: number | null;
   totalPrice?: number | null;
   pricePerKg?: number | null;
+  heavyWeight?: number | null;
+  heavyPricePerKg?: number | null;
   items?: Array<{
     category?: string | null;
     itemNameKa?: string | null;
@@ -60,9 +62,13 @@ export function liveDisplayedTotalWeightKg(
 }
 
 /** მძიმე წონის ₾ ჯამი დამოუკიდებლად — დამცავების ზოგად ჯამში არ მოიაზრება */
-export function liveHeavyWeightProtectorsAmount(
+export function liveHeavyWeightAmountGel(
   sheet: DailySheetForTotals | null | undefined
 ): number {
+  const hw = sheet?.heavyWeight;
+  const hp = sheet?.heavyPricePerKg;
+  const byFields = num(hw) * num(hp);
+  if (byFields > 0) return byFields;
   return heavyWeightProtectorsLineAmountGel(
     sheet?.items ?? [],
     HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
@@ -74,9 +80,14 @@ export function liveProtectorsAmount(
   sheet: DailySheetForTotals | null | undefined
 ): number {
   if (!sheet?.items?.length) return 0;
-  const heavyAmt = liveHeavyWeightProtectorsAmount(sheet);
+  // New: heavy weight is stored separately on the sheet, so do not subtract it from protectors totalPrice.
+  // Back-compat: if some legacy data stored heavy-weight line inside protectors totalPrice, subtract line-based amount.
+  const legacyHeavyAmt = heavyWeightProtectorsLineAmountGel(
+    sheet.items,
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
+  );
   if (sheet.sheetType === "STANDARD" && sheet.totalPrice != null) {
-    return Math.max(0, num(sheet.totalPrice) - heavyAmt);
+    return Math.max(0, num(sheet.totalPrice) - legacyHeavyAmt);
   }
   return sheet.items
     .filter(
@@ -149,7 +160,7 @@ export function liveGrandTotalAmountGel(
 ): number {
   return (
     liveLinenTowelsAmountGel(sheet, defaultPricePerKg) +
-    // NOTE: «მძიმე წონა» აღარ შედის ინვოისის/ჯამის თანხებში.
+    liveHeavyWeightAmountGel(sheet) +
     liveProtectorsAmount(sheet)
   );
 }

@@ -6,6 +6,7 @@ import {
   effectiveKgPriceFromSheetAndDefault,
   liveDisplayedTotalWeightKg,
   liveLinensWeightBasisKg,
+  liveHeavyWeightAmountGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
 import path from "path";
@@ -563,10 +564,22 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // «მძიმე წონა» აღარ შედის ინვოისში.
     });
     
     // Add protectors if any (as separate item) - same as admin send-pdf
+    const totalHeavyWeight = emailSends.reduce(
+      (sum, es) => sum + liveHeavyWeightAmountGel(es.dailySheet),
+      0
+    );
+    if (totalHeavyWeight > 0) {
+      items.push({
+        description: "მძიმე წონა",
+        quantity: "-",
+        unitPrice: totalHeavyWeight,
+        total: totalHeavyWeight,
+      });
+    }
+
     const totalProtectors = emailSends.reduce(
       (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
       0

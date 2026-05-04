@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import {
   liveGrandTotalAmountGel,
+  liveHeavyWeightAmountGel,
   liveProtectorsAmount,
   summedItemLineWeightKg,
   num,
