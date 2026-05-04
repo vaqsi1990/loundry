@@ -146,7 +146,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
             ${
               sheet.sheetType === "INDIVIDUAL"
                 ? `
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">წონა (კგ)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">წონა (კგ) </th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">რეცხვის რაოდენობა (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>

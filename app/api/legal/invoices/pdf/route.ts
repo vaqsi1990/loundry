@@ -208,10 +208,10 @@ function generateInvoicePDF(
       drawBoldText("მომსახურების პერიოდი", x, hY, { width: col.description, align: "center" });
       x += col.description;
 
-      drawBoldText("წონა (კგ)", x, hY, { width: col.quantity, align: "center" });
+      drawBoldText("წონა (კგ) / ცალი", x, hY, { width: col.quantity, align: "center" });
       x += col.quantity;
 
-      drawBoldText("კგ-ის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
+      drawBoldText("კგ-ის ფასი / ცალის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
       x += col.unitPrice;
 
       drawBoldText("ჯამი (₾)", x, hY, { width: col.total, align: "center" });
