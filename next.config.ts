@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* pdfkit reads AFM fonts from node_modules/pdfkit/js/data via __dirname —
+   * bundling breaks that path (ENOENT under C:\\ROOT\\...). Keep it external. */
+  serverExternalPackages: ["pdfkit", "fontkit"],
   images: {
     remotePatterns: [
       {

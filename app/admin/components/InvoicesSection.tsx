@@ -96,19 +96,69 @@ export default function InvoicesSection() {
   const fetchHotels = async () => {
     try {
       const apiPath = getApiPath("our-hotels");
-      const response = await fetch(apiPath);
-      if (!response.ok) {
-        throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
+
+      const fetchPage = async (page: number, limit: number) => {
+        const url = new URL(apiPath, window.location.origin);
+        url.searchParams.set("page", String(page));
+        url.searchParams.set("limit", String(limit));
+        const res = await fetch(url.toString());
+        if (!res.ok) {
+          throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
+        }
+        return res.json() as Promise<unknown>;
+      };
+
+      // our-hotels GET returns { items, totalPages, ... } (not a bare array).
+      const first = await fetchPage(1, 50);
+      const firstItems = Array.isArray(first)
+        ? first
+        : typeof first === "object" &&
+            first !== null &&
+            Array.isArray((first as { items?: unknown }).items)
+          ? (first as { items: unknown[] }).items
+          : [];
+
+      const totalPages =
+        typeof first === "object" &&
+        first !== null &&
+        typeof (first as { totalPages?: unknown }).totalPages === "number"
+          ? Math.max(1, (first as { totalPages: number }).totalPages)
+          : 1;
+
+      const rest: unknown[] = [];
+      for (let page = 2; page <= totalPages; page += 1) {
+        const next = await fetchPage(page, 50);
+        const nextItems = Array.isArray(next)
+          ? next
+          : typeof next === "object" &&
+              next !== null &&
+              Array.isArray((next as { items?: unknown }).items)
+            ? (next as { items: unknown[] }).items
+            : [];
+        rest.push(...nextItems);
       }
-      const data = await response.json();
+
+      const raw = [...firstItems, ...rest];
       setHotels(
-        Array.isArray(data)
-          ? data.map((h: any) => ({
-              id: h.id,
-              hotelName: h.hotelName,
-              email: h.email,
-            }))
-          : []
+        raw.map((h: unknown) => {
+          const row = h as {
+            id?: unknown;
+            hotelName?: unknown;
+            email?: unknown;
+            hotelEmail?: unknown;
+          };
+          const fromRow =
+            typeof row.email === "string" && row.email.trim() !== ""
+              ? row.email.trim()
+              : typeof row.hotelEmail === "string" && row.hotelEmail.trim() !== ""
+                ? row.hotelEmail.trim()
+                : "";
+          return {
+            id: String(row.id ?? ""),
+            hotelName: String(row.hotelName ?? "").trim(),
+            email: fromRow || undefined,
+          };
+        })
       );
     } catch (err) {
       console.error("Hotels fetch error:", err);

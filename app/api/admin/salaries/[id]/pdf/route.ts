@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import path from "path";
+import { createPdfDocument } from "@/lib/pdfkit-create";
 
 function generateSalaryStatementPDF(
   firstName: string | null,
@@ -17,8 +18,7 @@ function generateSalaryStatementPDF(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
-      const PDFDocument = require("pdfkit");
-      const doc = new PDFDocument({
+      const doc = createPdfDocument({
         margin: 50,
         autoFirstPage: true,
       });

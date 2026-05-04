@@ -10,6 +10,7 @@ import {
 } from "@/lib/daily-sheet-email-send-financial";
 import path from "path";
 import fs from "fs";
+import { createPdfDocument } from "@/lib/pdfkit-create";
 
 // Seller information
 const SELLER_INFO = {
@@ -49,8 +50,7 @@ function generateInvoicePDF(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
-      const PDFDocument = require("pdfkit");
-      const doc = new PDFDocument({
+      const doc = createPdfDocument({
         margin: 50,
         autoFirstPage: true,
         size: 'A4',

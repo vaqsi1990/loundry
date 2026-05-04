@@ -12,6 +12,7 @@ import {
 import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
+import { createPdfDocument } from "@/lib/pdfkit-create";
 
 // Create transporter with proper Gmail configuration
 const getTransporter = () => {
@@ -82,8 +83,7 @@ function generateInvoicePDF(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
-      const PDFDocument = require("pdfkit");
-      const doc = new PDFDocument({
+      const doc = createPdfDocument({
         margin: 50,
         autoFirstPage: true,
       });
