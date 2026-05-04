@@ -48,3 +48,15 @@ export function heavyWeightProtectorsLineAmountGel(
     return sum + unitPrice * q;
   }, 0);
 }
+
+/** Sum of `dispatched` on «მძიმე წონა» rows (kg / qty basis for line total). */
+export function heavyWeightProtectorsDispatchedQty(
+  items: ReadonlyArray<ItemLike>
+): number {
+  return items.reduce((sum, item) => {
+    if (item.category !== "PROTECTORS" || item.itemNameKa !== HEAVY_WEIGHT_ITEM_KA)
+      return sum;
+    const qty = Number(item.dispatched ?? 0);
+    return sum + (Number.isFinite(qty) ? qty : 0);
+  }, 0);
+}
