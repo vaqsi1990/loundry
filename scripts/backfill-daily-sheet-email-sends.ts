@@ -16,7 +16,7 @@ async function main() {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const sends =
+      const sends: any[] =
         kind === "legal"
           ? await prisma.legalDailySheetEmailSend.findMany({
               take: batchSize,

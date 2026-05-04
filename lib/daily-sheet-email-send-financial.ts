@@ -6,6 +6,8 @@
 import {
   HEAVY_WEIGHT_ITEM_KA,
   HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY,
+  heavyWeightProtectorsDispatchedQty,
+  heavyWeightProtectorsKgUnitPriceGel,
   heavyWeightProtectorsLineAmountGel,
 } from "./daily-sheet-heavy-weight";
 
@@ -70,6 +72,31 @@ export function liveHeavyWeightAmountGel(
   const byFields = num(hw) * num(hp);
   if (byFields > 0) return byFields;
   return heavyWeightProtectorsLineAmountGel(
+    sheet?.items ?? [],
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
+  );
+}
+
+/** მძიმე წონის კგ (sheet.heavyWeight თუ არის, თორემ legacy «მძიმე წონა» ხაზის dispatched ჯამი). */
+export function liveHeavyWeightKg(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  const hw = sheet?.heavyWeight;
+  const byFields = num(hw);
+  if (byFields > 0) return byFields;
+  return heavyWeightProtectorsDispatchedQty(
+    sheet?.items ?? []
+  );
+}
+
+/** მძიმე წონის ₾/კგ (sheet.heavyPricePerKg თუ არის, თორემ legacy «მძიმე წონა» ხაზის price). */
+export function liveHeavyWeightPricePerKgGel(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  const hp = sheet?.heavyPricePerKg;
+  const byFields = num(hp);
+  if (byFields > 0) return byFields;
+  return heavyWeightProtectorsKgUnitPriceGel(
     sheet?.items ?? [],
     HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
   );

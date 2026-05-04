@@ -5,9 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
-  effectiveKgPriceFromSheetAndDefault,
-  liveLinensWeightBasisKg,
-  liveHeavyWeightAmountGel,
+  liveDisplayedTotalWeightKg,
+  liveGrandTotalAmountGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
 import nodemailer from "nodemailer";
@@ -569,7 +568,7 @@ export async function POST(request: NextRequest) {
     const serviceDate =
       sortedEmailSends.length > 0 ? new Date(sortedEmailSends[0].date) : new Date(issueDate);
     
-    // Create a separate item for each emailSend
+    // Create ONE combined row per emailSend (date row includes linens + heavy + protectors)
     sortedEmailSends.forEach((emailSend) => {
       const date = new Date(emailSend.date);
       const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
@@ -582,95 +581,24 @@ export async function POST(request: NextRequest) {
       }
 
       const ds = emailSend.dailySheet;
-      const kgPriceForSheet = effectiveKgPriceFromSheetAndDefault(ds, pricePerKg);
-      const hasTablecloths =
-        ds?.items?.some((item: any) =>
-          item.itemNameKa?.toLowerCase().includes("სუფრ")
-        ) || false;
-      const linenBasisKg = liveLinensWeightBasisKg(ds);
+      const rowWeightKg = liveDisplayedTotalWeightKg(ds);
+      const rowTotal = liveGrandTotalAmountGel(ds, pricePerKg);
+      const rowUnitPrice = rowWeightKg > 0 ? rowTotal / rowWeightKg : rowTotal;
 
-      if (hasTablecloths && ds?.items?.length) {
-        const tableclothsItems =
-          ds.items.filter((item: any) =>
-            item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-        const regularItems =
-          ds.items.filter(
-            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-
-        const tableclothsWeight = tableclothsItems.reduce(
-          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
-          0
-        );
-        const regularWeight = regularItems.reduce(
-          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
-          0
-        );
-
-        if (regularWeight > 0) {
-          items.push({
-            description: sentLabel,
-            quantity: `${regularWeight.toFixed(1)} კგ`,
-            unitPrice: kgPriceForSheet,
-            total: regularWeight * kgPriceForSheet,
-          });
-        }
-
-        if (tableclothsWeight > 0) {
-          const tableclothsPrice = 3.0;
-          items.push({
-            description: `${sentLabel} - სუფრები`,
-            quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-            unitPrice: tableclothsPrice,
-            total: tableclothsWeight * tableclothsPrice,
-          });
-        }
-      } else if (linenBasisKg > 0) {
-        items.push({
-          description: sentLabel,
-          quantity: `${linenBasisKg.toFixed(1)} კგ`,
-          unitPrice: kgPriceForSheet,
-          total: linenBasisKg * kgPriceForSheet,
-        });
-      }
+      items.push({
+        description: sentLabel,
+        quantity: rowWeightKg > 0 ? `${rowWeightKg.toFixed(1)} კგ` : "-",
+        unitPrice: rowUnitPrice,
+        total: rowTotal,
+      });
 
     });
     
-    // Add protectors if any (as separate item)
-    const totalHeavyWeight = emailSends.reduce(
-      (sum, es) => sum + liveHeavyWeightAmountGel(es.dailySheet),
-      0
-    );
-    if (totalHeavyWeight > 0) {
-      items.push({
-        description: "მძიმე წონა",
-        quantity: "-",
-        unitPrice: totalHeavyWeight,
-        total: totalHeavyWeight,
-      });
-    }
-
-    const totalProtectors = emailSends.reduce(
-      (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
-      0
-    );
-    if (totalProtectors > 0) {
-      items.push({
-        description: "დამცავები",
-        quantity: "1",
-        unitPrice: totalProtectors,
-        total: totalProtectors,
-      });
-    }
-    
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
-    const totalWeightKg = items.reduce((sum, item) => {
-      // quantity is like "12.3 კგ" or "1" for protectors
-      const match = item.quantity.match(/([\d.]+)/);
-      const num = match ? parseFloat(match[1]) : 0;
-      return sum + num;
-    }, 0);
+    const totalWeightKg = emailSends.reduce(
+      (sum, es) => sum + liveDisplayedTotalWeightKg(es.dailySheet),
+      0
+    );
     const protectorsAmount = emailSends.reduce(
       (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
       0

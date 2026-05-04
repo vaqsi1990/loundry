@@ -5,9 +5,8 @@ import prisma from "@/lib/prisma";
 import {
   effectiveKgPriceFromSheetAndDefault,
   liveDisplayedTotalWeightKg,
-  liveLinensWeightBasisKg,
-  liveHeavyWeightAmountGel,
   liveProtectorsAmount,
+  liveGrandTotalAmountGel,
 } from "@/lib/daily-sheet-email-send-financial";
 import path from "path";
 import fs from "fs";
@@ -493,7 +492,7 @@ export async function GET(request: NextRequest) {
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     
-    // Create a separate item for each emailSend - same logic as admin send-pdf
+    // Create ONE combined row per emailSend (date row includes linens + heavy + protectors)
     sortedEmailSends.forEach((emailSend) => {
       // Format dailySheetDate (emailSend.date is the DailySheet date)
       const formatDateGe = (date: Date) => {
@@ -511,87 +510,18 @@ export async function GET(request: NextRequest) {
       const sentLabel = formatDateGe(dailySheetDate);
 
       const ds = emailSend.dailySheet;
-      const kgPriceForSheet = effectiveKgPriceFromSheetAndDefault(ds, pricePerKg);
-      const hasTablecloths =
-        ds?.items?.some((item: any) =>
-          item.itemNameKa?.toLowerCase().includes("სუფრ")
-        ) || false;
-      const linenBasisKg = liveLinensWeightBasisKg(ds);
+      const rowWeightKg = liveDisplayedTotalWeightKg(ds);
+      const rowTotal = liveGrandTotalAmountGel(ds, pricePerKg);
+      const rowUnitPrice = rowWeightKg > 0 ? rowTotal / rowWeightKg : rowTotal;
 
-      if (hasTablecloths && ds?.items?.length) {
-        const tableclothsItems =
-          ds.items.filter((item: any) =>
-            item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-        const regularItems =
-          ds.items.filter(
-            (item: any) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-          ) || [];
-
-        const tableclothsWeight = tableclothsItems.reduce(
-          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
-          0
-        );
-        const regularWeight = regularItems.reduce(
-          (sum, item: any) => sum + (item.totalWeight || item.weight || 0),
-          0
-        );
-
-        if (regularWeight > 0) {
-          items.push({
-            description: sentLabel,
-            quantity: `${regularWeight.toFixed(1)} კგ`,
-            unitPrice: kgPriceForSheet,
-            total: regularWeight * kgPriceForSheet,
-          });
-        }
-
-        if (tableclothsWeight > 0) {
-          const tableclothsPrice = 3.0;
-          items.push({
-            description: `${sentLabel} - სუფრები`,
-            quantity: `${tableclothsWeight.toFixed(1)} კგ`,
-            unitPrice: tableclothsPrice,
-            total: tableclothsWeight * tableclothsPrice,
-          });
-        }
-      } else if (linenBasisKg > 0) {
-        items.push({
-          description: sentLabel,
-          quantity: `${linenBasisKg.toFixed(1)} კგ`,
-          unitPrice: kgPriceForSheet,
-          total: linenBasisKg * kgPriceForSheet,
-        });
-      }
+      items.push({
+        description: sentLabel,
+        quantity: rowWeightKg > 0 ? `${rowWeightKg.toFixed(1)} კგ` : "-",
+        unitPrice: rowUnitPrice,
+        total: rowTotal,
+      });
 
     });
-    
-    // Add protectors if any (as separate item) - same as admin send-pdf
-    const totalHeavyWeight = emailSends.reduce(
-      (sum, es) => sum + liveHeavyWeightAmountGel(es.dailySheet),
-      0
-    );
-    if (totalHeavyWeight > 0) {
-      items.push({
-        description: "მძიმე წონა",
-        quantity: "-",
-        unitPrice: totalHeavyWeight,
-        total: totalHeavyWeight,
-      });
-    }
-
-    const totalProtectors = emailSends.reduce(
-      (sum, es) => sum + liveProtectorsAmount(es.dailySheet),
-      0
-    );
-    if (totalProtectors > 0) {
-      items.push({
-        description: "დამცავები",
-        quantity: "1",
-        unitPrice: totalProtectors,
-        total: totalProtectors,
-      });
-    }
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
