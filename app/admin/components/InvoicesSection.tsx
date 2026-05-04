@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getApiPath } from "@/lib/api-helper";
 
 interface Hotel {
@@ -32,6 +32,22 @@ interface InvoiceDaySummary {
   dateDetails?: DateDetail[];
 }
 
+/** Service-date month keys (YYYY-MM) and row counts — keeps the filter list when the API returns one month only. */
+function buildMonthOptionsFromSummaries(summaries: InvoiceDaySummary[]) {
+  const counts = new Map<string, number>();
+  for (const summary of summaries) {
+    for (const detail of summary.dateDetails || []) {
+      const d = detail.date;
+      if (typeof d !== "string" || d.length < 7) continue;
+      const monthKey = d.slice(0, 7);
+      counts.set(monthKey, (counts.get(monthKey) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([month, count]) => ({ month, count }));
+}
+
 export default function InvoicesSection() {
   const [summaries, setSummaries] = useState<InvoiceDaySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,8 +66,32 @@ export default function InvoicesSection() {
   const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // Empty = all months
+  const [monthDropdownSnapshot, setMonthDropdownSnapshot] = useState<
+    Array<{ month: string; count: number }>
+  >([]);
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedHotels, setExpandedHotels] = useState<Set<string>>(new Set());
+
+  const derivedMonthChoices = useMemo(
+    () => buildMonthOptionsFromSummaries(summaries),
+    [summaries]
+  );
+
+  useEffect(() => {
+    if (selectedMonth !== "") return;
+    setMonthDropdownSnapshot(derivedMonthChoices);
+  }, [selectedMonth, derivedMonthChoices]);
+
+  const monthOptionsForSelect = useMemo(() => {
+    if (selectedMonth === "" || monthDropdownSnapshot.length === 0) {
+      return derivedMonthChoices;
+    }
+    const liveByMonth = new Map(derivedMonthChoices.map((m) => [m.month, m.count]));
+    return monthDropdownSnapshot.map((m) => {
+      const live = liveByMonth.get(m.month);
+      return live !== undefined ? { ...m, count: live } : m;
+    });
+  }, [selectedMonth, monthDropdownSnapshot, derivedMonthChoices]);
 
   useEffect(() => {
     fetchHotels();
@@ -301,16 +341,6 @@ export default function InvoicesSection() {
     }
   };
 
-  const totalWeight = summaries.reduce((sum, d) => sum + (d.totalWeightKg || 0), 0);
-  const totalProtectors = summaries.reduce((sum, d) => sum + (d.protectorsAmount || 0), 0);
-  const totalAmount = summaries.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
-  const totalDispatched = summaries.reduce((sum, d) => sum + (d.totalDispatched || 0), 0);
-  const totalSheets = summaries.reduce((sum, d) => sum + (d.sheetCount || 0), 0);
-  const totalEmailSendCount = summaries.reduce(
-    (sum, d) => sum + (d.totalEmailSendCount || 0),
-    0
-  );
-
   const formatHotel = (name: string | null) => name || "-";
 
   const formatDate = (dateString: string) => {
@@ -473,13 +503,35 @@ export default function InvoicesSection() {
     return acc;
   }, {});
 
-  // Month options for filter dropdown – same months as headers
-  const monthOptions = Object.keys(invoicesByMonth)
-    .sort((a, b) => b.localeCompare(a)) // newest month first
-    .map((monthKey) => ({
-      month: monthKey,
-      count: invoicesByMonth[monthKey].length,
-    }));
+  // When a month is selected, derive totals from the same detail rows as the table (monthKey = service date).
+  // This keeps ფურცლები / წონა / თანხა / გაგზავნები aligned with expanded rows even if API aggregates ever diverge.
+  const monthFilteredRows =
+    selectedMonth !== ""
+      ? invoicesByMonth[selectedMonth] ??
+        flatInvoices.filter((inv) => inv.monthKey === selectedMonth)
+      : null;
+
+  const totalWeight =
+    monthFilteredRows !== null
+      ? monthFilteredRows.reduce((sum, r) => sum + (r.detail.weightKg || 0), 0)
+      : summaries.reduce((sum, d) => sum + (d.totalWeightKg || 0), 0);
+  const totalProtectors =
+    monthFilteredRows !== null
+      ? monthFilteredRows.reduce((sum, r) => sum + (r.detail.protectorsAmount || 0), 0)
+      : summaries.reduce((sum, d) => sum + (d.protectorsAmount || 0), 0);
+  const totalAmount =
+    monthFilteredRows !== null
+      ? monthFilteredRows.reduce((sum, r) => sum + (r.detail.totalAmount || 0), 0)
+      : summaries.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
+  const totalDispatched = summaries.reduce((sum, d) => sum + (d.totalDispatched || 0), 0);
+  const totalSheets =
+    monthFilteredRows !== null
+      ? monthFilteredRows.length
+      : summaries.reduce((sum, d) => sum + (d.sheetCount || 0), 0);
+  const totalEmailSendCount =
+    monthFilteredRows !== null
+      ? monthFilteredRows.reduce((sum, r) => sum + (r.detail.emailSendCount || 0), 0)
+      : summaries.reduce((sum, d) => sum + (d.totalEmailSendCount || 0), 0);
 
   const toggleMonth = (monthKey: string) => {
     setExpandedMonths(prev => {
@@ -526,7 +578,7 @@ export default function InvoicesSection() {
             className="px-4 py-2 border border-gray-300 rounded-lg text-black bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ყველა თვე</option>
-            {monthOptions.map((month) => (
+            {monthOptionsForSelect.map((month) => (
               <option key={month.month} value={month.month}>
                 {formatMonth(month.month)} ({month.count})
               </option>

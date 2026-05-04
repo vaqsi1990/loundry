@@ -210,7 +210,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all email sends from sheets that have been emailed
-    // Filter by month if emailSendsMonth parameter is provided (YYYY-MM format)
+    // Filter by month if emailSendsMonth parameter is provided (YYYY-MM format).
+    // Use daily sheet / service `date` (not `sentAt`) so totals match the UI, which groups rows by detail.date.
     let emailSendsWhere: any = {};
     if (emailSendsMonthParam) {
       const [y, m] = emailSendsMonthParam.split("-").map(Number);
@@ -218,7 +219,7 @@ export async function GET(request: NextRequest) {
         const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
         const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1, 0, 0, 0, 0));
         emailSendsWhere = {
-          sentAt: {
+          date: {
             gte: start,
             lt: end,
           },
