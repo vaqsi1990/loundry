@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import {
-  HEAVY_WEIGHT_ITEM_KA,
-  HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY,
-  heavyWeightProtectorsKgUnitPriceGel,
-  heavyWeightProtectorsLineAmountGel,
-} from "@/lib/daily-sheet-heavy-weight";
 import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
@@ -106,16 +100,10 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
     { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
   );
 
-  const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
-    sheet.items,
-    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-  );
-
   const protectorsTotal =
     sheet.sheetType === "STANDARD" && sheet.totalPrice
-      ? Math.max(0, Number(sheet.totalPrice) - heavyProtectorsMoney)
+      ? Math.max(0, Number(sheet.totalPrice))
       : protectors.reduce((sum: number, p: any) => {
-          if (p.itemNameKa === HEAVY_WEIGHT_ITEM_KA) return sum;
           const price = Number(p.price ?? 0);
           const qty = Number(p.dispatched ?? 0);
           return sum + price * qty;
@@ -129,16 +117,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
   const linenTowelsPrice =
     sheet.pricePerKg && weightForPrice ? sheet.pricePerKg * weightForPrice : 0;
 
-  const totalPrice =
-    linenTowelsPrice + protectorsTotal + heavyProtectorsMoney;
-
-  const hasHeavyWeightProtector = protectors.some(
-    (p: any) => p.itemNameKa === HEAVY_WEIGHT_ITEM_KA
-  );
-  const heavyWeightKgUnitPrice = heavyWeightProtectorsKgUnitPriceGel(
-    sheet.items,
-    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-  );
+  const totalPrice = linenTowelsPrice + protectorsTotal;
 
   return `
     <div style="font-family:Arial,sans-serif;color:#222;">
@@ -236,18 +215,6 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                 <tr style="background:#fff;font-weight:600;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">დამცავების ფასი (იც):</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal.toFixed(2)} ₾</td>
-                  ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
-                </tr>
-              `
-              : ""
-          }
-          ${
-            hasHeavyWeightProtector && heavyWeightKgUnitPrice > 0
-              ? `
-                <tr style="background:#fff;font-weight:600;">
-                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის 1 კგ-ის ფასი (იც):</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightKgUnitPrice.toFixed(2)} ₾</td>
                   ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
@@ -364,19 +331,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "სასტუმროს ელფოსტა არ არის მითითებული" }, { status: 400 });
     }
 
-    const heavyProtectorsMoney = heavyWeightProtectorsLineAmountGel(
-      sheet.items,
-      HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-    );
-
     const protectorsTotal =
       sheet.sheetType === "STANDARD" && sheet.totalPrice
-        ? Math.max(0, Number(sheet.totalPrice) - heavyProtectorsMoney)
+        ? Math.max(0, Number(sheet.totalPrice))
         : sheet.items
             .filter(
               (p: any) =>
                 p.category === "PROTECTORS" &&
-                p.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+                p.itemNameKa !== "მძიმე წონა"
             )
             .reduce((sum: number, p: any) => {
               const price = Number(p.price ?? 0);
@@ -403,8 +365,7 @@ export async function POST(req: NextRequest) {
     const linenTowelsPrice =
       sheet.pricePerKg && weightForPrice ? sheet.pricePerKg * weightForPrice : 0;
 
-    const totalPrice =
-      linenTowelsPrice + protectorsTotal + heavyProtectorsMoney;
+    const totalPrice = linenTowelsPrice + protectorsTotal;
 
     // Get logo path
     const logoPath = path.join(process.cwd(), "public", "logo.jpg");

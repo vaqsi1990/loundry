@@ -80,6 +80,8 @@ export async function PUT(
       comment,
       sheetType,
       totalWeight,
+      heavyWeight,
+      heavyPricePerKg,
       pricePerKg,
       totalPrice,
       items,
@@ -146,6 +148,14 @@ export async function PUT(
         totalWeight !== undefined && totalWeight !== null
           ? parseFloat(String(totalWeight))
           : existing.totalWeight,
+      heavyWeight:
+        heavyWeight !== undefined && heavyWeight !== null && String(heavyWeight).trim() !== ""
+          ? parseFloat(String(heavyWeight))
+          : (existing as any).heavyWeight ?? null,
+      heavyPricePerKg:
+        heavyPricePerKg !== undefined && heavyPricePerKg !== null && String(heavyPricePerKg).trim() !== ""
+          ? parseFloat(String(heavyPricePerKg))
+          : (existing as any).heavyPricePerKg ?? null,
       totalPrice:
         totalPrice !== undefined && totalPrice !== null
           ? parseFloat(String(totalPrice))

@@ -149,7 +149,7 @@ export function liveGrandTotalAmountGel(
 ): number {
   return (
     liveLinenTowelsAmountGel(sheet, defaultPricePerKg) +
-    liveProtectorsAmount(sheet) +
-    liveHeavyWeightProtectorsAmount(sheet)
+    // NOTE: «მძიმე წონა» აღარ შედის ინვოისის/ჯამის თანხებში.
+    liveProtectorsAmount(sheet)
   );
 }

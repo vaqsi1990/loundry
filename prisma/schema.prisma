@@ -299,6 +299,8 @@ model LegalDailySheet {
   pricePerKg     Float? // Price per kg from hotel
   sheetType      String    @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
   totalWeight    Float? // Total weight for STANDARD type
+  heavyWeight    Float? // Extra "heavy weight" kg (optional)
+  heavyPricePerKg Float? // Price per kg for heavy weight (optional)
   totalPrice     Float? // Total price for PROTECTORS (manual entry)
   emailedAt      DateTime?
   emailedTo      String?
@@ -328,6 +330,8 @@ model PhysicalDailySheet {
   pricePerKg     Float? // Price per kg from hotel
   sheetType      String    @default("INDIVIDUAL") // INDIVIDUAL or STANDARD
   totalWeight    Float? // Total weight for STANDARD type
+  heavyWeight    Float? // Extra "heavy weight" kg (optional)
+  heavyPricePerKg Float? // Price per kg for heavy weight (optional)
   totalPrice     Float? // Total price for PROTECTORS (manual entry)
   emailedAt      DateTime?
   emailedTo      String?

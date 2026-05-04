@@ -5,15 +5,9 @@ import prisma from "@/lib/prisma";
 import {
   effectiveKgPriceFromSheetAndDefault,
   liveDisplayedTotalWeightKg,
-  liveHeavyWeightProtectorsAmount,
   liveLinensWeightBasisKg,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
-import {
-  HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY,
-  heavyWeightProtectorsDispatchedQty,
-  heavyWeightProtectorsKgUnitPriceGel,
-} from "@/lib/daily-sheet-heavy-weight";
 import nodemailer from "nodemailer";
 import path from "path";
 import { createPdfDocument } from "@/lib/pdfkit-create";
@@ -570,20 +564,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const heavyAmt = liveHeavyWeightProtectorsAmount(ds);
-      if (heavyAmt > 0) {
-        const heavyUnit = heavyWeightProtectorsKgUnitPriceGel(
-          ds?.items ?? [],
-          HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-        );
-        const heavyQty = heavyWeightProtectorsDispatchedQty(ds?.items ?? []);
-        items.push({
-          description: `${sentLabel} — მძიმე წონა`,
-          quantity: `${heavyQty.toFixed(1)} კგ`,
-          unitPrice: heavyUnit,
-          total: heavyAmt,
-        });
-      }
+      // «მძიმე წონა» აღარ შედის ინვოისში.
     });
     
     // Add protectors if any (as separate item) - same as admin send-pdf and physical

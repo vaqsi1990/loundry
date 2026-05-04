@@ -5,11 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import React from "react";
-import {
-  HEAVY_WEIGHT_ITEM_KA,
-  heavyWeightProtectorsKgUnitPriceGel,
-  heavyWeightProtectorsLineAmountGel,
-} from "@/lib/daily-sheet-heavy-weight";
 
 interface DailySheetItem {
   id?: string;
@@ -37,6 +32,8 @@ interface DailySheet {
   pricePerKg: number | null;
   sheetType: string;
   totalWeight: number | null;
+  heavyWeight?: number | null;
+  heavyPricePerKg?: number | null;
   totalPrice: number | null;
   items: DailySheetItem[];
   createdAt: string;
@@ -57,6 +54,8 @@ type SheetEditHandlers = {
   ) => void;
   setComment: (v: string) => void;
   setTotalWeight: (v: number | null) => void;
+  setHeavyWeight: (v: number | null) => void;
+  setHeavyPricePerKg: (v: number | null) => void;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -73,7 +72,6 @@ const PROTECTOR_PRICES: Record<string, number> = {
   "ბალიში დიდი": 7,
   "ბალიში პატარა": 5,
   "ბალიში საბავშვო": 5,
-  "მძიმე წონა": 2.5,
 };
 
 // Helper function to get item order index
@@ -89,7 +87,7 @@ const getItemOrder = (category: string, itemNameKa: string): number => {
   ];
   const PROTECTOR_ITEMS = [
     "საბანი დიდი", "საბანი პატარა", "მატრასის დამცავი დიდი", "მატრასის დამცავი პატარა",
-    "ბალიში დიდი", "ბალიში პატარა", "ბალიში საბავშვო", "მძიმე წონა",
+    "ბალიში დიდი", "ბალიში პატარა", "ბალიში საბავშვო",
   ];
 
   let items: string[] = [];
@@ -129,7 +127,7 @@ const calculateProtectorsPrice = (items: DailySheetItem[]): number => {
     .filter(
       (item) =>
         item.category === "PROTECTORS" &&
-        item.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+        item.itemNameKa !== "მძიმე წონა"
     )
     .reduce((sum, item) => {
       const price = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
@@ -205,6 +203,8 @@ export default function PhysicalDailySheetsPage() {
           sheetType: editDraft.sheetType,
           totalWeight: editDraft.totalWeight,
           pricePerKg: editDraft.pricePerKg,
+          heavyWeight: editDraft.heavyWeight ?? null,
+          heavyPricePerKg: editDraft.heavyPricePerKg ?? null,
           totalPrice: editDraft.totalPrice,
           items: editDraft.items.map((i) => ({
             category: i.category,
@@ -353,11 +353,6 @@ export default function PhysicalDailySheetsPage() {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
     const totals = calculateTotals(sheet.items);
     const hasProtectors = sheet.items.some(item => item.category === "PROTECTORS");
-    const hasHeavyWeightProtector = sheet.items.some(
-      (item) =>
-        item.category === "PROTECTORS" &&
-        item.itemNameKa === HEAVY_WEIGHT_ITEM_KA
-    );
     const hasLinenOrTowels = sheet.items.some(item => item.category === "LINEN" || item.category === "TOWELS");
     const showPriceColumn = hasProtectors || hasLinenOrTowels;
     
@@ -365,6 +360,10 @@ export default function PhysicalDailySheetsPage() {
     let calculatedTotalPrice: string | null = null;
     let linenTowelsPrice = 0;
     let protectorsPrice = 0;
+    const heavyWeightPrice =
+      sheet.heavyWeight && sheet.heavyPricePerKg
+        ? sheet.heavyWeight * sheet.heavyPricePerKg
+        : 0;
     
     if (hasLinenOrTowels) {
       const weightForPrice = sheet.sheetType === "STANDARD" && sheet.totalWeight 
@@ -375,23 +374,15 @@ export default function PhysicalDailySheetsPage() {
       }
     }
     
-    const heavyProtectorsMoney =
-      heavyWeightProtectorsLineAmountGel(sheet.items, PROTECTOR_PRICES);
-
     if (hasProtectors) {
       if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-        protectorsPrice = Math.max(0, sheet.totalPrice - heavyProtectorsMoney);
+        protectorsPrice = Math.max(0, sheet.totalPrice);
       } else {
         protectorsPrice = calculateProtectorsPrice(sheet.items);
       }
     }
-
-    const heavyWeightKgPrice = hasHeavyWeightProtector
-      ? heavyWeightProtectorsKgUnitPriceGel(sheet.items, PROTECTOR_PRICES)
-      : 0;
     
-    const totalSum =
-      linenTowelsPrice + protectorsPrice + heavyProtectorsMoney;
+    const totalSum = linenTowelsPrice + heavyWeightPrice + protectorsPrice;
     if (totalSum > 0) {
       calculatedTotalPrice = totalSum.toFixed(2);
     }
@@ -617,6 +608,70 @@ export default function PhysicalDailySheetsPage() {
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             ) : null}
+            {sheet.sheetType === "STANDARD" && (handlers || sheet.heavyWeight != null) ? (
+              <tr className="bg-blue-50 font-semibold">
+                <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
+                  მძიმე წონა - კგ:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {handlers ? (
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <input
+                        type="number"
+                        step="0.001"
+                        className="w-24 text-center border border-gray-300 rounded px-1 py-0.5"
+                        value={sheet.heavyWeight ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            handlers.setHeavyWeight(null);
+                            return;
+                          }
+                          const n = parseFloat(raw.replace(",", "."));
+                          handlers.setHeavyWeight(Number.isFinite(n) ? n : null);
+                        }}
+                      />
+                      <span className="text-[14px]">კგ</span>
+                    </span>
+                  ) : (
+                    sheet.heavyWeight != null && `${sheet.heavyWeight.toFixed(2)} კგ`
+                  )}
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            ) : null}
+            {sheet.sheetType === "STANDARD" && (handlers || sheet.heavyPricePerKg != null) ? (
+              <tr className="bg-blue-50 font-semibold">
+                <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
+                  მძიმე წონის ფასი / 1 კგ:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {handlers ? (
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="w-24 text-center border border-gray-300 rounded px-1 py-0.5"
+                        value={sheet.heavyPricePerKg ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            handlers.setHeavyPricePerKg(null);
+                            return;
+                          }
+                          const n = parseFloat(raw.replace(",", "."));
+                          handlers.setHeavyPricePerKg(Number.isFinite(n) ? n : null);
+                        }}
+                      />
+                      <span className="text-[14px]">₾</span>
+                    </span>
+                  ) : (
+                    sheet.heavyPricePerKg != null && `${sheet.heavyPricePerKg.toFixed(2)} ₾`
+                  )}
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            ) : null}
             {sheet.pricePerKg && (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
@@ -628,6 +683,17 @@ export default function PhysicalDailySheetsPage() {
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             )}
+            {heavyWeightPrice > 0 && (
+              <tr className="bg-orange-50 font-semibold">
+                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? 6 : 3} className="border border-gray-300 px-2 py-1 text-right">
+                  მძიმე წონის ფასი:
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">
+                  {heavyWeightPrice.toFixed(2)} ₾
+                </td>
+                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
+              </tr>
+            )}
             {hasProtectors && protectorsPrice > 0 && (
               <tr className="bg-purple-50 font-semibold">
                 <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
@@ -635,18 +701,6 @@ export default function PhysicalDailySheetsPage() {
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
                   {protectorsPrice.toFixed(2)} ₾
-                </td>
-                {showPriceColumn && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
-                <td className="border border-gray-300 px-2 py-1 text-center">-</td>
-              </tr>
-            )}
-            {hasHeavyWeightProtector && heavyWeightKgPrice > 0 && (
-              <tr className="bg-purple-50 font-semibold">
-                <td colSpan={sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)} className="border border-gray-300 px-2 py-1 text-right">
-                  მძიმე წონის 1 კგ-ის ფასი :
-                </td>
-                <td className="border border-gray-300 px-2 py-1 text-center">
-                  {heavyWeightKgPrice.toFixed(2)} ₾
                 </td>
                 {showPriceColumn && <td className="border border-gray-300 px-2 py-1 text-center">-</td>}
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
@@ -844,6 +898,10 @@ export default function PhysicalDailySheetsPage() {
                                 ),
                               setTotalWeight: (v) =>
                                 setEditDraft((d) => (d ? { ...d, totalWeight: v } : d)),
+                              setHeavyWeight: (v) =>
+                                setEditDraft((d) => (d ? { ...d, heavyWeight: v } : d)),
+                              setHeavyPricePerKg: (v) =>
+                                setEditDraft((d) => (d ? { ...d, heavyPricePerKg: v } : d)),
                             }
                           : undefined
                       )}

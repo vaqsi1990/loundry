@@ -159,7 +159,22 @@ export async function POST(request: NextRequest) {
     }
 
     body = await request.json();
-    const { date, hotelName, roomNumber, description, notes, comment, sheetType, totalWeight, pricePerKg, totalPrice, items, shiftType } = body;
+    const {
+      date,
+      hotelName,
+      roomNumber,
+      description,
+      notes,
+      comment,
+      sheetType,
+      totalWeight,
+      pricePerKg,
+      heavyWeight,
+      heavyPricePerKg,
+      totalPrice,
+      items,
+      shiftType,
+    } = body;
 
     if (!date) {
       return NextResponse.json(
@@ -278,6 +293,14 @@ export async function POST(request: NextRequest) {
       pricePerKg: finalPricePerKg,
       sheetType: sheetType || "INDIVIDUAL",
       totalWeight: totalWeight ? parseFloat(totalWeight) : null,
+      heavyWeight:
+        heavyWeight !== undefined && heavyWeight !== null && String(heavyWeight).trim() !== ""
+          ? parseFloat(String(heavyWeight))
+          : null,
+      heavyPricePerKg:
+        heavyPricePerKg !== undefined && heavyPricePerKg !== null && String(heavyPricePerKg).trim() !== ""
+          ? parseFloat(String(heavyPricePerKg))
+          : null,
       totalPrice: totalPrice ? parseFloat(totalPrice) : null,
       items: {
         create: (items && Array.isArray(items) ? items : [])
