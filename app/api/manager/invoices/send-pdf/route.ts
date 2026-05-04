@@ -6,8 +6,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
   liveDisplayedTotalWeightKg,
-  liveGrandTotalAmountGel,
   liveProtectorsAmount,
+  invoicePdfLineItemsFromSortedSends,
 } from "@/lib/daily-sheet-email-send-financial";
 import nodemailer from "nodemailer";
 import path from "path";
@@ -270,7 +270,7 @@ function generateInvoicePDF(
       drawBoldText("წონა (კგ) / ცალი", x, hY, { width: col.quantity, align: "center" });
       x += col.quantity;
 
-      drawBoldText("კგ-ის ფასი (₾) / ცალის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
+      drawBoldText("კგ-ის  (₾) / ცალის ფასი (₾)", x, hY, { width: col.unitPrice, align: "center" });
       x += col.unitPrice;
 
       drawBoldText("ჯამი (₾)", x, hY, { width: col.total, align: "center" });
@@ -554,45 +554,16 @@ export async function POST(request: NextRequest) {
     // Calculate dates
     const issueDate = new Date();
     
-    // Build items array - each emailSend gets its own row (detailed)
-    const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
     const pricePerKg = hotel.pricePerKg || 1.8; // Default price
-    
-    // Sort email sends by date (service date from daily sheet)
+
     const sortedEmailSends = [...emailSends].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
-    // Use first service date from the sorted email sends as the invoice service date
-    // This is the same value that appears as detail.date on /admin/invoices
     const serviceDate =
       sortedEmailSends.length > 0 ? new Date(sortedEmailSends[0].date) : new Date(issueDate);
-    
-    // Create ONE combined row per emailSend (date row includes linens + heavy + protectors)
-    sortedEmailSends.forEach((emailSend) => {
-      const date = new Date(emailSend.date);
-      const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear().toString().slice(-2)}`;
 
-      // Show only the send date in parentheses; fallback to sheet date if missing
-      let sentLabel = dateStr;
-      if (emailSend.sentAt) {
-        const sentAt = new Date(emailSend.sentAt);
-        sentLabel = ` ${sentAt.getDate().toString().padStart(2, '0')}.${(sentAt.getMonth() + 1).toString().padStart(2, '0')}.${sentAt.getFullYear().toString().slice(-2)}`;
-      }
-
-      const ds = emailSend.dailySheet;
-      const rowWeightKg = liveDisplayedTotalWeightKg(ds);
-      const rowTotal = liveGrandTotalAmountGel(ds, pricePerKg);
-      const rowUnitPrice = rowWeightKg > 0 ? rowTotal / rowWeightKg : rowTotal;
-
-      items.push({
-        description: sentLabel,
-        quantity: rowWeightKg > 0 ? `${rowWeightKg.toFixed(1)} კგ` : "-",
-        unitPrice: rowUnitPrice,
-        total: rowTotal,
-      });
-
-    });
+    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
     
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     const totalWeightKg = emailSends.reduce(

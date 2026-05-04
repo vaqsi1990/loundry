@@ -6,7 +6,7 @@ import {
   effectiveKgPriceFromSheetAndDefault,
   liveDisplayedTotalWeightKg,
   liveProtectorsAmount,
-  liveGrandTotalAmountGel,
+  invoicePdfLineItemsFromSortedSends,
 } from "@/lib/daily-sheet-email-send-financial";
 import path from "path";
 import fs from "fs";
@@ -483,45 +483,13 @@ export async function GET(request: NextRequest) {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
 
-    // Build items array - each emailSend gets its own row (detailed) - same as admin send-pdf
-    const items: Array<{ description: string; quantity: string; unitPrice: number; total: number }> = [];
     const pricePerKg = hotel.pricePerKg || 1.8; // Default price
-    
-    // Sort email sends by date
-    const sortedEmailSends = [...emailSends].sort((a, b) => 
+
+    const sortedEmailSends = [...emailSends].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-    
-    // Create ONE combined row per emailSend (date row includes linens + heavy + protectors)
-    sortedEmailSends.forEach((emailSend) => {
-      // Format dailySheetDate (emailSend.date is the DailySheet date)
-      const formatDateGe = (date: Date) => {
-        const d = new Date(date);
-        const weekdays = ["კვირა", "ორშაბათი", "სამშაბათი", "ოთხშაბათი", "ხუთშაბათი", "პარასკევი", "შაბათი"];
-        const months = [
-          "იანვარი", "თებერვალი", "მარტი", "აპრილი", "მაისი", "ივნისი",
-          "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი",
-        ];
-        return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-      };
 
-      // Use dailySheetDate (emailSend.date) formatted with formatDateGe
-      const dailySheetDate = new Date(emailSend.date);
-      const sentLabel = formatDateGe(dailySheetDate);
-
-      const ds = emailSend.dailySheet;
-      const rowWeightKg = liveDisplayedTotalWeightKg(ds);
-      const rowTotal = liveGrandTotalAmountGel(ds, pricePerKg);
-      const rowUnitPrice = rowWeightKg > 0 ? rowTotal / rowWeightKg : rowTotal;
-
-      items.push({
-        description: sentLabel,
-        quantity: rowWeightKg > 0 ? `${rowWeightKg.toFixed(1)} კგ` : "-",
-        unitPrice: rowUnitPrice,
-        total: rowTotal,
-      });
-
-    });
+    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 

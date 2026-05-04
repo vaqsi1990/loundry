@@ -125,6 +125,34 @@ export function liveProtectorsAmount(
     .reduce((sum, p) => sum + num(p.price) * num(p.dispatched), 0);
 }
 
+/** «მძიმე წონა»-ს გარდა დამცავების ხაზების წონის ჯამი (ხაზის totalWeight/weight). */
+export function liveProtectorsWeightKg(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  if (!sheet?.items?.length) return 0;
+  return sheet.items
+    .filter(
+      (p) =>
+        p.category === "PROTECTORS" &&
+        p.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+    )
+    .reduce((sum, p) => sum + num(p.totalWeight ?? p.weight), 0);
+}
+
+/** დამცავების ხაზებზე გაგზავნილი (ცალი) ჯამი — იგივე ფილტრი რაც ფასზე. */
+export function liveProtectorsDispatchedPieces(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  if (!sheet?.items?.length) return 0;
+  return sheet.items
+    .filter(
+      (p) =>
+        p.category === "PROTECTORS" &&
+        p.itemNameKa !== HEAVY_WEIGHT_ITEM_KA
+    )
+    .reduce((sum, p) => sum + num(p.dispatched), 0);
+}
+
 /** ჯერ ცდილობს `sheet.pricePerKg`, წინააღმდეგ შემთხვევაში სასტუმროს default (ან email-send snapshot). */
 export function effectiveKgPriceFromSheetAndDefault(
   sheet: DailySheetForTotals | null | undefined,
@@ -190,4 +218,129 @@ export function liveGrandTotalAmountGel(
     liveHeavyWeightAmountGel(sheet) +
     liveProtectorsAmount(sheet)
   );
+}
+
+export type InvoicePdfLineItem = {
+  description: string;
+  quantity: string;
+  unitPrice: number;
+  total: number;
+};
+
+export type InvoicePdfEmailSendLike = {
+  date: Date | string;
+  dailySheet: DailySheetForTotals | null | undefined;
+};
+
+function invoicePdfDateLabelDdMmYy(d: Date | string): string {
+  const x = new Date(d);
+  return `${x.getDate().toString().padStart(2, "0")}.${(x.getMonth() + 1).toString().padStart(2, "0")}.${x.getFullYear().toString().slice(-2)}`;
+}
+
+function invoicePdfDaySortKey(d: Date | string): string {
+  const x = new Date(d);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, "0");
+  const day = String(x.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * ინვოისის PDF: თითო დღეზე აღწერაში DD.MM.YY, «წონა (კგ)/ცალი» სვეტში კგ; ბოლოს მძიმე/დამცავების ჯამები იგივე სვეტით შევსებული.
+ */
+export function invoicePdfLineItemsFromSortedSends(
+  sends: ReadonlyArray<InvoicePdfEmailSendLike>,
+  defaultPricePerKg: number
+): InvoicePdfLineItem[] {
+  const linenByDay = new Map<
+    string,
+    { dateStr: string; kg: number; amt: number }
+  >();
+  let heavySum = 0;
+  let heavyKgSum = 0;
+  let protSum = 0;
+  let protKgSum = 0;
+  let protPiecesSum = 0;
+
+  for (const send of sends) {
+    const ds = send.dailySheet;
+    const key = invoicePdfDaySortKey(send.date);
+    const kg = liveLinensWeightBasisKg(ds);
+    const amt = liveLinenTowelsAmountGel(ds, defaultPricePerKg);
+    if (kg > 0 || amt > 0) {
+      const prev = linenByDay.get(key);
+      if (prev) {
+        linenByDay.set(key, {
+          dateStr: prev.dateStr,
+          kg: prev.kg + kg,
+          amt: prev.amt + amt,
+        });
+      } else {
+        linenByDay.set(key, {
+          dateStr: invoicePdfDateLabelDdMmYy(send.date),
+          kg,
+          amt,
+        });
+      }
+    }
+    heavySum += liveHeavyWeightAmountGel(ds);
+    heavyKgSum += liveHeavyWeightKg(ds);
+    protSum += liveProtectorsAmount(ds);
+    protKgSum += liveProtectorsWeightKg(ds);
+    protPiecesSum += liveProtectorsDispatchedPieces(ds);
+  }
+
+  const rows: InvoicePdfLineItem[] = [];
+  const sortedKeys = Array.from(linenByDay.keys()).sort();
+  for (const key of sortedKeys) {
+    const { dateStr, kg, amt } = linenByDay.get(key)!;
+    const unitPrice = kg > 0 ? amt / kg : amt > 0 ? amt : 0;
+    const kgDisplay = kg > 0 ? kg.toFixed(1) : "0.0";
+    rows.push({
+      description: dateStr,
+      quantity: `${kgDisplay} კგ.`,
+      unitPrice,
+      total: amt,
+    });
+  }
+
+  if (heavySum > 0) {
+    const heavyQty =
+      heavyKgSum > 0 ? `${heavyKgSum.toFixed(1)} კგ.` : "1 ც.";
+    rows.push({
+      description: "მძიმე წონა - ჯამი",
+      quantity: heavyQty,
+      unitPrice: heavyKgSum > 0 ? heavySum / heavyKgSum : heavySum,
+      total: heavySum,
+    });
+  }
+
+  if (protSum > 0) {
+    let protQty: string;
+    if (protKgSum > 0) {
+      protQty = `${protKgSum.toFixed(1)} კგ.`;
+    } else if (protPiecesSum > 0) {
+      const p = protPiecesSum;
+      protQty =
+        Math.abs(p - Math.round(p)) < 1e-6
+          ? `${Math.round(p)} ც.`
+          : `${p.toFixed(1)} ც.`;
+    } else {
+      protQty = "1 ც.";
+    }
+    const protUnit =
+      protKgSum > 0
+        ? protSum / protKgSum
+        : protPiecesSum > 0
+          ? protSum / protPiecesSum
+          : protSum;
+    rows.push({
+      description: "დამცავები - ჯამი",
+      quantity: protQty,
+      unitPrice: protUnit,
+      total: protSum,
+    });
+  }
+
+  return rows;
 }
