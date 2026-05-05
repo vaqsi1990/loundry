@@ -38,6 +38,7 @@ export default function RevenuesSection() {
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Record<string, boolean>>({});
 
   const formatMonthYearGe = (date: Date) => {
     const monthIndex = date.getMonth(); // 0-based
@@ -156,6 +157,7 @@ export default function RevenuesSection() {
       // Ensure we always set arrays, even if empty
       setRevenues(Array.isArray(data.revenues) ? data.revenues : []);
       setSentInvoices(Array.isArray(data.sentInvoices) ? data.sentInvoices : []);
+      setSelectedInvoiceIds({});
     } catch (err) {
       console.error("Error fetching revenues:", err);
       const errorMessage = err instanceof Error ? err.message : "დაფიქსირდა შეცდომა";
@@ -163,6 +165,7 @@ export default function RevenuesSection() {
       // Reset to empty arrays on error
       setRevenues([]);
       setSentInvoices([]);
+      setSelectedInvoiceIds({});
     } finally {
       setLoading(false);
     }
@@ -342,6 +345,71 @@ export default function RevenuesSection() {
       }
 
       await fetchRevenues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
+  const selectedInvoicesCount = Object.values(selectedInvoiceIds).filter(Boolean).length;
+
+  const toggleSelectAllInvoices = () => {
+    if (!sentInvoices.length) return;
+    const allSelected = sentInvoices.every((inv) => selectedInvoiceIds[inv.id]);
+    if (allSelected) {
+      setSelectedInvoiceIds({});
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    sentInvoices.forEach((inv) => {
+      next[inv.id] = true;
+    });
+    setSelectedInvoiceIds(next);
+  };
+
+  const toggleSelectInvoice = (invoiceId: string) => {
+    setSelectedInvoiceIds((prev) => ({
+      ...prev,
+      [invoiceId]: !prev[invoiceId],
+    }));
+  };
+
+  const handleDeleteSelectedInvoices = async () => {
+    const ids = sentInvoices.filter((inv) => selectedInvoiceIds[inv.id]).map((inv) => inv.id);
+    if (ids.length === 0) return;
+
+    if (!confirm(`დარწმუნებული ხართ რომ გსურთ მონიშნული ინვოისების წაშლა? (სულ: ${ids.length})`)) {
+      return;
+    }
+
+    try {
+      setError("");
+      const apiPath = getApiPath("invoices");
+      const deletePromises = ids.map(async (id) => {
+        try {
+          const response = await fetch(`${apiPath}/${id}`, { method: "DELETE" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            return { success: false, id, error: (data as any)?.error || `HTTP ${response.status}` };
+          }
+          return { success: true, id };
+        } catch (err) {
+          return {
+            success: false,
+            id,
+            error: err instanceof Error ? err.message : "უცნობი შეცდომა",
+          };
+        }
+      });
+
+      const results = await Promise.all(deletePromises);
+      const successful = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
+
+      if (failed > 0) {
+        setError(`${successful} ინვოისი წაიშალა, ${failed} ინვოისის წაშლა ვერ მოხერხდა`);
+      }
+
+      await fetchRevenues(selectedMonth || undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     }
@@ -580,17 +648,40 @@ export default function RevenuesSection() {
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-black">გაგზავნილი ინვოისები</h3>
-            <button
-              onClick={handleDeleteAllInvoices}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-[16px]"
-            >
-              წაშლა ყველას
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDeleteSelectedInvoices}
+                disabled={selectedInvoicesCount === 0}
+                className={`px-4 py-2 rounded-lg text-[16px] ${
+                  selectedInvoicesCount === 0
+                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                    : "bg-red-600 text-white hover:bg-red-700"
+                }`}
+                title={selectedInvoicesCount === 0 ? "მონიშნეთ მინიმუმ 1 ინვოისი" : undefined}
+              >
+                წაშლა მონიშნულები {selectedInvoicesCount > 0 ? `(${selectedInvoicesCount})` : ""}
+              </button>
+              <button
+                onClick={handleDeleteAllInvoices}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-[16px]"
+              >
+                წაშლა ყველას
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider w-[60px]">
+                    <input
+                      type="checkbox"
+                      checked={sentInvoices.length > 0 && sentInvoices.every((inv) => !!selectedInvoiceIds[inv.id])}
+                      onChange={toggleSelectAllInvoices}
+                      aria-label="ყველას მონიშვნა"
+                      className="h-4 w-4"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                     თარიღი
                   </th>
@@ -627,6 +718,15 @@ export default function RevenuesSection() {
 
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                        <input
+                          type="checkbox"
+                          checked={!!selectedInvoiceIds[invoice.id]}
+                          onChange={() => toggleSelectInvoice(invoice.id)}
+                          aria-label="ინვოისის მონიშვნა"
+                          className="h-4 w-4"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                         {monthYear}
                       </td>
