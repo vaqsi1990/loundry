@@ -233,6 +233,8 @@ export type InvoicePdfLineItem = {
 export type InvoicePdfEmailSendLike = {
   date: Date | string;
   dailySheet: DailySheetForTotals | null | undefined;
+  /** Optional manual override for the whole day's total (₾). When set, PDF uses this instead of recalculating from dailySheet. */
+  totalAmountOverrideGel?: number | null;
 };
 
 function invoicePdfDateLabelDdMmYy(d: Date | string): string {
@@ -264,10 +266,23 @@ export function invoicePdfLineItemsFromSortedSends(
   let protSum = 0;
   let protKgSum = 0;
   let protPiecesSum = 0;
+  const manualTotalByDay = new Map<string, { dateStr: string; total: number }>();
 
   for (const send of sends) {
     const ds = send.dailySheet;
     const key = invoicePdfDaySortKey(send.date);
+
+    const manual = num(send.totalAmountOverrideGel);
+    if (manual > 0) {
+      // If a manual total is provided for this day, prefer it and skip component breakdowns for that send.
+      // This makes the PDF total match the edited "სულ (₾)" in invoices UI.
+      manualTotalByDay.set(key, {
+        dateStr: invoicePdfDateLabelDdMmYy(send.date),
+        total: manual,
+      });
+      continue;
+    }
+
     const kg = liveLinensWeightBasisKg(ds);
     const amt = liveLinenTowelsAmountGel(ds, defaultPricePerKg);
     if (kg > 0 || amt > 0) {
@@ -342,6 +357,18 @@ export function invoicePdfLineItemsFromSortedSends(
       quantity: protQty,
       unitPrice: protUnit,
       total: protSum,
+    });
+  }
+
+  // Append manual-total rows at the end (so they are visible even when there is a normal breakdown list).
+  const manualKeys = Array.from(manualTotalByDay.keys()).sort();
+  for (const key of manualKeys) {
+    const m = manualTotalByDay.get(key)!;
+    rows.push({
+      description: `${m.dateStr} (კორექტირება)`,
+      quantity: "1 ც.",
+      unitPrice: m.total,
+      total: m.total,
     });
   }
 

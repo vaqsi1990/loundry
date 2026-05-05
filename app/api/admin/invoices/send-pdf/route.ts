@@ -527,7 +527,14 @@ export async function GET(request: NextRequest) {
         ? new Date(sortedEmailSends[0].date)
         : new Date(issueDate);
 
-    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
+    const items = invoicePdfLineItemsFromSortedSends(
+      sortedEmailSends.map((s: any) => ({
+        date: s.date,
+        dailySheet: s.dailySheet,
+        totalAmountOverrideGel: s.totalAmount ?? null,
+      })),
+      pricePerKg
+    );
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
     const pdfBuffer = await generateInvoicePDF(
@@ -735,7 +742,14 @@ export async function POST(request: NextRequest) {
     const serviceDate =
       sortedEmailSends.length > 0 ? new Date(sortedEmailSends[0].date) : new Date(issueDate);
 
-    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
+    const items = invoicePdfLineItemsFromSortedSends(
+      sortedEmailSends.map((s: any) => ({
+        date: s.date,
+        dailySheet: s.dailySheet,
+        totalAmountOverrideGel: s.totalAmount ?? null,
+      })),
+      pricePerKg
+    );
     
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     const totalWeightKg = emailSends.reduce(
