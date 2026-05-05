@@ -17,6 +17,8 @@ interface DateDetail {
   heavyWeightAmount?: number;
   totalAmount: number;
   sentAt: string | null;
+  invoicePdfSentAt?: string | null;
+  invoicePdfSentTo?: string | null;
   confirmedAt: string | null;
   emailSendIds?: string[]; // IDs of emailSends that belong to this invoice detail
 }
@@ -73,6 +75,33 @@ export default function InvoicesSection() {
   >([]);
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedHotels, setExpandedHotels] = useState<Set<string>>(new Set());
+  const [forceResend, setForceResend] = useState(true);
+
+  const [editModal, setEditModal] = useState<{
+    open: boolean;
+    emailSendId: string | null;
+    values: {
+      pricePerKg: string;
+      totalWeight: string;
+      totalPrice: string;
+      heavyWeight: string;
+      heavyPricePerKg: string;
+      totalAmount: string;
+    };
+  }>({
+    open: false,
+    emailSendId: null,
+    values: {
+      pricePerKg: "",
+      totalWeight: "",
+      totalPrice: "",
+      heavyWeight: "",
+      heavyPricePerKg: "",
+      totalAmount: "",
+    },
+  });
+
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const derivedMonthChoices = useMemo(
     () => buildMonthOptionsFromSummaries(summaries),
@@ -119,10 +148,11 @@ export default function InvoicesSection() {
     setLoading(true);
     try {
       const apiPath = getApiPath("invoices");
-      const url = selectedMonth 
-        ? `${apiPath}?emailSendsMonth=${selectedMonth}`
-        : apiPath;
-      const response = await fetch(url);
+      const cacheBust = `_t=${Date.now()}`;
+      const url = selectedMonth
+        ? `${apiPath}?emailSendsMonth=${selectedMonth}&${cacheBust}`
+        : `${apiPath}?${cacheBust}`;
+      const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) {
         throw new Error("ინვოისების ჩატვირთვა ვერ მოხერხდა");
       }
@@ -143,7 +173,7 @@ export default function InvoicesSection() {
         const url = new URL(apiPath, window.location.origin);
         url.searchParams.set("page", String(page));
         url.searchParams.set("limit", String(limit));
-        const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { cache: "no-store" });
         if (!res.ok) {
           throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
         }
@@ -396,6 +426,8 @@ export default function InvoicesSection() {
   const openPdfModal = (hotelName: string | null, dateDetails?: DateDetail[]) => {
     setSuccessMessage("");
     setPdfModal({ open: true, hotelName, dateDetails });
+    const anyAlreadySent = (dateDetails || []).some((d) => !!d.invoicePdfSentAt);
+    setForceResend(anyAlreadySent);
     if (hotelName) {
       // Use case-insensitive matching to find the hotel email
       const normalizedSearch = normalizeHotelName(hotelName);
@@ -409,6 +441,73 @@ export default function InvoicesSection() {
   const closePdfModal = () => {
     setPdfModal({ open: false, hotelName: null, dateDetails: undefined });
     setModalEmail(null);
+    setForceResend(true);
+  };
+
+  const openEditModal = async (emailSendId: string) => {
+    setError("");
+    setSuccessMessage("");
+    setEditModal((m) => ({ ...m, open: true, emailSendId }));
+    try {
+      const apiPath = getApiPath("invoices", `email-send/${emailSendId}`);
+      const res = await fetch(apiPath, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "ინვოისის მონაცემები ვერ მოიძებნა");
+      const ds = (data?.dailySheet || {}) as Record<string, unknown>;
+      const ov = (data?.overrides || {}) as Record<string, unknown>;
+      setEditModal((m) => ({
+        ...m,
+        open: true,
+        emailSendId,
+        values: {
+          pricePerKg: ds.pricePerKg == null ? "" : String(ds.pricePerKg),
+          totalWeight: ds.totalWeight == null ? "" : String(ds.totalWeight),
+          totalPrice: ds.totalPrice == null ? "" : String(ds.totalPrice),
+          heavyWeight: ds.heavyWeight == null ? "" : String(ds.heavyWeight),
+          heavyPricePerKg: ds.heavyPricePerKg == null ? "" : String(ds.heavyPricePerKg),
+          totalAmount: ov.totalAmount == null ? "" : String(ov.totalAmount),
+        },
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditModal((m) => ({ ...m, open: false, emailSendId: null }));
+  };
+
+  const saveInvoiceEdit = async () => {
+    if (!editModal.emailSendId) return;
+    if (savingEdit) return;
+    setSavingEdit(true);
+    setError("");
+    setSuccessMessage("");
+    try {
+      const apiPath = getApiPath("invoices", `email-send/${editModal.emailSendId}`);
+      const res = await fetch(apiPath, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pricePerKg: editModal.values.pricePerKg,
+          totalWeight: editModal.values.totalWeight,
+          totalPrice: editModal.values.totalPrice,
+          heavyWeight: editModal.values.heavyWeight,
+          heavyPricePerKg: editModal.values.heavyPricePerKg,
+          totalAmount: editModal.values.totalAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "შენახვა ვერ მოხერხდა");
+      setSuccessMessage("ინვოისი დარედაქტირდა");
+      setTimeout(() => setSuccessMessage(""), 5000);
+      closeEditModal();
+      await fetchInvoices();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   useEffect(() => {
@@ -440,12 +539,14 @@ export default function InvoicesSection() {
         hotelName: string | null;
         dateDetails?: DateDetail[];
         email?: string | null;
+        forceResend?: boolean;
         // Explicitly pass service dates (daily sheet dates) for debugging / clarity
         serviceDates?: string[];
       } = {
         hotelName: pdfModal.hotelName,
         dateDetails: pdfModal.dateDetails, // Send specific invoices to include
         email: modalEmail, // Include email if available
+        forceResend,
         serviceDates: pdfModal.dateDetails?.map((d) => d.date) || [],
       };
       
@@ -477,6 +578,7 @@ export default function InvoicesSection() {
         `PDF ინვოისი წარმატებით გაიგზავნა ${pdfModal.hotelName || ""}`
       );
       closePdfModal();
+      await fetchInvoices();
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
@@ -508,6 +610,7 @@ export default function InvoicesSection() {
       const url = new URL(apiPath, window.location.origin);
       url.searchParams.set("hotelName", pdfModal.hotelName);
       url.searchParams.set("ids", ids.join(","));
+      url.searchParams.set("_t", String(Date.now()));
       // Open directly so browser shows inline PDF with auth cookies
       window.open(url.toString(), "_blank", "noopener,noreferrer");
     } catch (err) {
@@ -832,7 +935,7 @@ export default function InvoicesSection() {
                                   }}
                                   className="text-[12px] md:text-[14px] bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none"
                                 >
-                                  PDF-ის გაგზავნა
+                                  გაგზავნა / Resend
                                 </button>
                                 <button
                                   onClick={(e) => {
@@ -877,6 +980,9 @@ export default function InvoicesSection() {
                                         <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
                                           სულ (₾)
                                         </th>
+                                        <th className="px-4 py-3 text-left text-[14px] md:text-[16px] font-medium text-black uppercase tracking-wider">
+                                          რედაქტირება
+                                        </th>
                                       </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
@@ -885,6 +991,7 @@ export default function InvoicesSection() {
                                         const rowKey =
                                           (detail.emailSendIds && detail.emailSendIds[0]) ||
                                           `${displayName}-${detail.date}-${idx}`;
+                                        const emailSendId = detail.emailSendIds?.[0];
 
                                         return (
                                           <tr key={rowKey} className="hover:bg-gray-50">
@@ -908,6 +1015,21 @@ export default function InvoicesSection() {
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
                                               {(detail.totalAmount || 0).toFixed(2)} ₾
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
+                                              <div className="flex gap-2">
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!emailSendId) return;
+                                                    openEditModal(emailSendId);
+                                                  }}
+                                                  disabled={!emailSendId}
+                                                  className="bg-gray-100 text-gray-900 px-3 py-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                  Edit
+                                                </button>
+                                              </div>
                                             </td>
                                           </tr>
                                         );
@@ -944,6 +1066,19 @@ export default function InvoicesSection() {
               ელფოსტა ავტომატურად გაიგზავნება სასტუმროს ელ.ფოსტაზე
               {modalEmail ? `: ${modalEmail}` : " (ელფოსტა არ მოიძებნა)"}
             </p>
+            {(pdfModal.dateDetails || []).some((d) => !!d.invoicePdfSentAt) && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
+                ეს ინვოისი ადრე უკვე გაგზავნილია.
+                <label className="flex items-center gap-2 mt-2 text-[14px]">
+                  <input
+                    type="checkbox"
+                    checked={forceResend}
+                    onChange={(e) => setForceResend(e.target.checked)}
+                  />
+                  forceResend (ხელახალი გაგზავნა)
+                </label>
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
                 {error}
@@ -967,6 +1102,121 @@ export default function InvoicesSection() {
               <button
                 onClick={closePdfModal}
                 disabled={sendingPdf || previewingPdf}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                გაუქმება
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <h3 className="text-xl font-bold text-black mb-4">ინვოისის დარედაქტირება</h3>
+            <p className="text-gray-700 mb-4 text-sm">
+              ცვლილება ინახება ფურცელზე და აისახება PDF-ზე. შემდეგ გამოიყენეთ “Resend”.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">სულ (₾) — ხელით</label>
+                <input
+                  value={editModal.values.totalAmount}
+                  onChange={(e) =>
+                    setEditModal((m) => ({
+                      ...m,
+                      values: { ...m.values, totalAmount: e.target.value },
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-black"
+                  placeholder="თუ შეავსებ, ამ თანხას გამოიყენებს ჯამებში"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">კგ-ის ფასი (₾)</label>
+                <input
+                  value={editModal.values.pricePerKg}
+                  onChange={(e) =>
+                    setEditModal((m) => ({
+                      ...m,
+                      values: { ...m.values, pricePerKg: e.target.value },
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-black"
+                  placeholder="მაგ: 1.8"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">სულ წონა (კგ)</label>
+                <input
+                  value={editModal.values.totalWeight}
+                  onChange={(e) =>
+                    setEditModal((m) => ({
+                      ...m,
+                      values: { ...m.values, totalWeight: e.target.value },
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-black"
+                  placeholder="ცარიელი = ავტომატური"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">დამცავები (₾)</label>
+                <input
+                  value={editModal.values.totalPrice}
+                  onChange={(e) =>
+                    setEditModal((m) => ({
+                      ...m,
+                      values: { ...m.values, totalPrice: e.target.value },
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-black"
+                  placeholder="STANDARD ფურცელზე"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">მძიმე წონა (კგ)</label>
+                <input
+                  value={editModal.values.heavyWeight}
+                  onChange={(e) =>
+                    setEditModal((m) => ({
+                      ...m,
+                      values: { ...m.values, heavyWeight: e.target.value },
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-black"
+                  placeholder="0 ან ცარიელი"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm text-gray-700 mb-1">მძიმე წონა - კგ-ის ფასი (₾)</label>
+                <input
+                  value={editModal.values.heavyPricePerKg}
+                  onChange={(e) =>
+                    setEditModal((m) => ({
+                      ...m,
+                      values: { ...m.values, heavyPricePerKg: e.target.value },
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-black"
+                  placeholder="მაგ: 3"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveInvoiceEdit}
+                disabled={savingEdit}
+                className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingEdit ? "ინახება..." : "შენახვა"}
+              </button>
+              <button
+                onClick={closeEditModal}
+                disabled={savingEdit}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 გაუქმება

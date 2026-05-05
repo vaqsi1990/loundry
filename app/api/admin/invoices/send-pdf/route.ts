@@ -579,7 +579,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { hotelName, email, dateDetails } = body;
+    const { hotelName, email, dateDetails, forceResend } = body;
 
     if (!hotelName) {
       return NextResponse.json(
@@ -704,14 +704,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
     }
 
-    // Block sending the same invoice PDF multiple times:
-    // if ANY of the selected emailSend records already has invoicePdfSentAt set,
-    // we consider this invoice already sent and reject the request.
+    // Block sending the same invoice PDF multiple times unless forceResend=true.
+    // If ANY selected emailSend already has invoicePdfSentAt, we treat it as already sent.
     const alreadySent = emailSends.filter((es: any) => !!es.invoicePdfSentAt);
-    if (alreadySent.length > 0) {
+    if (alreadySent.length > 0 && forceResend !== true) {
       return NextResponse.json(
         {
-          error: "ეს ინვოისი უკვე ერთხელ გაიგზავნა და ხელმეორედ გაგზავნა დაუშვებელია",
+          error:
+            "ეს ინვოისი უკვე ერთხელ გაიგზავნა. დარედაქტირების შემდეგ ხელმეორედ გასაგზავნად გამოიყენეთ ხელახალი გაგზავნა (forceResend).",
           alreadySent: true,
           alreadySentCount: alreadySent.length,
         },

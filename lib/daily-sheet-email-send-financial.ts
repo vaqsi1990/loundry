@@ -48,9 +48,9 @@ export function liveLinensWeightBasisKg(
 ): number {
   if (!sheet) return 0;
   const summed = summedItemLineWeightKg(sheet);
-  if (sheet.sheetType === "STANDARD" && sheet.totalWeight != null) {
-    return num(sheet.totalWeight);
-  }
+  // Manual override: if totalWeight is set, prefer it regardless of sheetType.
+  // This enables invoice edits to affect totals even for INDIVIDUAL sheets.
+  if (sheet.totalWeight != null && num(sheet.totalWeight) > 0) return num(sheet.totalWeight);
   return summed;
 }
 
@@ -106,16 +106,19 @@ export function liveHeavyWeightPricePerKgGel(
 export function liveProtectorsAmount(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  if (!sheet?.items?.length) return 0;
-  // New: heavy weight is stored separately on the sheet, so do not subtract it from protectors totalPrice.
-  // Back-compat: if some legacy data stored heavy-weight line inside protectors totalPrice, subtract line-based amount.
-  const legacyHeavyAmt = heavyWeightProtectorsLineAmountGel(
-    sheet.items,
-    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-  );
-  if (sheet.sheetType === "STANDARD" && sheet.totalPrice != null) {
+  // Manual override: if totalPrice is set, prefer it even if items are missing.
+  if (sheet?.totalPrice != null && num(sheet.totalPrice) > 0) {
+    const items = sheet.items ?? [];
+    if (!items.length) return num(sheet.totalPrice);
+    const legacyHeavyAmt = heavyWeightProtectorsLineAmountGel(
+      items,
+      HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
+    );
     return Math.max(0, num(sheet.totalPrice) - legacyHeavyAmt);
   }
+  if (!sheet?.items?.length) return 0;
+  // New: heavy weight is stored separately on the sheet, so do not subtract it from protectors totalPrice.
+  // Back-compat: some legacy data stored heavy-weight line inside protectors totalPrice (handled in override branch above).
   return sheet.items
     .filter(
       (p) =>

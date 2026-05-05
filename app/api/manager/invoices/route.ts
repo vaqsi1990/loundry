@@ -284,7 +284,8 @@ export async function GET(request: NextRequest) {
 
       const emailWeight = liveDisplayedTotalWeightKg(sheet);
       const emailProtectorsAmount = liveProtectorsAmount(sheet);
-      const emailTotalAmount = liveGrandTotalAmountGel(sheet, defaultPg);
+      const emailTotalAmount =
+        (firstSend as any).totalAmount != null ? finNum((firstSend as any).totalAmount) : liveGrandTotalAmountGel(sheet, defaultPg);
 
       // Track by service date (sheet date) using UTC to avoid timezone issues
       const dateObj = new Date(firstSend.date);
@@ -340,6 +341,20 @@ export async function GET(request: NextRequest) {
               .filter((d): d is Date => !!d)
               .sort((a, b) => b.getTime() - a.getTime())[0];
             return latest ? latest.toISOString() : null;
+          })(),
+          invoicePdfSentAt: (() => {
+            const latest = group
+              .map((es: any) => es.invoicePdfSentAt as Date | null | undefined)
+              .filter((d): d is Date => !!d)
+              .sort((a, b) => b.getTime() - a.getTime())[0];
+            return latest ? latest.toISOString() : null;
+          })(),
+          invoicePdfSentTo: (() => {
+            const latest = group
+              .map((es: any) => es.invoicePdfSentAt ? { at: es.invoicePdfSentAt as Date, to: es.invoicePdfSentTo as string | null | undefined } : null)
+              .filter((x): x is { at: Date; to: string | null | undefined } => !!x)
+              .sort((a, b) => b.at.getTime() - a.at.getTime())[0];
+            return latest ? (latest.to ?? null) : null;
           })(),
           confirmedAt,
           emailSendIds,
@@ -422,7 +437,11 @@ export async function GET(request: NextRequest) {
       return 0;
     });
 
-    return NextResponse.json(sorted);
+    return NextResponse.json(sorted, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     console.error("Invoices fetch error:", error);
     return NextResponse.json(

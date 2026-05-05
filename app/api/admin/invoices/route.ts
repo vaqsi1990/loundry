@@ -271,7 +271,8 @@ export async function GET(request: NextRequest) {
       const emailWeight = liveDisplayedTotalWeightKg(sheet);
       const emailProtectorsAmount = liveProtectorsAmount(sheet);
       const emailHeavyWeightAmount = liveHeavyWeightAmountGel(sheet);
-      const emailTotalAmount = liveGrandTotalAmountGel(sheet, defaultPg);
+      const emailTotalAmount =
+        (emailSend as any).totalAmount != null ? finNum((emailSend as any).totalAmount) : liveGrandTotalAmountGel(sheet, defaultPg);
 
       // Track by service date (sheet date) - use UTC methods to avoid timezone issues
       const dateObj = new Date(emailSend.date);
@@ -320,6 +321,10 @@ export async function GET(request: NextRequest) {
           heavyWeightAmount: emailHeavyWeightAmount,
           totalAmount: emailTotalAmount,
           sentAt: emailSend.sentAt ? emailSend.sentAt.toISOString() : null,
+          invoicePdfSentAt: (emailSend as any).invoicePdfSentAt
+            ? (emailSend as any).invoicePdfSentAt.toISOString()
+            : null,
+          invoicePdfSentTo: (emailSend as any).invoicePdfSentTo ?? null,
           confirmedAt,
           emailSendIds: [emailSend.id],
         }],
@@ -397,7 +402,11 @@ export async function GET(request: NextRequest) {
       return 0;
     });
 
-    return NextResponse.json(sorted);
+    return NextResponse.json(sorted, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     console.error("Invoices fetch error:", error);
     return NextResponse.json(
