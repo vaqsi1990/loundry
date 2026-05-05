@@ -404,7 +404,163 @@ function generateInvoicePDF(
   });
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
 
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "არ არის ავტორიზებული" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+
+    // Manager API: Only allow MANAGER and MANAGER_ASSISTANT (not ADMIN)
+    if (!user || (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+      return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const hotelName = searchParams.get("hotelName");
+    const idsParam = searchParams.get("ids");
+    const ids = (idsParam || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (!hotelName) {
+      return NextResponse.json(
+        { error: "სასტუმროს სახელი სავალდებულოა" },
+        { status: 400 }
+      );
+    }
+
+    if (ids.length === 0) {
+      return NextResponse.json(
+        { error: "ინვოისის ID-ები არ მოიძებნა" },
+        { status: 400 }
+      );
+    }
+
+    const hotel = await prisma.hotel.findFirst({
+      where: { hotelName: hotelName },
+    });
+
+    if (!hotel) {
+      return NextResponse.json({ error: "სასტუმრო ვერ მოიძებნა" }, { status: 404 });
+    }
+
+    const [legalEmailSends, physicalEmailSends] = await Promise.all([
+      prisma.legalDailySheetEmailSend.findMany({
+        where: {
+          id: { in: ids },
+          hotelName: hotelName,
+        },
+        include: {
+          dailySheet: {
+            include: {
+              items: true,
+            },
+          },
+        },
+        orderBy: { date: "asc" },
+      }),
+      prisma.physicalDailySheetEmailSend.findMany({
+        where: {
+          id: { in: ids },
+          hotelName: hotelName,
+        },
+        include: {
+          dailySheet: {
+            include: {
+              items: true,
+            },
+          },
+        },
+        orderBy: { date: "asc" },
+      }),
+    ]);
+
+    const emailSends = [...legalEmailSends, ...physicalEmailSends];
+    if (emailSends.length === 0) {
+      return NextResponse.json(
+        { error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" },
+        { status: 404 }
+      );
+    }
+
+    let invoiceNumber = "1";
+    if (hotel.type === "LEGAL") {
+      const last = await prisma.legalInvoice.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { invoiceNumber: true },
+      });
+      if (last?.invoiceNumber) {
+        const lastNumber = parseInt(last.invoiceNumber);
+        if (!isNaN(lastNumber) && lastNumber > 0) {
+          invoiceNumber = (lastNumber + 1).toString();
+        }
+      }
+    } else if (hotel.type === "PHYSICAL") {
+      const last = await prisma.physicalInvoice.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { invoiceNumber: true },
+      });
+      if (last?.invoiceNumber) {
+        const lastNumber = parseInt(last.invoiceNumber);
+        if (!isNaN(lastNumber) && lastNumber > 0) {
+          invoiceNumber = (lastNumber + 1).toString();
+        }
+      }
+    }
+
+    const issueDate = new Date();
+    const pricePerKg = hotel.pricePerKg || 1.8;
+
+    const sortedEmailSends = [...emailSends].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    const serviceDate =
+      sortedEmailSends.length > 0
+        ? new Date(sortedEmailSends[0].date)
+        : new Date(issueDate);
+
+    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
+    const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+
+    const pdfBuffer = await generateInvoicePDF(
+      invoiceNumber,
+      issueDate,
+      serviceDate,
+      "გადარიცხვით",
+      hotel.hotelName,
+      hotel.hotelRegistrationNumber,
+      hotel.address,
+      hotel.mobileNumber,
+      items,
+      totalAmount
+    );
+
+    const filename = `ინვოისი_${hotel.hotelName}_${new Date().toISOString().split("T")[0]}.pdf`;
+
+    return new NextResponse(pdfBuffer as any, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${encodeURIComponent(filename)}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Invoice PDF preview error:", error);
+    return NextResponse.json(
+      { error: "PDF-ის გენერირებისას მოხდა შეცდომა" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

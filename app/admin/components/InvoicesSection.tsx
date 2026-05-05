@@ -66,6 +66,7 @@ export default function InvoicesSection() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [modalEmail, setModalEmail] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState(false);
+  const [previewingPdf, setPreviewingPdf] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // Empty = all months
   const [monthDropdownSnapshot, setMonthDropdownSnapshot] = useState<
     Array<{ month: string; count: number }>
@@ -480,6 +481,39 @@ export default function InvoicesSection() {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
     } finally {
       setSendingPdf(false);
+    }
+  };
+
+  const previewPdfInvoice = async () => {
+    if (!pdfModal.hotelName) {
+      setError("სასტუმროს სახელი არ არის მითითებული");
+      return;
+    }
+    const ids =
+      pdfModal.dateDetails
+        ?.flatMap((d) => d.emailSendIds || [])
+        .filter((id): id is string => typeof id === "string" && id.trim() !== "") || [];
+
+    if (ids.length === 0) {
+      setError("ინვოისის ID-ები არ მოიძებნა");
+      return;
+    }
+
+    if (previewingPdf) return;
+    setPreviewingPdf(true);
+    setError("");
+
+    try {
+      const apiPath = getApiPath("invoices", "send-pdf");
+      const url = new URL(apiPath, window.location.origin);
+      url.searchParams.set("hotelName", pdfModal.hotelName);
+      url.searchParams.set("ids", ids.join(","));
+      // Open directly so browser shows inline PDF with auth cookies
+      window.open(url.toString(), "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setPreviewingPdf(false);
     }
   };
 
@@ -917,6 +951,13 @@ export default function InvoicesSection() {
             )}
             <div className="flex gap-3">
               <button
+                onClick={previewPdfInvoice}
+                disabled={sendingPdf || previewingPdf}
+                className="flex-1 bg-white border border-gray-300 text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {previewingPdf ? "იღება..." : "PDF წინასწარი ნახვა"}
+              </button>
+              <button
                 onClick={sendPdfInvoice}
                 disabled={sendingPdf}
                 className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -925,7 +966,7 @@ export default function InvoicesSection() {
               </button>
               <button
                 onClick={closePdfModal}
-                disabled={sendingPdf}
+                disabled={sendingPdf || previewingPdf}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 გაუქმება
