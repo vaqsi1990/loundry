@@ -456,6 +456,7 @@ export async function POST(request: NextRequest) {
     // Get invoice data for this hotel
     // If dateDetails are provided, only get emailSends for those specific dates
     let emailSends;
+    let requestedEmailSendIds: string[] = [];
     if (dateDetails && Array.isArray(dateDetails) && dateDetails.length > 0) {
       // Collect all emailSendIds from dateDetails
       const emailSendIds = dateDetails
@@ -465,6 +466,7 @@ export async function POST(request: NextRequest) {
       if (emailSendIds.length === 0) {
         return NextResponse.json({ error: "ინვოისის ID-ები არ მოიძებნა" }, { status: 400 });
       }
+      requestedEmailSendIds = emailSendIds;
       
       // Query from both legal and physical tables
       const [legalEmailSends, physicalEmailSends] = await Promise.all([
@@ -541,10 +543,24 @@ export async function POST(request: NextRequest) {
         }),
       ]);
       emailSends = [...legalEmailSends, ...physicalEmailSends];
+      requestedEmailSendIds = emailSends.map((es) => es.id);
     }
 
     if (emailSends.length === 0) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
+    }
+
+    // Block sending the same invoice PDF multiple times
+    const alreadySent = emailSends.filter((es: any) => !!es.invoicePdfSentAt);
+    if (alreadySent.length > 0) {
+      return NextResponse.json(
+        {
+          error: "ეს ინვოისი უკვე ერთხელ გაიგზავნა და ხელმეორედ გაგზავნა დაუშვებელია",
+          alreadySent: true,
+          alreadySentCount: alreadySent.length,
+        },
+        { status: 409 }
+      );
     }
 
     // Generate sequential invoice number based on hotel type
@@ -791,6 +807,28 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Invoice email sent successfully to:", recipientEmail);
+
+    // Mark invoice PDF as sent so it can't be resent
+    const invoicePdfSentAt = new Date();
+    const emailSendIds = requestedEmailSendIds.length > 0 ? requestedEmailSendIds : emailSends.map(es => es.id);
+    await Promise.all([
+      prisma.physicalDailySheetEmailSend.updateMany({
+        where: { id: { in: emailSendIds } },
+        data: {
+          invoicePdfSentAt,
+          invoicePdfSentTo: recipientEmail,
+          invoicePdfSentBy: session.user.id,
+        },
+      }),
+      prisma.legalDailySheetEmailSend.updateMany({
+        where: { id: { in: emailSendIds } },
+        data: {
+          invoicePdfSentAt,
+          invoicePdfSentTo: recipientEmail,
+          invoicePdfSentBy: session.user.id,
+        },
+      }),
+    ]);
     
     // After successful email send, do NOT auto-confirm emailSends
     // Both PHYSICAL and LEGAL users must confirm invoices manually in their respective invoice pages

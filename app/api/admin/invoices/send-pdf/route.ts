@@ -455,6 +455,7 @@ export async function POST(request: NextRequest) {
     // Get invoice data for this hotel
     // If dateDetails are provided, only get emailSends for those specific dates
     let emailSends;
+    let requestedEmailSendIds: string[] = [];
     if (dateDetails && Array.isArray(dateDetails) && dateDetails.length > 0) {
       // Collect all emailSendIds from dateDetails
       const emailSendIds = dateDetails
@@ -464,6 +465,7 @@ export async function POST(request: NextRequest) {
       if (emailSendIds.length === 0) {
         return NextResponse.json({ error: "ინვოისის ID-ები არ მოიძებნა" }, { status: 400 });
       }
+      requestedEmailSendIds = emailSendIds;
       
       // Query from both legal and physical tables
       const [legalEmailSends, physicalEmailSends] = await Promise.all([
@@ -540,10 +542,26 @@ export async function POST(request: NextRequest) {
         }),
       ]);
       emailSends = [...legalEmailSends, ...physicalEmailSends];
+      requestedEmailSendIds = emailSends.map((es) => es.id);
     }
 
     if (emailSends.length === 0) {
       return NextResponse.json({ error: "ამ სასტუმროსთვის ინვოისის მონაცემები არ მოიძებნა" }, { status: 404 });
+    }
+
+    // Block sending the same invoice PDF multiple times:
+    // if ANY of the selected emailSend records already has invoicePdfSentAt set,
+    // we consider this invoice already sent and reject the request.
+    const alreadySent = emailSends.filter((es: any) => !!es.invoicePdfSentAt);
+    if (alreadySent.length > 0) {
+      return NextResponse.json(
+        {
+          error: "ეს ინვოისი უკვე ერთხელ გაიგზავნა და ხელმეორედ გაგზავნა დაუშვებელია",
+          alreadySent: true,
+          alreadySentCount: alreadySent.length,
+        },
+        { status: 409 }
+      );
     }
 
     // Generate sequential invoice number based on hotel type
@@ -793,12 +811,12 @@ export async function POST(request: NextRequest) {
 
     console.log("Invoice email sent successfully to:", recipientEmail);
     
-    // Update sentAt on all emailSends so they appear in legal/physical invoice pages
-    const sentAt = new Date();
-    const emailSendIds = emailSends.map(es => es.id);
+    // Mark invoice PDF as sent so it can't be resent
+    const invoicePdfSentAt = new Date();
+    const emailSendIds = requestedEmailSendIds.length > 0 ? requestedEmailSendIds : emailSends.map(es => es.id);
     
     if (hotel.type === "PHYSICAL") {
-      // Update physical emailSends
+      // Update physical emailSends (both "sentAt" for invoice pages + invoicePdfSentAt for duplicate prevention)
       await prisma.physicalDailySheetEmailSend.updateMany({
         where: {
           id: {
@@ -806,12 +824,15 @@ export async function POST(request: NextRequest) {
           },
         },
         data: {
-          sentAt: sentAt,
+          sentAt: invoicePdfSentAt,
+          invoicePdfSentAt,
+          invoicePdfSentTo: recipientEmail,
+          invoicePdfSentBy: session.user.id,
         },
       });
       console.log("Physical invoice sent - user must confirm manually in /physical/invoices");
     } else if (hotel.type === "LEGAL") {
-      // Update legal emailSends
+      // Update legal emailSends (both "sentAt" for invoice pages + invoicePdfSentAt for duplicate prevention)
       await prisma.legalDailySheetEmailSend.updateMany({
         where: {
           id: {
@@ -819,7 +840,10 @@ export async function POST(request: NextRequest) {
           },
         },
         data: {
-          sentAt: sentAt,
+          sentAt: invoicePdfSentAt,
+          invoicePdfSentAt,
+          invoicePdfSentTo: recipientEmail,
+          invoicePdfSentBy: session.user.id,
         },
       });
       console.log("Legal invoice sent - user must confirm manually in /legal/invoices");

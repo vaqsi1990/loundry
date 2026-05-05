@@ -366,6 +366,9 @@ model LegalDailySheetEmailSend {
   payload          Json?
   sentAt           DateTime        @default(now())
   readyForInvoice  Boolean         @default(false)
+  invoicePdfSentAt DateTime?
+  invoicePdfSentTo String?
+  invoicePdfSentBy String?
   confirmedBy      String? // User ID who confirmed the invoice
   confirmedAt      DateTime? // When the invoice was confirmed
 
@@ -373,6 +376,7 @@ model LegalDailySheetEmailSend {
   @@index([date])
   @@index([hotelName])
   @@index([readyForInvoice])
+  @@index([invoicePdfSentAt])
   @@index([confirmedAt])
 }
 
@@ -392,6 +396,9 @@ model PhysicalDailySheetEmailSend {
   payload          Json?
   sentAt           DateTime           @default(now())
   readyForInvoice  Boolean            @default(false)
+  invoicePdfSentAt DateTime?
+  invoicePdfSentTo String?
+  invoicePdfSentBy String?
   confirmedBy      String? // User ID who confirmed the invoice
   confirmedAt      DateTime? // When the invoice was confirmed
 
@@ -399,6 +406,7 @@ model PhysicalDailySheetEmailSend {
   @@index([date])
   @@index([hotelName])
   @@index([readyForInvoice])
+  @@index([invoicePdfSentAt])
   @@index([confirmedAt])
 }
 
