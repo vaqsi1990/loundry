@@ -39,6 +39,7 @@ export default function RevenuesSection() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Record<string, boolean>>({});
+  const [hotelSearch, setHotelSearch] = useState<string>("");
 
   const formatMonthYearGe = (date: Date) => {
     const monthIndex = date.getMonth(); // 0-based
@@ -350,20 +351,39 @@ export default function RevenuesSection() {
     }
   };
 
+  const normalizedSearch = hotelSearch.trim().toLowerCase();
+  const filteredSentInvoices = normalizedSearch
+    ? sentInvoices.filter((inv) =>
+        (inv.customerName || "").toLowerCase().includes(normalizedSearch)
+      )
+    : sentInvoices;
+
   const selectedInvoicesCount = Object.values(selectedInvoiceIds).filter(Boolean).length;
+  const selectedInvoicesCountFiltered = filteredSentInvoices.filter(
+    (inv) => !!selectedInvoiceIds[inv.id]
+  ).length;
 
   const toggleSelectAllInvoices = () => {
-    if (!sentInvoices.length) return;
-    const allSelected = sentInvoices.every((inv) => selectedInvoiceIds[inv.id]);
+    if (!filteredSentInvoices.length) return;
+    const allSelected = filteredSentInvoices.every((inv) => selectedInvoiceIds[inv.id]);
     if (allSelected) {
-      setSelectedInvoiceIds({});
+      // Unselect only the currently visible (filtered) invoices
+      setSelectedInvoiceIds((prev) => {
+        const next = { ...prev };
+        filteredSentInvoices.forEach((inv) => {
+          delete next[inv.id];
+        });
+        return next;
+      });
       return;
     }
-    const next: Record<string, boolean> = {};
-    sentInvoices.forEach((inv) => {
-      next[inv.id] = true;
+    setSelectedInvoiceIds((prev) => {
+      const next: Record<string, boolean> = { ...prev };
+      filteredSentInvoices.forEach((inv) => {
+        next[inv.id] = true;
+      });
+      return next;
     });
-    setSelectedInvoiceIds(next);
   };
 
   const toggleSelectInvoice = (invoiceId: string) => {
@@ -669,6 +689,23 @@ export default function RevenuesSection() {
               </button>
             </div>
           </div>
+          <div className="mb-3 flex flex-col md:flex-row md:items-center gap-2">
+            <label className="text-[16px] md:text-[18px] font-medium text-black whitespace-nowrap">
+              ძებნა სასტუმროთი:
+            </label>
+            <input
+              value={hotelSearch}
+              onChange={(e) => setHotelSearch(e.target.value)}
+              placeholder="მაგ: შარდენ ვილა"
+              className="w-full md:w-[360px] px-3 py-2 border border-gray-300 rounded-md text-black bg-white"
+            />
+            {normalizedSearch && (
+              <div className="text-[14px] text-gray-600">
+                ნაპოვნია: {filteredSentInvoices.length}
+                {selectedInvoicesCountFiltered > 0 ? `, მონიშნულია (ფილტრში): ${selectedInvoicesCountFiltered}` : ""}
+              </div>
+            )}
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -676,7 +713,10 @@ export default function RevenuesSection() {
                   <th className="px-4 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider w-[60px]">
                     <input
                       type="checkbox"
-                      checked={sentInvoices.length > 0 && sentInvoices.every((inv) => !!selectedInvoiceIds[inv.id])}
+                      checked={
+                        filteredSentInvoices.length > 0 &&
+                        filteredSentInvoices.every((inv) => !!selectedInvoiceIds[inv.id])
+                      }
                       onChange={toggleSelectAllInvoices}
                       aria-label="ყველას მონიშვნა"
                       className="h-4 w-4"
@@ -700,7 +740,7 @@ export default function RevenuesSection() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sentInvoices.map((invoice) => {
+                {filteredSentInvoices.map((invoice) => {
                   // Ensure we have numbers, not strings or null
                   const totalAmount = Number(invoice.totalAmount ?? invoice.amount ?? 0);
                   const paidAmount = Number(invoice.paidAmount ?? 0);
