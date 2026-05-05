@@ -151,13 +151,13 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">რეცხვის რაოდენობა (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დატოვებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">სულ წონა (კგ)</th>
                 `
                 : `
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">მიღებული (ც.)</th>
                   <th style="border:1px solid #ccc;padding:6px;text-align:center;">გაგზავნილი (ც.)</th>
-                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დეფიციტი (ც.)</th>
+                  <th style="border:1px solid #ccc;padding:6px;text-align:center;">დატოვებული (ც.)</th>
                 `
             }
             ${showPriceColumn ? '<th style="border:1px solid #ccc;padding:6px;text-align:center;">1 ც-ის ფასი (₾) *</th>' : ""}
