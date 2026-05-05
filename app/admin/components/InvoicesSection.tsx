@@ -290,7 +290,7 @@ export default function InvoicesSection() {
       }
     }
   };
-
+console.log('s');
   const deleteHotel = async (hotelName: string | null, dateDetails?: DateDetail[]) => {
     if (!hotelName) return;
     
