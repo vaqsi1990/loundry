@@ -104,21 +104,27 @@ function generateInvoicePDF(
       
       // Helper function to draw bold text by drawing with small offsets to simulate bold
       const drawBoldText = (text: string, x: number, y: number, options?: any) => {
+        // PDFKit mutates `doc.y` on every `text()` call (even when x/y are provided).
+        // Since we "fake bold" by drawing the same text 3 times, we must preserve
+        // the cursor position to avoid accidentally creating dozens of pages.
+        const prevY = doc.y;
         doc.font("Sylfaen").fillColor("#000");
         // Draw text with small offsets to simulate bold effect
         const offset = 0.25;
         const centerOffset = 0.15; // Smaller offset for center-aligned text
+        const opts = options ? { ...options, lineBreak: false } : { lineBreak: false };
         // If center alignment, use smaller horizontal offsets to maintain centering
-        if (options?.align === "center") {
-          doc.text(text, x - centerOffset, y, options);
-          doc.text(text, x + centerOffset, y, options);
-          doc.text(text, x, y, options); // Final centered draw
+        if (opts?.align === "center") {
+          doc.text(text, x - centerOffset, y, opts);
+          doc.text(text, x + centerOffset, y, opts);
+          doc.text(text, x, y, opts); // Final centered draw
         } else {
           // For other alignments, use normal horizontal offsets
-          doc.text(text, x - offset, y, options);
-          doc.text(text, x + offset, y, options);
-          doc.text(text, x, y, options); // Final centered draw
+          doc.text(text, x - offset, y, opts);
+          doc.text(text, x + offset, y, opts);
+          doc.text(text, x, y, opts); // Final centered draw
         }
+        doc.y = prevY;
       };
 
       // =========================
@@ -288,24 +294,79 @@ function generateInvoicePDF(
       doc.moveTo(headerVX, tableTop).lineTo(headerVX, tableTop + 22).stroke();
 
       let currentY = tableTop + 22;
+      const rowHeight = 20;
+      const totalRowHeight = 22;
+      const footerReserved = 35; // keep space for footer text
+      const usableBottomY = doc.page.height - doc.page.margins.bottom - footerReserved;
+
+      const drawTableHeader = (yTop: number) => {
+        // Header background
+        doc
+          .save()
+          .rect(tableLeft, yTop, tableWidthPixels, 22)
+          .fill("#d0d0d0")
+          .restore();
+
+        doc.rect(tableLeft, yTop, tableWidthPixels, 22).stroke();
+
+        const hy = yTop + 6;
+        let hx = tableLeft;
+
+        doc.fontSize(11);
+        drawBoldText("№", hx, hy, { width: col.number, align: "center" });
+        hx += col.number;
+        drawBoldText("მომსახურების პერიოდი", hx, hy, {
+          width: col.description,
+          align: "center",
+        });
+        hx += col.description;
+        drawBoldText("წონა (კგ) / ცალი", hx, hy, { width: col.quantity, align: "center" });
+        hx += col.quantity;
+        drawBoldText("კგ-ის  / ცალის ფასი (₾)", hx, hy, {
+          width: col.unitPrice,
+          align: "center",
+        });
+        hx += col.unitPrice;
+        drawBoldText("ჯამი (₾)", hx, hy, { width: col.total, align: "center" });
+
+        // Draw vertical lines in header
+        doc.strokeColor("#000");
+        doc.lineWidth(1);
+        let headerVX = tableLeft + col.number;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+        headerVX += col.description;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+        headerVX += col.quantity;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+        headerVX += col.unitPrice;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+      };
 
       // =========================
       // TABLE ROWS
       // =========================
       items.forEach((item, index) => {
-        doc.rect(tableLeft, currentY, tableWidthPixels, 20).stroke();
+        // Page break if next row + total row would overflow.
+        if (currentY + rowHeight + totalRowHeight > usableBottomY) {
+          doc.addPage();
+          const newTop = doc.page.margins.top;
+          drawTableHeader(newTop);
+          currentY = newTop + 22;
+        }
+
+        doc.rect(tableLeft, currentY, tableWidthPixels, rowHeight).stroke();
 
         // Draw vertical lines in each row
         doc.strokeColor("#000");
         doc.lineWidth(1);
         let vX = tableLeft + col.number;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
         vX += col.description;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
         vX += col.quantity;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
         vX += col.unitPrice;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
 
         let xx = tableLeft;
 
@@ -339,7 +400,7 @@ function generateInvoicePDF(
           align: "right",
         });
 
-        currentY += 20;
+        currentY += rowHeight;
       });
 
       // =========================
@@ -351,19 +412,26 @@ function generateInvoicePDF(
         .fill("#ffffff")
         .restore();
 
-      doc.rect(tableLeft, currentY, tableWidthPixels, 22).stroke();
+      if (currentY + totalRowHeight > usableBottomY) {
+        doc.addPage();
+        const newTop = doc.page.margins.top;
+        drawTableHeader(newTop);
+        currentY = newTop + 22;
+      }
+
+      doc.rect(tableLeft, currentY, tableWidthPixels, totalRowHeight).stroke();
 
       // Draw vertical lines in total row
       doc.strokeColor("#000");
       doc.lineWidth(1);
       let totalVX = tableLeft + col.number;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + totalRowHeight).stroke();
       totalVX += col.description;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + totalRowHeight).stroke();
       totalVX += col.quantity;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + totalRowHeight).stroke();
       totalVX += col.unitPrice;
-      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + 22).stroke();
+      doc.moveTo(totalVX, currentY).lineTo(totalVX, currentY + totalRowHeight).stroke();
 
       doc.fontSize(11);
 

@@ -72,18 +72,24 @@ function generateInvoicePDF(
       
       // Helper function to draw bold text
       const drawBoldText = (text: string, x: number, y: number, options?: any) => {
+        // PDFKit mutates `doc.y` on every `text()` call (even when x/y are provided).
+        // Since we "fake bold" by drawing the same text 3 times, we must preserve
+        // the cursor position to avoid accidentally creating dozens of pages.
+        const prevY = doc.y;
         doc.font("Sylfaen").fillColor("#000");
         const offset = 0.25;
         const centerOffset = 0.15;
-        if (options?.align === "center") {
-          doc.text(text, x - centerOffset, y, options);
-          doc.text(text, x + centerOffset, y, options);
-          doc.text(text, x, y, options);
+        const opts = options ? { ...options, lineBreak: false } : { lineBreak: false };
+        if (opts?.align === "center") {
+          doc.text(text, x - centerOffset, y, opts);
+          doc.text(text, x + centerOffset, y, opts);
+          doc.text(text, x, y, opts);
         } else {
-          doc.text(text, x - offset, y, options);
-          doc.text(text, x + offset, y, options);
-          doc.text(text, x, y, options);
+          doc.text(text, x - offset, y, opts);
+          doc.text(text, x + offset, y, opts);
+          doc.text(text, x, y, opts);
         }
+        doc.y = prevY;
       };
 
       // HEADER + LOGO
@@ -229,21 +235,71 @@ function generateInvoicePDF(
 
       // TABLE ROWS
       let currentY = tableTop + 22;
+      const rowHeight = 20;
+      const totalRowHeight = 22;
+      const footerReserved = 35;
+      const usableBottomY = doc.page.height - doc.page.margins.bottom - footerReserved;
+
+      const drawTableHeader = (yTop: number) => {
+        doc
+          .save()
+          .rect(tableLeft, yTop, tableWidthPixels, 22)
+          .fill("#d0d0d0")
+          .restore();
+        doc.rect(tableLeft, yTop, tableWidthPixels, 22).stroke();
+
+        const hy = yTop + 6;
+        let hx = tableLeft;
+        doc.fontSize(11);
+        drawBoldText("№", hx, hy, { width: col.number, align: "center" });
+        hx += col.number;
+        drawBoldText("მომსახურების პერიოდი", hx, hy, {
+          width: col.description,
+          align: "center",
+        });
+        hx += col.description;
+        drawBoldText("წონა (კგ)", hx, hy, { width: col.quantity, align: "center" });
+        hx += col.quantity;
+        drawBoldText("კგ-ის ფასი (₾)", hx, hy, {
+          width: col.unitPrice,
+          align: "center",
+        });
+        hx += col.unitPrice;
+        drawBoldText("ჯამი (₾)", hx, hy, { width: col.total, align: "center" });
+
+        doc.strokeColor("#000");
+        doc.lineWidth(1);
+        let headerVX = tableLeft + col.number;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+        headerVX += col.description;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+        headerVX += col.quantity;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+        headerVX += col.unitPrice;
+        doc.moveTo(headerVX, yTop).lineTo(headerVX, yTop + 22).stroke();
+      };
 
       items.forEach((item, index) => {
-        doc.rect(tableLeft, currentY, tableWidthPixels, 20).stroke();
+        if (currentY + rowHeight + totalRowHeight > usableBottomY) {
+          doc.addPage();
+          const newTop = doc.page.margins.top;
+          drawTableHeader(newTop);
+          currentY = newTop + 22;
+        }
+
+        doc.rect(tableLeft, currentY, tableWidthPixels, rowHeight).stroke();
 
         // Draw vertical lines in each row
         doc.strokeColor("#000");
         doc.lineWidth(1);
         let vX = tableLeft + col.number;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
         vX += col.description;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
         vX += col.quantity;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
         vX += col.unitPrice;
-        doc.moveTo(vX, currentY).lineTo(vX, currentY + 20).stroke();
+        doc.moveTo(vX, currentY).lineTo(vX, currentY + rowHeight).stroke();
 
         let xx = tableLeft;
 
@@ -277,13 +333,15 @@ function generateInvoicePDF(
           align: "right",
         });
 
-        currentY += 20;
+        currentY += rowHeight;
       });
 
       // TOTAL ROW
-      if (currentY > doc.page.height - 80) {
+      if (currentY + totalRowHeight > usableBottomY) {
         doc.addPage();
-        currentY = doc.page.margins.top;
+        const newTop = doc.page.margins.top;
+        drawTableHeader(newTop);
+        currentY = newTop + 22;
       }
 
       doc
