@@ -37,7 +37,7 @@ function generateInvoicePDF(
   dueDate: Date,
   paymentType: string,
   hotelName: string,
-  hotelRegistrationNumber: string,
+  buyerIdCodeLine: string,
   hotelAddress: string | null,
   hotelPhone: string,
   items: Array<{
@@ -134,7 +134,7 @@ function generateInvoicePDF(
       const buyerBodyLines = [
         hotelName,
         ...(hotelAddress ? [hotelAddress] : []),
-        `ს/კ: ${hotelRegistrationNumber}`,
+        buyerIdCodeLine,
         ...(hotelPhone ? [`ტელ: ${hotelPhone}`] : []),
       ];
 
@@ -565,7 +565,7 @@ export async function GET(request: NextRequest) {
       dueDate,
       "ნაღდი",
       buyerName,
-      hotel.hotelRegistrationNumber,
+      `პ/ნ: ${hotel.personalId || hotel.hotelRegistrationNumber}`,
       hotel.address,
       hotel.mobileNumber,
       items,

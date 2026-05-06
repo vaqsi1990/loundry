@@ -70,7 +70,7 @@ function generateInvoicePDF(
   dueDate: Date,
   paymentType: string,
   hotelName: string,
-  hotelRegistrationNumber: string,
+  buyerIdCodeLine: string,
   hotelAddress: string | null,
   hotelPhone: string,
   items: Array<{
@@ -179,7 +179,7 @@ function generateInvoicePDF(
       const buyerBodyLines = [
         hotelName,
         ...(hotelAddress ? [hotelAddress] : []),
-        `ს/კ: ${hotelRegistrationNumber}`,
+        buyerIdCodeLine,
         ...(hotelPhone ? [`ტელ: ${hotelPhone}`] : []),
       ];
 
@@ -595,6 +595,10 @@ export async function GET(request: NextRequest) {
             .filter(Boolean)
             .join(" ") ||
             hotel.hotelName);
+    const buyerIdCodeLine =
+      hotel.type === "LEGAL"
+        ? `ს/კ: ${hotel.identificationCode || hotel.hotelRegistrationNumber}`
+        : `პ/ნ: ${hotel.personalId || hotel.hotelRegistrationNumber}`;
 
     const sortedEmailSends = [...emailSends].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -621,7 +625,7 @@ export async function GET(request: NextRequest) {
       serviceDate,
       "გადარიცხვით",
       buyerName,
-      hotel.hotelRegistrationNumber,
+      buyerIdCodeLine,
       hotel.address,
       hotel.mobileNumber,
       items,
@@ -692,6 +696,10 @@ export async function POST(request: NextRequest) {
             .filter(Boolean)
             .join(" ") ||
             hotel.hotelName);
+    const buyerIdCodeLine =
+      hotel.type === "LEGAL"
+        ? `ს/კ: ${hotel.identificationCode || hotel.hotelRegistrationNumber}`
+        : `პ/ნ: ${hotel.personalId || hotel.hotelRegistrationNumber}`;
 
     // Use provided email or hotel's email, prioritize provided email
     const recipientEmail = email || hotel.email;
@@ -1006,7 +1014,7 @@ export async function POST(request: NextRequest) {
       serviceDate,
       "გადარიცხვით",
       buyerName,
-      hotel.hotelRegistrationNumber,
+      buyerIdCodeLine,
       hotel.address,
       hotel.mobileNumber,
       items,
