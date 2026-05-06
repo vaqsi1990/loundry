@@ -657,10 +657,15 @@ console.log('s');
     monthFilteredRows !== null
       ? monthFilteredRows.reduce((sum, r) => sum + (r.detail.protectorsAmount || 0), 0)
       : summaries.reduce((sum, d) => sum + (d.protectorsAmount || 0), 0);
+  const totalHeavyWeight =
+    monthFilteredRows !== null
+      ? monthFilteredRows.reduce((sum, r) => sum + ((r.detail as any).heavyWeightAmount || 0), 0)
+      : summaries.reduce((sum, d) => sum + ((d as any).heavyWeightAmount || 0), 0);
   const totalAmount =
     monthFilteredRows !== null
       ? monthFilteredRows.reduce((sum, r) => sum + (r.detail.totalAmount || 0), 0)
       : summaries.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
+  const totalAmountWithHeavy = totalAmount + totalHeavyWeight;
   const totalDispatched = summaries.reduce((sum, d) => sum + (d.totalDispatched || 0), 0);
   const totalSheets =
     monthFilteredRows !== null
@@ -767,7 +772,7 @@ console.log('s');
             </div>
             <div>
               <div className="text-gray-600 text-sm">სულ თანხა</div>
-              <div className="text-xl font-bold text-black">{totalAmount.toFixed(2)} ₾</div>
+              <div className="text-xl font-bold text-black">{totalAmountWithHeavy.toFixed(2)} ₾</div>
             </div>
           </div>
         </div>
@@ -874,6 +879,8 @@ console.log('s');
                         (sum, inv) => sum + (inv.detail.heavyWeightAmount || 0),
                         0
                       );
+                      const totalHotelAmountWithHeavy =
+                        totalHotelAmount + totalHotelHeavyWeight;
                       const dateDetailsForHotel = hotelInvoices.map((inv) => inv.detail);
                       const allConfirmed =
                         dateDetailsForHotel.length > 0 &&
@@ -901,7 +908,7 @@ console.log('s');
                                 მძიმე {totalHotelHeavyWeight.toFixed(2)} ₾
                               </span>
                               <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
-                                {totalHotelAmount.toFixed(2)} ₾
+                                {totalHotelAmountWithHeavy.toFixed(2)} ₾
                               </span>
                               <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
                                 დამცავები {totalHotelProtectors.toFixed(2)} ₾
@@ -1014,7 +1021,11 @@ console.log('s');
                                               {(detail.heavyWeightAmount || 0).toFixed(2)} ₾
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black font-semibold">
-                                              {(detail.totalAmount || 0).toFixed(2)} ₾
+                                              {(
+                                                (detail.totalAmount || 0) +
+                                                (detail.heavyWeightAmount || 0)
+                                              ).toFixed(2)}{" "}
+                                              ₾
                                             </td>
                                             <td className="px-4 py-2 whitespace-nowrap text-[14px] md:text-[16px] text-black">
                                               <div className="flex gap-2">

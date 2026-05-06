@@ -67,10 +67,12 @@ export function liveDisplayedTotalWeightKg(
 export function liveHeavyWeightAmountGel(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  const hw = sheet?.heavyWeight;
-  const hp = sheet?.heavyPricePerKg;
-  const byFields = num(hw) * num(hp);
-  if (byFields > 0) return byFields;
+  // Prefer explicit sheet fields, but be resilient when only one of them is filled.
+  // Some data has `heavyWeight` without `heavyPricePerKg` (or vice-versa), so we fall back to legacy line price/fallback map.
+  const kg = liveHeavyWeightKg(sheet);
+  const unit = liveHeavyWeightPricePerKgGel(sheet);
+  const byKg = num(kg) * num(unit);
+  if (byKg > 0) return byKg;
   return heavyWeightProtectorsLineAmountGel(
     sheet?.items ?? [],
     HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
@@ -274,9 +276,9 @@ export function invoicePdfLineItemsFromSortedSends(
 
     const manual = num(send.totalAmountOverrideGel);
     if (manual > 0) {
-      // If a manual total is provided for this day, keep heavy/protectors breakdown from the sheet (if possible),
-      // and adjust the linen amount so that: linen + heavy + protectors = manual total.
-      // This makes the PDF total match edited totals while still showing heavy weight + protectors lines.
+      // If a manual total is provided for this day, treat it as the day's base total (linens+towels + protectors),
+      // while heavy weight remains a separate line item.
+      // This matches the invoices UI where heavy weight is displayed separately and added to the grand total.
       if (ds) {
         const hwAmt = liveHeavyWeightAmountGel(ds);
         const hwKg = liveHeavyWeightKg(ds);
@@ -291,7 +293,8 @@ export function invoicePdfLineItemsFromSortedSends(
         protPiecesSum += pPieces;
 
         const kg = liveLinensWeightBasisKg(ds);
-        const linenAmt = Math.max(0, manual - hwAmt - pAmt);
+        // `manual` is base total excluding heavy weight; allocate it between linens and protectors.
+        const linenAmt = Math.max(0, manual - pAmt);
         if (kg > 0 || linenAmt > 0) {
           const prev = linenByDay.get(key);
           if (prev) {
