@@ -694,6 +694,10 @@ export async function POST(request: NextRequest) {
             .filter(Boolean)
             .join(" ") ||
             hotel.hotelName);
+    const buyerIdCodeLine =
+      hotel.type === "LEGAL"
+        ? `ს/კ: ${hotel.identificationCode || hotel.hotelRegistrationNumber}`
+        : `პ/ნ: ${hotel.personalId || hotel.hotelRegistrationNumber}`;
 
     // Use provided email or hotel's email, prioritize provided email
     const recipientEmail = email || hotel.email;

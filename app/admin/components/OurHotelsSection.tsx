@@ -57,6 +57,7 @@ export default function OurHotelsSection() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeQuery = (searchParams.get("q") ?? "").trim();
+  const activeType = (searchParams.get("type") ?? "").trim().toUpperCase();
 
   // Form state
   const [hotelType, setHotelType] = useState<"PHYSICAL" | "LEGAL" | "">("");
@@ -89,7 +90,7 @@ export default function OurHotelsSection() {
   useEffect(() => {
     fetchHotels(page, activeQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, activeQuery]);
+  }, [page, activeQuery, activeType]);
 
   const setPageInUrl = (nextPage: number) => {
     const next = Math.max(1, nextPage);
@@ -107,11 +108,22 @@ export default function OurHotelsSection() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
+  const setTypeInUrl = (nextType: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const t = nextType.trim().toUpperCase();
+    if (t === "" || t === "ALL") params.delete("type");
+    else params.set("type", t);
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
   const fetchHotels = async (targetPage: number, q: string) => {
     try {
       setLoading(true);
+      const type = activeType === "LEGAL" || activeType === "PHYSICAL" ? activeType : "";
+      const typeQs = type ? `&type=${encodeURIComponent(type)}` : "";
       const response = await fetch(
-        `/api/admin/our-hotels?page=${targetPage}&limit=10&q=${encodeURIComponent(q)}`
+        `/api/admin/our-hotels?page=${targetPage}&limit=10&q=${encodeURIComponent(q)}${typeQs}`
       );
       if (!response.ok) {
         throw new Error("სასტუმროების ჩატვირთვა ვერ მოხერხდა");
@@ -319,6 +331,15 @@ export default function OurHotelsSection() {
           placeholder="ძებნა სახელით ან მეილით…"
           className="w-full sm:max-w-md px-3 py-2 border border-gray-300 rounded-md text-black"
         />
+        <select
+          value={activeType || "ALL"}
+          onChange={(e) => setTypeInUrl(e.target.value)}
+          className="w-full sm:w-56 px-3 py-2 border border-gray-300 rounded-md text-black bg-white"
+        >
+          <option value="ALL">ყველა</option>
+          <option value="LEGAL">იურიდიული</option>
+          <option value="PHYSICAL">ფიზიკური</option>
+        </select>
         <div className="flex items-center gap-2">
           <button
             type="button"

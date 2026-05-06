@@ -156,13 +156,17 @@ export async function GET(request: NextRequest) {
     const pageParam = searchParams.get("page");
     const limitParam = searchParams.get("limit");
     const qParam = searchParams.get("q");
+    const typeParam = (searchParams.get("type") ?? "").trim().toUpperCase();
 
     const page = Math.max(1, Number(pageParam ?? "1") || 1);
     const pageSize = Math.min(50, Math.max(1, Number(limitParam ?? "10") || 10));
     const skip = (page - 1) * pageSize;
     const q = (qParam ?? "").trim();
 
-    const where =
+    const typeFilter =
+      typeParam === "LEGAL" || typeParam === "PHYSICAL" ? typeParam : null;
+
+    const qFilter =
       q.length > 0
         ? {
             OR: [
@@ -171,7 +175,12 @@ export async function GET(request: NextRequest) {
               { user: { is: { email: { contains: q, mode: "insensitive" as const } } } },
             ],
           }
-        : undefined;
+        : null;
+
+    const where = {
+      ...(typeFilter ? { type: typeFilter as any } : {}),
+      ...(qFilter ? qFilter : {}),
+    };
 
     const include = {
       user: {
