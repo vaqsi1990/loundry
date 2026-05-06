@@ -585,6 +585,15 @@ export async function GET(request: NextRequest) {
 
     const issueDate = new Date();
     const pricePerKg = hotel.pricePerKg || 1.8;
+    const buyerName =
+      hotel.type === "LEGAL"
+        ? (hotel.legalEntityName?.trim() ||
+            hotel.companyName?.trim() ||
+            hotel.hotelName)
+        : ([hotel.firstName?.trim(), hotel.lastName?.trim()]
+            .filter(Boolean)
+            .join(" ") ||
+            hotel.hotelName);
 
     const sortedEmailSends = [...emailSends].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -610,7 +619,7 @@ export async function GET(request: NextRequest) {
       issueDate,
       serviceDate,
       "გადარიცხვით",
-      hotel.hotelName,
+      buyerName,
       hotel.hotelRegistrationNumber,
       hotel.address,
       hotel.mobileNumber,
@@ -671,6 +680,16 @@ export async function POST(request: NextRequest) {
     if (!hotel) {
       return NextResponse.json({ error: "სასტუმრო ვერ მოიძებნა" }, { status: 404 });
     }
+
+    const buyerName =
+      hotel.type === "LEGAL"
+        ? (hotel.legalEntityName?.trim() ||
+            hotel.companyName?.trim() ||
+            hotel.hotelName)
+        : ([hotel.firstName?.trim(), hotel.lastName?.trim()]
+            .filter(Boolean)
+            .join(" ") ||
+            hotel.hotelName);
 
     // Use provided email or hotel's email, prioritize provided email
     const recipientEmail = email || hotel.email;
@@ -855,7 +874,7 @@ export async function POST(request: NextRequest) {
         await prisma.legalInvoice.create({
           data: {
             invoiceNumber: legalInvoiceNumber,
-            customerName: hotel.hotelName,
+            customerName: buyerName,
             customerEmail: email,
             amount: totalAmount,
             totalWeightKg,
@@ -889,7 +908,7 @@ export async function POST(request: NextRequest) {
           await prisma.legalInvoice.create({
             data: {
               invoiceNumber: legalInvoiceNumber,
-              customerName: hotel.hotelName,
+              customerName: buyerName,
               customerEmail: email,
               amount: totalAmount,
               totalWeightKg,
@@ -929,7 +948,7 @@ export async function POST(request: NextRequest) {
         await prisma.physicalInvoice.create({
           data: {
             invoiceNumber: physicalInvoiceNumber,
-            customerName: hotel.hotelName,
+            customerName: buyerName,
             customerEmail: email,
             amount: totalAmount,
             totalWeightKg,
@@ -962,7 +981,7 @@ export async function POST(request: NextRequest) {
           await prisma.physicalInvoice.create({
             data: {
               invoiceNumber: physicalInvoiceNumber,
-              customerName: hotel.hotelName,
+              customerName: buyerName,
               customerEmail: email,
               amount: totalAmount,
               totalWeightKg,
@@ -987,7 +1006,7 @@ export async function POST(request: NextRequest) {
       issueDate,
       serviceDate,
       "გადარიცხვით",
-      hotel.hotelName,
+      buyerName,
       hotel.hotelRegistrationNumber,
       hotel.address,
       hotel.mobileNumber,

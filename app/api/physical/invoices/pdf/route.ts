@@ -423,6 +423,13 @@ export async function GET(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
+    const physicalFullName = [hotel.firstName?.trim(), hotel.lastName?.trim()]
+      .filter(Boolean)
+      .join(" ");
+    const buyerName =
+      physicalFullName ||
+      user.name?.trim() ||
+      hotel.hotelName;
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
     const dateParam = searchParams.get("date"); // YYYY-MM-DD format (optional, for single invoice)
@@ -557,7 +564,7 @@ export async function GET(request: NextRequest) {
       issueDate,
       dueDate,
       "ნაღდი",
-      hotel.hotelName,
+      buyerName,
       hotel.hotelRegistrationNumber,
       hotel.address,
       hotel.mobileNumber,
