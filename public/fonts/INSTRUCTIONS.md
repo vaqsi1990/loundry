@@ -12,10 +12,10 @@
 
 3. გახსენით ZIP ფაილი
 
-4. იპოვეთ ფაილი `NotoSansGeorgian-Regular.ttf`
+4. იპოვეთ ქართული `.ttf` ფაილი (ან გადმოწერეთ სკრიპტით ქვემოთ)
 
 5. დააკოპირეთ ეს ფაილი აქ:
-   `public/fonts/NotoSansGeorgian-Regular.ttf`
+   `public/fonts/NotoSansGeorgian.ttf`
 
 6. გადატვირთეთ Next.js სერვერი
 
@@ -23,8 +23,7 @@
 
 თუ PowerShell-ში გაქვთ curl ან wget:
 ```powershell
-New-Item -ItemType Directory -Force -Path "public\fonts"
-# შემდეგ ჩამოტვირთეთ ფონტი ხელით და დააყენეთ public/fonts/NotoSansGeorgian-Regular.ttf
+.\scripts\download-georgian-font.ps1
 ```
 
 ## შემოწმება

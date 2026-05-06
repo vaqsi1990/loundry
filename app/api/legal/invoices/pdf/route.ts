@@ -12,6 +12,7 @@ import nodemailer from "nodemailer";
 import path from "path";
 import { createPdfDocument } from "@/lib/pdfkit-create";
 import fs from "fs";
+import { useGeorgianPdfFont } from "@/lib/pdf-georgian-font";
 
 // Seller information
 const SELLER_INFO = {
@@ -63,9 +64,7 @@ function generateInvoicePDF(
       doc.on("error", reject);
 
       // FONT
-      const sylfaenFontPath = path.join(process.cwd(), "public", "fonts", "sylfaen.ttf");
-      doc.registerFont("Sylfaen", sylfaenFontPath);
-      doc.font("Sylfaen");
+      useGeorgianPdfFont(doc);
 
       const pageWidth = doc.page.width;
       const contentWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
@@ -77,7 +76,7 @@ function generateInvoicePDF(
         // Since we "fake bold" by drawing the same text 3 times, we must preserve
         // the cursor position to avoid accidentally creating dozens of pages.
         const prevY = doc.y;
-        doc.font("Sylfaen").fillColor("#000");
+        doc.fillColor("#000");
         const offset = 0.25;
         const centerOffset = 0.15;
         const opts = options ? { ...options, lineBreak: false } : { lineBreak: false };
@@ -120,6 +119,16 @@ function generateInvoicePDF(
       const sellerX = infoX + colWidth + colGap;
       const buyerX = sellerX + colWidth + colGap;
 
+      const renderWrappedLines = (lines: string[], x: number, startY: number) => {
+        let y = startY;
+        for (const line of lines) {
+          const h = doc.heightOfString(line, { width: colWidth });
+          doc.text(line, x, y, { width: colWidth });
+          y += h + 2;
+        }
+        return y;
+      };
+
       const sellerBodyLines = [
         SELLER_INFO.name,
         SELLER_INFO.address,
@@ -148,36 +157,21 @@ function generateInvoicePDF(
 
       doc.fontSize(12);
       drawBoldText("ინვოისის დეტალები", infoX, rowStartY, { width: colWidth, underline: true });
-      doc.font("Sylfaen").fontSize(11).fillColor("#000");
-      let currentInfoY = rowStartY + 16;
-      invoiceBodyLines.forEach((line) => {
-        doc.text(line, infoX, currentInfoY);
-        currentInfoY += 14;
-      });
+      doc.fontSize(11).fillColor("#000");
+      const infoEndY = renderWrappedLines(invoiceBodyLines, infoX, rowStartY + 16);
 
       doc.fontSize(12);
       drawBoldText("გამყიდველი", sellerX, rowStartY, { width: colWidth, underline: true });
-      doc.font("Sylfaen").fontSize(11).fillColor("#000");
-      let currentSellerY = rowStartY + 16;
-      sellerBodyLines.forEach((line) => {
-        doc.text(line, sellerX, currentSellerY);
-        currentSellerY += 14;
-      });
+      doc.fontSize(11).fillColor("#000");
+      const sellerEndY = renderWrappedLines(sellerBodyLines, sellerX, rowStartY + 16);
 
       doc.fontSize(12);
       drawBoldText("მყიდველი", buyerX, rowStartY, { width: colWidth, underline: true });
-      doc.font("Sylfaen").fontSize(11).fillColor("#000");
-      let currentBuyerY = rowStartY + 16;
-      buyerBodyLines.forEach((line) => {
-        doc.text(line, buyerX, currentBuyerY);
-        currentBuyerY += 14;
-      });
+      doc.fontSize(11).fillColor("#000");
+      const buyerEndY = renderWrappedLines(buyerBodyLines, buyerX, rowStartY + 16);
 
-      const infoHeight = 16 + (invoiceBodyLines.length * 14);
-      const sellerHeight = 16 + (sellerBodyLines.length * 14);
-      const buyerHeight = 16 + (buyerBodyLines.length * 14);
-      const maxHeight = Math.max(sellerHeight, buyerHeight, infoHeight);
-      doc.y = rowStartY + maxHeight + 15;
+      const maxEndY = Math.max(infoEndY, sellerEndY, buyerEndY);
+      doc.y = maxEndY + 15;
 
       doc.moveDown(1);
 

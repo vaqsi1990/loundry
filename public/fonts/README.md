@@ -10,8 +10,8 @@ To display Georgian characters correctly in PDF invoices, you need to add a font
    - Extract the ZIP file
 
 2. Copy the font file:
-   - Find `NotoSansGeorgian-Regular.ttf` in the extracted folder
-   - Copy it to this directory: `public/fonts/NotoSansGeorgian-Regular.ttf`
+   - Download the font family from Google Fonts
+   - Copy the Georgian TTF into this directory as: `public/fonts/NotoSansGeorgian.ttf`
 
 3. Restart your Next.js server
 

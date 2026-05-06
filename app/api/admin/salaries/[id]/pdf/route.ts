@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import path from "path";
 import { createPdfDocument } from "@/lib/pdfkit-create";
+import { useGeorgianPdfFont } from "@/lib/pdf-georgian-font";
 
 function generateSalaryStatementPDF(
   firstName: string | null,
@@ -29,9 +30,7 @@ function generateSalaryStatementPDF(
       doc.on("error", reject);
 
       // FONT
-      const sylfaenFontPath = path.join(process.cwd(), "public", "fonts", "sylfaen.ttf");
-      doc.registerFont("Sylfaen", sylfaenFontPath);
-      doc.font("Sylfaen");
+      useGeorgianPdfFont(doc);
 
       const pageWidth = doc.page.width;
       const contentWidth = pageWidth - doc.page.margins.left - doc.page.margins.right;
@@ -39,7 +38,7 @@ function generateSalaryStatementPDF(
       
       // Helper function to draw bold text
       const drawBoldText = (text: string, x: number, y: number, options?: any) => {
-        doc.font("Sylfaen").fillColor("#000");
+        doc.fillColor("#000");
         const offset = 0.25;
         const centerOffset = 0.15;
         if (options?.align === "center") {
@@ -84,7 +83,7 @@ function generateSalaryStatementPDF(
       // Company information below title (left side)
       doc.y += 35;
       doc.fontSize(11);
-      doc.font("Sylfaen").fillColor("#000");
+      doc.fillColor("#000");
       doc.text('შპს "ქინგ ლონდრი"', doc.page.margins.left, doc.y);
       doc.y += 15;
       doc.text("ს/კ: 416386645", doc.page.margins.left, doc.y);
