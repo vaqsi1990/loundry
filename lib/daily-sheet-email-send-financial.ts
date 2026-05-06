@@ -274,8 +274,44 @@ export function invoicePdfLineItemsFromSortedSends(
 
     const manual = num(send.totalAmountOverrideGel);
     if (manual > 0) {
-      // If a manual total is provided for this day, prefer it and skip component breakdowns for that send.
-      // This makes the PDF total match the edited "სულ (₾)" in invoices UI.
+      // If a manual total is provided for this day, keep heavy/protectors breakdown from the sheet (if possible),
+      // and adjust the linen amount so that: linen + heavy + protectors = manual total.
+      // This makes the PDF total match edited totals while still showing heavy weight + protectors lines.
+      if (ds) {
+        const hwAmt = liveHeavyWeightAmountGel(ds);
+        const hwKg = liveHeavyWeightKg(ds);
+        const pAmt = liveProtectorsAmount(ds);
+        const pKg = liveProtectorsWeightKg(ds);
+        const pPieces = liveProtectorsDispatchedPieces(ds);
+
+        heavySum += hwAmt;
+        heavyKgSum += hwKg;
+        protSum += pAmt;
+        protKgSum += pKg;
+        protPiecesSum += pPieces;
+
+        const kg = liveLinensWeightBasisKg(ds);
+        const linenAmt = Math.max(0, manual - hwAmt - pAmt);
+        if (kg > 0 || linenAmt > 0) {
+          const prev = linenByDay.get(key);
+          if (prev) {
+            linenByDay.set(key, {
+              dateStr: prev.dateStr,
+              kg: prev.kg + kg,
+              amt: prev.amt + linenAmt,
+            });
+          } else {
+            linenByDay.set(key, {
+              dateStr: invoicePdfDateLabelDdMmYy(send.date),
+              kg,
+              amt: linenAmt,
+            });
+          }
+        }
+        continue;
+      }
+
+      // If we don't have a sheet (should be rare), fall back to a single manual-total row.
       manualTotalByDay.set(key, {
         dateStr: invoicePdfDateLabelDdMmYy(send.date),
         total: manual,
