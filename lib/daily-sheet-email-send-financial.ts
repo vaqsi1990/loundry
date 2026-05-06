@@ -365,7 +365,7 @@ export function invoicePdfLineItemsFromSortedSends(
   for (const key of manualKeys) {
     const m = manualTotalByDay.get(key)!;
     rows.push({
-      description: `${m.dateStr} (კორექტირება)`,
+      description: `${m.dateStr} `,
       quantity: "1 ც.",
       unitPrice: m.total,
       total: m.total,
