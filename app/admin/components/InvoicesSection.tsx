@@ -51,6 +51,14 @@ function buildMonthOptionsFromSummaries(summaries: InvoiceDaySummary[]) {
     .map(([month, count]) => ({ month, count }));
 }
 
+function toNum(input: string) {
+  const s = input.trim();
+  if (!s) return 0;
+  const normalized = s.replace(",", ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function InvoicesSection() {
   const [summaries, setSummaries] = useState<InvoiceDaySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -484,6 +492,19 @@ console.log('s');
     setError("");
     setSuccessMessage("");
     try {
+      const heavyWeightKg = toNum(editModal.values.heavyWeight);
+      const heavyPricePerKg = toNum(editModal.values.heavyPricePerKg);
+      const heavyAmount =
+        heavyWeightKg > 0 && heavyPricePerKg > 0 ? heavyWeightKg * heavyPricePerKg : 0;
+
+      const manualTotalRaw = editModal.values.totalAmount.trim();
+      const manualTotal = toNum(manualTotalRaw);
+      // UI "სულ" includes heavy separately; store base total (without heavy) to avoid double counting.
+      const manualBaseTotal =
+        manualTotalRaw === ""
+          ? ""
+          : String(Math.max(0, heavyAmount > 0 ? manualTotal - heavyAmount : manualTotal));
+
       const apiPath = getApiPath("invoices", `email-send/${editModal.emailSendId}`);
       const res = await fetch(apiPath, {
         method: "PATCH",
@@ -494,7 +515,7 @@ console.log('s');
           totalPrice: editModal.values.totalPrice,
           heavyWeight: editModal.values.heavyWeight,
           heavyPricePerKg: editModal.values.heavyPricePerKg,
-          totalAmount: editModal.values.totalAmount,
+          totalAmount: manualBaseTotal,
         }),
       });
       const data = await res.json();

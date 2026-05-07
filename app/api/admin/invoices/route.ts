@@ -276,14 +276,25 @@ export async function GET(request: NextRequest) {
       // Therefore, `totalAmount` here MUST be the base total (linens+towels+protectors) excluding heavy weight,
       // otherwise the UI would double-count heavy weight.
       const emailTotalAmount = (() => {
+        const heavy = finNum(emailHeavyWeightAmount);
+        const grand = finNum(liveGrandTotalAmountGel(sheet, defaultPg));
+        const baseFromGrand = Math.max(0, grand - heavy);
         // Treat manual override as active only when it's a positive number (matches PDF logic).
         const manualBase =
           (emailSend as any).totalAmount != null ? finNum((emailSend as any).totalAmount) : 0;
-        if (manualBase > 0) return manualBase;
-        const grand = liveGrandTotalAmountGel(sheet, defaultPg);
+        if (manualBase > 0) {
+          // Legacy data sometimes stored a grand-total (already including heavy) in `totalAmount`.
+          // If manual looks like grand-total, convert it to base-total to avoid UI double-counting heavy.
+          const epsilon = 0.01;
+          const looksLikeGrand =
+            heavy > 0 &&
+            (Math.abs(manualBase - grand) <= epsilon ||
+              manualBase > baseFromGrand + heavy * 0.9);
+          return looksLikeGrand ? Math.max(0, manualBase - heavy) : manualBase;
+        }
         // Convert grand-total -> base-total by subtracting heavy (computed from the same sheet).
         // Keep it non-negative to be safe against inconsistent legacy data.
-        return Math.max(0, finNum(grand) - finNum(emailHeavyWeightAmount));
+        return baseFromGrand;
       })();
 
       // Track by service date (sheet date) - use UTC methods to avoid timezone issues

@@ -548,7 +548,21 @@ export async function GET(request: NextRequest) {
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
-    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
+    // Map DB rows -> PDF helper shape (including optional manual override).
+    const sendsForPdf = sortedEmailSends.map((es) => {
+      const esWithTotal = es as unknown as { totalAmount?: unknown };
+      const override =
+        typeof esWithTotal.totalAmount === "number" && Number.isFinite(esWithTotal.totalAmount)
+          ? esWithTotal.totalAmount
+          : null;
+      return {
+        date: es.date,
+        dailySheet: es.dailySheet,
+        totalAmountOverrideGel: override,
+      };
+    });
+
+    const items = invoicePdfLineItemsFromSortedSends(sendsForPdf, pricePerKg);
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 

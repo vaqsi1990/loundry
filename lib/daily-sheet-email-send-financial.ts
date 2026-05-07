@@ -295,6 +295,18 @@ export function invoicePdfLineItemsFromSortedSends(
         const pKg = liveProtectorsWeightKg(ds);
         const pPieces = liveProtectorsDispatchedPieces(ds);
 
+        // Legacy data sometimes stored a GRAND total (already including heavy) in `totalAmount`.
+        // If `manual` looks like grand-total, convert it to base-total so heavy isn't double-counted.
+        const epsilon = 0.01;
+        const grand = num(liveGrandTotalAmountGel(ds, defaultPricePerKg));
+        const baseFromGrand = Math.max(0, grand - num(hwAmt));
+        const manualBase =
+          hwAmt > 0 &&
+          (Math.abs(manual - grand) <= epsilon ||
+            manual > baseFromGrand + num(hwAmt) * 0.9)
+            ? Math.max(0, manual - num(hwAmt))
+            : manual;
+
         heavySum += hwAmt;
         heavyKgSum += hwKg;
         protSum += pAmt;
@@ -302,7 +314,7 @@ export function invoicePdfLineItemsFromSortedSends(
         protPiecesSum += pPieces;
 
         const kg = liveLinensWeightBasisKg(ds);
-        const linenAmt = Math.max(0, manual - pAmt);
+        const linenAmt = Math.max(0, manualBase - pAmt);
         if (kg > 0 || linenAmt > 0) {
           const prev = linenByDay.get(key);
           if (prev) {
