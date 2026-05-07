@@ -271,8 +271,18 @@ export async function GET(request: NextRequest) {
       const emailWeight = liveDisplayedTotalWeightKg(sheet);
       const emailProtectorsAmount = liveProtectorsAmount(sheet);
       const emailHeavyWeightAmount = liveHeavyWeightAmountGel(sheet);
-      const emailTotalAmount =
-        (emailSend as any).totalAmount != null ? finNum((emailSend as any).totalAmount) : liveGrandTotalAmountGel(sheet, defaultPg);
+      // IMPORTANT:
+      // UI shows heavy weight as a separate column and adds it to "სულ".
+      // Therefore, `totalAmount` here MUST be the base total (linens+towels+protectors) excluding heavy weight,
+      // otherwise the UI would double-count heavy weight.
+      const emailTotalAmount = (() => {
+        const manualBase = (emailSend as any).totalAmount != null ? finNum((emailSend as any).totalAmount) : 0;
+        if (manualBase > 0) return manualBase;
+        const grand = liveGrandTotalAmountGel(sheet, defaultPg);
+        // Convert grand-total -> base-total by subtracting heavy (computed from the same sheet).
+        // Keep it non-negative to be safe against inconsistent legacy data.
+        return Math.max(0, finNum(grand) - finNum(emailHeavyWeightAmount));
+      })();
 
       // Track by service date (sheet date) - use UTC methods to avoid timezone issues
       const dateObj = new Date(emailSend.date);

@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import {
   liveDisplayedTotalWeightKg,
   liveGrandTotalAmountGel,
+  liveHeavyWeightAmountGel,
   liveProtectorsAmount,
   num as finNum,
 } from "@/lib/daily-sheet-email-send-financial";
@@ -284,8 +285,16 @@ export async function GET(request: NextRequest) {
 
       const emailWeight = liveDisplayedTotalWeightKg(sheet);
       const emailProtectorsAmount = liveProtectorsAmount(sheet);
-      const emailTotalAmount =
-        (firstSend as any).totalAmount != null ? finNum((firstSend as any).totalAmount) : liveGrandTotalAmountGel(sheet, defaultPg);
+      const emailHeavyWeightAmount = liveHeavyWeightAmountGel(sheet);
+      // IMPORTANT:
+      // Manager UI reuses the admin invoices table which treats heavy weight as a separate column and adds it to "სულ".
+      // Therefore, `totalAmount` here MUST be base total excluding heavy weight, otherwise totals will be inconsistent.
+      const emailTotalAmount = (() => {
+        const manualBase = (firstSend as any).totalAmount != null ? finNum((firstSend as any).totalAmount) : 0;
+        if (manualBase > 0) return manualBase;
+        const grand = liveGrandTotalAmountGel(sheet, defaultPg);
+        return Math.max(0, finNum(grand) - finNum(emailHeavyWeightAmount));
+      })();
 
       // Track by service date (sheet date) using UTC to avoid timezone issues
       const dateObj = new Date(firstSend.date);
@@ -327,6 +336,7 @@ export async function GET(request: NextRequest) {
         totalDispatched: totals.dispatched,
         totalWeightKg: emailWeight,
         protectorsAmount: emailProtectorsAmount,
+        heavyWeightAmount: emailHeavyWeightAmount,
         totalAmount: emailTotalAmount,
         totalEmailSendCount: group.length, // how many times sheet was emailed
         dateDetails: [{
@@ -334,6 +344,7 @@ export async function GET(request: NextRequest) {
           emailSendCount: group.length,
           weightKg: emailWeight,
           protectorsAmount: emailProtectorsAmount,
+          heavyWeightAmount: emailHeavyWeightAmount,
           totalAmount: emailTotalAmount,
           sentAt: (() => {
             const latest = group
@@ -397,6 +408,7 @@ export async function GET(request: NextRequest) {
         totalDispatched: acc.totalDispatched + (inv.totalDispatched || 0),
         totalWeightKg: acc.totalWeightKg + (inv.totalWeightKg || 0),
         protectorsAmount: acc.protectorsAmount + (inv.protectorsAmount || 0),
+        heavyWeightAmount: (acc as any).heavyWeightAmount + ((inv as any).heavyWeightAmount || 0),
         totalAmount: acc.totalAmount + (inv.totalAmount || 0),
         totalEmailSendCount: acc.totalEmailSendCount + (inv.totalEmailSendCount || 0),
       }), {
@@ -404,6 +416,7 @@ export async function GET(request: NextRequest) {
         totalDispatched: 0,
         totalWeightKg: 0,
         protectorsAmount: 0,
+        heavyWeightAmount: 0,
         totalAmount: 0,
         totalEmailSendCount: 0,
       });
@@ -415,6 +428,7 @@ export async function GET(request: NextRequest) {
         totalDispatched: combined.totalDispatched,
         totalWeightKg: combined.totalWeightKg,
         protectorsAmount: combined.protectorsAmount,
+        heavyWeightAmount: (combined as any).heavyWeightAmount,
         totalAmount: combined.totalAmount,
         totalEmailSendCount: combined.totalEmailSendCount,
         dateDetails: allDateDetails,
