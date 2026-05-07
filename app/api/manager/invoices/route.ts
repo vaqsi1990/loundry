@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
+  invoiceListBaseTotalAmountGel,
   liveDisplayedTotalWeightKg,
-  liveGrandTotalAmountGel,
   liveHeavyWeightAmountGel,
   liveProtectorsAmount,
   num as finNum,
@@ -307,12 +307,12 @@ export async function GET(request: NextRequest) {
       // IMPORTANT:
       // Manager UI reuses the admin invoices table which treats heavy weight as a separate column and adds it to "სულ".
       // Therefore, `totalAmount` here MUST be base total excluding heavy weight, otherwise totals will be inconsistent.
-      const emailTotalAmount = (() => {
-        const manualBase = (bestSend as any).totalAmount != null ? finNum((bestSend as any).totalAmount) : 0;
-        if (manualBase > 0) return manualBase;
-        const grand = liveGrandTotalAmountGel(sheet, defaultPg);
-        return Math.max(0, finNum(grand) - finNum(emailHeavyWeightAmount));
-      })();
+      const emailTotalAmount = invoiceListBaseTotalAmountGel(
+        (bestSend as { totalAmount?: number | null }).totalAmount,
+        sheet,
+        defaultPg,
+        (bestSend as { payload?: unknown }).payload
+      );
 
       // Track by service date (sheet date) using UTC to avoid timezone issues
       const dateObj = new Date(bestSend.date);

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
   effectiveKgPriceFromSheetAndDefault,
+  invoiceManualTotalStoredAsBaseFromPayload,
   liveDisplayedTotalWeightKg,
   liveProtectorsAmount,
   invoicePdfLineItemsFromSortedSends,
@@ -550,7 +551,7 @@ export async function GET(request: NextRequest) {
 
     // Map DB rows -> PDF helper shape (including optional manual override).
     const sendsForPdf = sortedEmailSends.map((es) => {
-      const esWithTotal = es as unknown as { totalAmount?: unknown };
+      const esWithTotal = es as unknown as { totalAmount?: unknown; payload?: unknown };
       const override =
         typeof esWithTotal.totalAmount === "number" && Number.isFinite(esWithTotal.totalAmount)
           ? esWithTotal.totalAmount
@@ -559,6 +560,9 @@ export async function GET(request: NextRequest) {
         date: es.date,
         dailySheet: es.dailySheet,
         totalAmountOverrideGel: override,
+        invoiceManualTotalStoredAsBase: invoiceManualTotalStoredAsBaseFromPayload(
+          esWithTotal.payload
+        ),
       };
     });
 

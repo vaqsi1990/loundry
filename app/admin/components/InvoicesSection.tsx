@@ -2,6 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import {
+  effectiveManualBaseOverrideGel,
+  liveHeavyWeightAmountGel,
+  type DailySheetForTotals,
+} from "@/lib/daily-sheet-email-send-financial";
 
 interface Hotel {
   id: string;
@@ -298,7 +303,7 @@ export default function InvoicesSection() {
       }
     }
   };
-console.log('s');
+
   const deleteHotel = async (hotelName: string | null, dateDetails?: DateDetail[]) => {
     if (!hotelName) return;
     
@@ -463,6 +468,35 @@ console.log('s');
       if (!res.ok) throw new Error(data.error || "ინვოისის მონაცემები ვერ მოიძებნა");
       const ds = (data?.dailySheet || {}) as Record<string, unknown>;
       const ov = (data?.overrides || {}) as Record<string, unknown>;
+      const snapshotPgRaw = data?.snapshotPricePerKg as number | null | undefined;
+      let defaultPg = 1.8;
+      if (snapshotPgRaw != null && Number(snapshotPgRaw) > 0) {
+        defaultPg = Number(snapshotPgRaw);
+      } else {
+        const pgFromSheet = toNum(String(ds.pricePerKg ?? ""));
+        if (pgFromSheet > 0) defaultPg = pgFromSheet;
+      }
+
+      const sheet = ds as unknown as DailySheetForTotals;
+      const storedOv = ov.totalAmount;
+      const storedNum =
+        storedOv != null && storedOv !== ""
+          ? typeof storedOv === "number"
+            ? storedOv
+            : toNum(String(storedOv))
+          : null;
+
+      const storedAsBase = ov.invoiceManualTotalStoredAsBase === true;
+      const effBase = effectiveManualBaseOverrideGel(
+        storedNum,
+        sheet,
+        defaultPg,
+        { storedManualTotalAsBase: storedAsBase }
+      );
+      const heavyAmt = liveHeavyWeightAmountGel(sheet);
+      const totalAmountDisplay =
+        effBase != null ? (effBase + heavyAmt).toFixed(2) : "";
+
       setEditModal((m) => ({
         ...m,
         open: true,
@@ -473,7 +507,7 @@ console.log('s');
           totalPrice: ds.totalPrice == null ? "" : String(ds.totalPrice),
           heavyWeight: ds.heavyWeight == null ? "" : String(ds.heavyWeight),
           heavyPricePerKg: ds.heavyPricePerKg == null ? "" : String(ds.heavyPricePerKg),
-          totalAmount: ov.totalAmount == null ? "" : String(ov.totalAmount),
+          totalAmount: totalAmountDisplay,
         },
       }));
     } catch (err) {
@@ -499,15 +533,16 @@ console.log('s');
 
       const manualTotalRaw = editModal.values.totalAmount.trim();
       const manualTotal = toNum(manualTotalRaw);
-      // UI "სულ" includes heavy separately; store base total (without heavy) to avoid double counting.
-      const manualBaseTotal =
+      // ველში იგივეა რაც ცხრილის „სულ“ (ბაზა + მძიმე); ბაზაში ინახება მხოლოდ ბაზის ჯამი (მძიმის გარეშე).
+      const payloadTotalAmount =
         manualTotalRaw === ""
-          ? ""
-          : String(Math.max(0, heavyAmount > 0 ? manualTotal - heavyAmount : manualTotal));
+          ? null
+          : Math.max(0, heavyAmount > 0 ? manualTotal - heavyAmount : manualTotal);
 
       const apiPath = getApiPath("invoices", `email-send/${editModal.emailSendId}`);
       const res = await fetch(apiPath, {
         method: "PATCH",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pricePerKg: editModal.values.pricePerKg,
@@ -515,7 +550,7 @@ console.log('s');
           totalPrice: editModal.values.totalPrice,
           heavyWeight: editModal.values.heavyWeight,
           heavyPricePerKg: editModal.values.heavyPricePerKg,
-          totalAmount: manualBaseTotal,
+          totalAmount: payloadTotalAmount,
         }),
       });
       const data = await res.json();
@@ -1148,12 +1183,14 @@ console.log('s');
           <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
             <h3 className="text-xl font-bold text-black mb-4">ინვოისის დარედაქტირება</h3>
             <p className="text-gray-700 mb-4 text-sm">
-              ცვლილება ინახება ფურცელზე და აისახება PDF-ზე. შემდეგ გამოიყენეთ “Resend”.
+              ცვლილება ინახება ფურცელზე და გაგზავნის ჩანაწერზე (ხელით სულ → ბაზის ჯამი). შემდეგ გამოიყენეთ “Resend”.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-700 mb-1">სულ (₾) — ხელით</label>
+                <label className="block text-sm text-gray-700 mb-1">
+                  სულ (₾) — ხელით (როგორც ცხრილში: ბაზა + მძიმე)
+                </label>
                 <input
                   value={editModal.values.totalAmount}
                   onChange={(e) =>
@@ -1163,7 +1200,7 @@ console.log('s');
                     }))
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded text-black"
-                  placeholder="თუ შეავსებ, ამ თანხას გამოიყენებს ჯამებში"
+                  placeholder="ცარიელი = ავტომატური ჯამი"
                 />
               </div>
               <div>

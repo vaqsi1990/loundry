@@ -232,6 +232,87 @@ export function liveGrandTotalAmountGel(
   );
 }
 
+/** Set by invoice PATCH after this feature: `totalAmount` is always BASE (no heavy). Legacy rows omit this. */
+export const INVOICE_MANUAL_TOTAL_STORED_AS_BASE_KEY = "invoiceManualTotalStoredAsBase";
+
+export function invoiceManualTotalStoredAsBaseFromPayload(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  return (
+    (payload as Record<string, unknown>)[INVOICE_MANUAL_TOTAL_STORED_AS_BASE_KEY] === true
+  );
+}
+
+/** Merge payload when saving manual total: mark new saves as base-only; clear flag when override cleared. */
+export function mergeInvoiceManualTotalPayload(
+  existingPayload: unknown,
+  totalAmountVal: number | null
+): Record<string, unknown> {
+  const base =
+    existingPayload &&
+    typeof existingPayload === "object" &&
+    !Array.isArray(existingPayload)
+      ? { ...(existingPayload as Record<string, unknown>) }
+      : {};
+  if (totalAmountVal === null || !(totalAmountVal > 0)) {
+    delete base[INVOICE_MANUAL_TOTAL_STORED_AS_BASE_KEY];
+  } else {
+    base[INVOICE_MANUAL_TOTAL_STORED_AS_BASE_KEY] = true;
+  }
+  return base;
+}
+
+/**
+ * Normalizes stored `emailSend.totalAmount` into manual BASE total (linens+towels+protectors, excluding heavy).
+ * Some legacy rows stored a grand total (heavy already included).
+ */
+export function effectiveManualBaseOverrideGel(
+  storedTotalAmount: number | null | undefined,
+  sheet: DailySheetForTotals | null | undefined,
+  defaultPricePerKg: number,
+  opts?: { storedManualTotalAsBase?: boolean }
+): number | null {
+  if (storedTotalAmount == null) return null;
+  const raw = num(storedTotalAmount);
+  if (!(raw > 0)) return null;
+
+  const heavy = liveHeavyWeightAmountGel(sheet);
+  const grand = liveGrandTotalAmountGel(sheet, defaultPricePerKg);
+
+  // Saves after PATCH always store BASE; never reinterpret as legacy grand.
+  if (opts?.storedManualTotalAsBase === true) {
+    return raw;
+  }
+
+  const baseFromGrand = Math.max(0, num(grand) - num(heavy));
+  const epsilon = 0.02;
+  const looksLikeGrand =
+    heavy > 0 &&
+    (Math.abs(raw - grand) <= epsilon || raw > baseFromGrand + heavy * 0.9);
+
+  return looksLikeGrand ? Math.max(0, raw - heavy) : raw;
+}
+
+/** Base total for invoice list/API rows: manual override when set, else computed from sheet. */
+export function invoiceListBaseTotalAmountGel(
+  storedTotalAmount: number | null | undefined,
+  sheet: DailySheetForTotals | null | undefined,
+  defaultPricePerKg: number,
+  payload?: unknown
+): number {
+  const storedAsBase = invoiceManualTotalStoredAsBaseFromPayload(payload);
+  const manualEff = effectiveManualBaseOverrideGel(
+    storedTotalAmount,
+    sheet,
+    defaultPricePerKg,
+    { storedManualTotalAsBase: storedAsBase }
+  );
+  if (manualEff != null) return manualEff;
+
+  const heavy = liveHeavyWeightAmountGel(sheet);
+  const grand = liveGrandTotalAmountGel(sheet, defaultPricePerKg);
+  return Math.max(0, num(grand) - num(heavy));
+}
+
 export type InvoicePdfLineItem = {
   description: string;
   quantity: string;
@@ -244,6 +325,8 @@ export type InvoicePdfEmailSendLike = {
   dailySheet: DailySheetForTotals | null | undefined;
   /** Optional manual override for the whole day's total (₾). When set, PDF uses this instead of recalculating from dailySheet. */
   totalAmountOverrideGel?: number | null;
+  /** When true, override value was saved as BASE (post-fix PATCH); skip legacy grand reinterpretation. */
+  invoiceManualTotalStoredAsBase?: boolean;
 };
 
 function invoicePdfDateLabelDdMmYy(d: Date | string): string {
@@ -295,17 +378,11 @@ export function invoicePdfLineItemsFromSortedSends(
         const pKg = liveProtectorsWeightKg(ds);
         const pPieces = liveProtectorsDispatchedPieces(ds);
 
-        // Legacy data sometimes stored a GRAND total (already including heavy) in `totalAmount`.
-        // If `manual` looks like grand-total, convert it to base-total so heavy isn't double-counted.
-        const epsilon = 0.01;
-        const grand = num(liveGrandTotalAmountGel(ds, defaultPricePerKg));
-        const baseFromGrand = Math.max(0, grand - num(hwAmt));
+        // Legacy: grand stored in `totalAmount` — normalize via same rule as invoice list.
         const manualBase =
-          hwAmt > 0 &&
-          (Math.abs(manual - grand) <= epsilon ||
-            manual > baseFromGrand + num(hwAmt) * 0.9)
-            ? Math.max(0, manual - num(hwAmt))
-            : manual;
+          effectiveManualBaseOverrideGel(manual, ds, defaultPricePerKg, {
+            storedManualTotalAsBase: send.invoiceManualTotalStoredAsBase === true,
+          }) ?? manual;
 
         heavySum += hwAmt;
         heavyKgSum += hwKg;
