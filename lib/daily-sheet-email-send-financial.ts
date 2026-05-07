@@ -3,13 +3,7 @@
  * `dailySheet`-ის მიხედვით — რადგან ფურცელი შეიძლება შეიცვალოს გაგზავნის შემდეგ.
  */
 
-import {
-  HEAVY_WEIGHT_ITEM_KA,
-  HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY,
-  heavyWeightProtectorsDispatchedQty,
-  heavyWeightProtectorsKgUnitPriceGel,
-  heavyWeightProtectorsLineAmountGel,
-} from "./daily-sheet-heavy-weight";
+import { HEAVY_WEIGHT_ITEM_KA } from "./daily-sheet-heavy-weight";
 
 export type DailySheetForTotals = {
   sheetType?: string | null;
@@ -42,16 +36,16 @@ export function summedItemLineWeightKg(
   return items.reduce((s, i) => s + num(i.totalWeight ?? i.weight), 0);
 }
 
-/** როგორც send-email ში `weightForPrice` — თეთრეულის ₾/კგ საორდეში (სანამ სუფრებს იყოფ). */
+/** თეთრეულის წონა (კგ): STANDARD-ისთვის — `sheet.totalWeight`, თორემ items-ის ჯამი.
+ * იდენტური ლოგიკა აქვს DailySheetsSection-ს. */
 export function liveLinensWeightBasisKg(
   sheet: DailySheetForTotals | null | undefined
 ): number {
   if (!sheet) return 0;
-  const summed = summedItemLineWeightKg(sheet);
-  // Manual override: if totalWeight is set, prefer it regardless of sheetType.
-  // This enables invoice edits to affect totals even for INDIVIDUAL sheets.
-  if (sheet.totalWeight != null && num(sheet.totalWeight) > 0) return num(sheet.totalWeight);
-  return summed;
+  if (sheet.sheetType === "STANDARD" && sheet.totalWeight != null && num(sheet.totalWeight) > 0) {
+    return num(sheet.totalWeight);
+  }
+  return summedItemLineWeightKg(sheet);
 }
 
 /** იგივე ველი რასაც DailySheetEmailSend.totalWeight ინახავდა გაგზავნისას */
@@ -63,64 +57,42 @@ export function liveDisplayedTotalWeightKg(
   return summedItemLineWeightKg(sheet);
 }
 
-/** მძიმე წონის ₾ ჯამი დამოუკიდებლად — დამცავების ზოგად ჯამში არ მოიაზრება */
+/** მძიმე წონის ₾ ჯამი დამოუკიდებლად — დამცავების ზოგად ჯამში არ მოიაზრება.
+ * მკაცრი წესი: მხოლოდ `sheet.heavyWeight` × `sheet.heavyPricePerKg`. legacy
+ * «მძიმე წონა» PROTECTORS ხაზებიდან fallback გათიშულია, რომ DailySheetsSection-ის
+ * შეჯამება იდენტური იყოს ინვოისების PDF/email-send-ის ფასებთან. */
 export function liveHeavyWeightAmountGel(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  // Prefer explicit sheet fields, but be resilient when only one of them is filled.
-  // Some data has `heavyWeight` without `heavyPricePerKg` (or vice-versa), so we fall back to legacy line price/fallback map.
   const kg = liveHeavyWeightKg(sheet);
   const unit = liveHeavyWeightPricePerKgGel(sheet);
-  const byKg = num(kg) * num(unit);
-  if (byKg > 0) return byKg;
-  return heavyWeightProtectorsLineAmountGel(
-    sheet?.items ?? [],
-    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-  );
+  return num(kg) * num(unit);
 }
 
-/** მძიმე წონის კგ (sheet.heavyWeight თუ არის, თორემ legacy «მძიმე წონა» ხაზის dispatched ჯამი). */
+/** მძიმე წონის კგ — მხოლოდ `sheet.heavyWeight`. */
 export function liveHeavyWeightKg(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  const hw = sheet?.heavyWeight;
-  const byFields = num(hw);
-  if (byFields > 0) return byFields;
-  return heavyWeightProtectorsDispatchedQty(
-    sheet?.items ?? []
-  );
+  return num(sheet?.heavyWeight);
 }
 
-/** მძიმე წონის ₾/კგ (sheet.heavyPricePerKg თუ არის, თორემ legacy «მძიმე წონა» ხაზის price). */
+/** მძიმე წონის ₾/კგ — მხოლოდ `sheet.heavyPricePerKg`. */
 export function liveHeavyWeightPricePerKgGel(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  const hp = sheet?.heavyPricePerKg;
-  const byFields = num(hp);
-  if (byFields > 0) return byFields;
-  return heavyWeightProtectorsKgUnitPriceGel(
-    sheet?.items ?? [],
-    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-  );
+  return num(sheet?.heavyPricePerKg);
 }
 
-/** დამცავები (სტანდარტულ ლუმპში შედება სრული თანხა — მძიმეს ვიკლავთ ხაზებიდან გამოთვლით) — მძიმე წონის გარეშე */
+/** დამცავები — მძიმე წონა აღარ ერთვის totalPrice-ში (მხოლოდ sheet.heavyWeight ველებში), ამიტომ
+ * STANDARD ფურცლისთვის totalPrice = დამცავების ჯამი როგორც-არის, INDIVIDUAL-ისთვის — items-ის
+ * ხაზობრივი ჯამი (მძიმე წონის ხაზის გარდა). */
 export function liveProtectorsAmount(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  // Manual override: if totalPrice is set, prefer it even if items are missing.
   if (sheet?.totalPrice != null && num(sheet.totalPrice) > 0) {
-    const items = sheet.items ?? [];
-    if (!items.length) return num(sheet.totalPrice);
-    const legacyHeavyAmt = heavyWeightProtectorsLineAmountGel(
-      items,
-      HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
-    );
-    return Math.max(0, num(sheet.totalPrice) - legacyHeavyAmt);
+    return num(sheet.totalPrice);
   }
   if (!sheet?.items?.length) return 0;
-  // New: heavy weight is stored separately on the sheet, so do not subtract it from protectors totalPrice.
-  // Back-compat: some legacy data stored heavy-weight line inside protectors totalPrice (handled in override branch above).
   return sheet.items
     .filter(
       (p) =>
@@ -168,10 +140,10 @@ export function effectiveKgPriceFromSheetAndDefault(
   return n > 0 ? n : num(defaultPricePerKg) || 1.8;
 }
 
-const TABLECLOTH_KG_PRICE = 3.0;
-
 /**
- * თეთრეული + პირსახოცები (სუფრების დაშლით) იგივე წესით რაც იურიდიული ინვოისების როუტს ჰქონდა.
+ * თეთრეული + პირსახოცები (+ სუფრები) — ყველა ერთი ფასით (`sheet.pricePerKg`).
+ * იდენტური ლოგიკა აქვს DailySheetsSection-ის თვის შეჯამებას, რათა ინვოისების
+ * PDF/email-send არ ცდენდეს ადმინ. პანელის რიცხვებს.
  */
 export function liveLinenTowelsAmountGel(
   sheet: DailySheetForTotals | null | undefined,
@@ -181,37 +153,8 @@ export function liveLinenTowelsAmountGel(
   if (!items.length) return 0;
 
   const priceKg = effectiveKgPriceFromSheetAndDefault(sheet, defaultPricePerKg);
-
-  const hasTablecloths = items.some((item) =>
-    item.itemNameKa?.toLowerCase().includes("სუფრ")
-  );
-
-  if (!hasTablecloths) {
-    const wfp = liveLinensWeightBasisKg(sheet);
-    return wfp > 0 ? wfp * priceKg : 0;
-  }
-
-  const tableclothsItems = items.filter((item) =>
-    item.itemNameKa?.toLowerCase().includes("სუფრ")
-  );
-  const regularItems = items.filter(
-    (item) => !item.itemNameKa?.toLowerCase().includes("სუფრ")
-  );
-
-  const tableclothsWeight = tableclothsItems.reduce(
-    (sum, item) => sum + num(item.totalWeight ?? item.weight),
-    0
-  );
-  const regularWeight = regularItems.reduce(
-    (sum, item) => sum + num(item.totalWeight ?? item.weight),
-    0
-  );
-
-  let itemAmount = 0;
-  if (regularWeight > 0) itemAmount += regularWeight * priceKg;
-  if (tableclothsWeight > 0)
-    itemAmount += tableclothsWeight * TABLECLOTH_KG_PRICE;
-  return itemAmount;
+  const wfp = liveLinensWeightBasisKg(sheet);
+  return wfp > 0 ? wfp * priceKg : 0;
 }
 
 export function liveGrandTotalAmountGel(

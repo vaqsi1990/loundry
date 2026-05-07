@@ -910,16 +910,34 @@ export default function DailySheetsSection() {
           }
         }
 
+        const protectorsDispatchedSheet = sheet.items
+          .filter(
+            (item) =>
+              item.category === "PROTECTORS" && item.itemNameKa !== "მძიმე წონა"
+          )
+          .reduce((sum, item) => sum + (item.dispatched || 0), 0);
+
         const totalPrice = linenTowelsPrice + heavyWeightPrice + protectorsPrice;
 
         return {
           count: a.count + 1,
           weightKg: a.weightKg + (weightKg || 0),
+          heavyWeightKg: a.heavyWeightKg + (sheet.heavyWeight || 0),
           dispatchedPieces: a.dispatchedPieces + (totals.dispatched || 0),
+          protectorsDispatched: a.protectorsDispatched + protectorsDispatchedSheet,
+          protectorsPrice: a.protectorsPrice + (protectorsPrice || 0),
           totalPrice: a.totalPrice + (totalPrice || 0),
         };
       },
-      { count: 0, weightKg: 0, dispatchedPieces: 0, totalPrice: 0 }
+      {
+        count: 0,
+        weightKg: 0,
+        heavyWeightKg: 0,
+        dispatchedPieces: 0,
+        protectorsDispatched: 0,
+        protectorsPrice: 0,
+        totalPrice: 0,
+      }
     );
 
     return { monthKey: effectiveMonthKey, ...acc };
@@ -1186,9 +1204,16 @@ export default function DailySheetsSection() {
             {selectedHotel} — {formatMonthGe(monthlyHotelSummary.monthKey)}
           </div>
           <div className="text-[14px] md:text-[16px] mt-1">
-            ფურცლები: {monthlyHotelSummary.count} | ჯამი წონა: {monthlyHotelSummary.weightKg.toFixed(2)} კგ | გაგზავნილი:
+            ფურცლები: {monthlyHotelSummary.count} | ჯამი წონა: {monthlyHotelSummary.weightKg.toFixed(2)} კგ | მძიმე წონა:
+            {" "}
+            {monthlyHotelSummary.heavyWeightKg.toFixed(2)} კგ | გაგზავნილი:
             {" "}
             {monthlyHotelSummary.dispatchedPieces} ც. | ჯამი ფასი: {monthlyHotelSummary.totalPrice.toFixed(2)} ₾
+          </div>
+          <div className="text-[14px] md:text-[16px] mt-1">
+            დამცავები: {monthlyHotelSummary.protectorsDispatched} ც. | დამცავების ფასი:
+            {" "}
+            {monthlyHotelSummary.protectorsPrice.toFixed(2)} ₾
           </div>
         </div>
       )}
