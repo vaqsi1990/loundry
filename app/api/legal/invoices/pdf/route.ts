@@ -7,6 +7,7 @@ import {
   liveDisplayedTotalWeightKg,
   liveProtectorsAmount,
   invoicePdfLineItemsFromSortedSends,
+  invoiceManualTotalStoredAsBaseFromPayload,
 } from "@/lib/daily-sheet-email-send-financial";
 import nodemailer from "nodemailer";
 import path from "path";
@@ -549,7 +550,23 @@ export async function GET(request: NextRequest) {
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
-    const items = invoicePdfLineItemsFromSortedSends(sortedEmailSends, pricePerKg);
+    const sendsForPdf = sortedEmailSends.map((es) => {
+      const esWithTotal = es as unknown as { totalAmount?: unknown; payload?: unknown };
+      const override =
+        typeof esWithTotal.totalAmount === "number" && Number.isFinite(esWithTotal.totalAmount)
+          ? esWithTotal.totalAmount
+          : null;
+      return {
+        date: es.date,
+        dailySheet: es.dailySheet,
+        totalAmountOverrideGel: override,
+        invoiceManualTotalStoredAsBase: invoiceManualTotalStoredAsBaseFromPayload(
+          esWithTotal.payload
+        ),
+      };
+    });
+
+    const items = invoicePdfLineItemsFromSortedSends(sendsForPdf, pricePerKg);
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 

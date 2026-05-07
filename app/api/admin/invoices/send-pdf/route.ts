@@ -8,6 +8,7 @@ import {
   liveDisplayedTotalWeightKg,
   liveProtectorsAmount,
   invoicePdfLineItemsFromSortedSends,
+  invoiceManualTotalStoredAsBaseFromPayload,
 } from "@/lib/daily-sheet-email-send-financial";
 import nodemailer from "nodemailer";
 import path from "path";
@@ -603,6 +604,8 @@ export async function GET(request: NextRequest) {
         date: s.date,
         dailySheet: s.dailySheet,
         totalAmountOverrideGel: s.totalAmount ?? null,
+        invoiceManualTotalStoredAsBase:
+          invoiceManualTotalStoredAsBaseFromPayload(s.payload),
       })),
       pricePerKg
     );
@@ -832,6 +835,8 @@ export async function POST(request: NextRequest) {
         date: s.date,
         dailySheet: s.dailySheet,
         totalAmountOverrideGel: s.totalAmount ?? null,
+        invoiceManualTotalStoredAsBase:
+          invoiceManualTotalStoredAsBaseFromPayload(s.payload),
       })),
       pricePerKg
     );

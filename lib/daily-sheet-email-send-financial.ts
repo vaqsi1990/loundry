@@ -104,6 +104,29 @@ export function liveHeavyWeightPricePerKgGel(
   );
 }
 
+/**
+ * ინვოისის PDF / ჩვენება: legacy ხაზზე ხშირია ₾/კგ მომრგვალება (მაგ. 2.47); თუ სტანდარტულ მძიმე ტარიფთან ახლოსაა,
+ * ვაჩვენებთ ტარიფს (იგივე რაც `HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY`-ში).
+ */
+export function liveHeavyWeightInvoiceDisplayPricePerKgGel(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  const tariff =
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY[HEAVY_WEIGHT_ITEM_KA] ?? 0;
+  const p = liveHeavyWeightPricePerKgGel(sheet);
+  const nearTariff = (x: number) =>
+    tariff > 0 && x > 0 && Math.abs(x - tariff) <= 0.08;
+
+  if (nearTariff(p)) return tariff;
+  if (p > 0) return p;
+
+  const amt = liveHeavyWeightAmountGel(sheet);
+  const kg = liveHeavyWeightKg(sheet);
+  if (kg > 0 && amt > 0 && nearTariff(amt / kg)) return tariff;
+
+  return p;
+}
+
 /** დამცავები — მძიმე წონა გამოყოფილია (sheet.heavyWeight ველებში), ამიტომ STANDARD-ისთვის
  * `sheet.totalPrice` ბრუნდება როგორც-არის, INDIVIDUAL-ისთვის — items-ის ხაზობრივი ჯამი
  * (მძიმე წონის ხაზის გარდა). ძველ ფურცლებზე, სადაც totalPrice-ში მძიმე წონაც იყო ჩათვლილი,
@@ -342,6 +365,39 @@ function invoicePdfDaySortKey(d: Date | string): string {
   return `${y}-${m}-${day}`;
 }
 
+/** PDF «მძიმე წონა» ხაზის ₾/კგ სვეტი: ნომინალური ფასი ფურცლიდან (არა ჯამი÷კგ — იქ მომრგვალება იძლევა მაგ. 2.47-ს 2.5-ის ნაცვლად). */
+function accumulateHeavyPdfDisplayUnit(
+  ds: DailySheetForTotals | null | undefined,
+  hwAmt: number,
+  hwKg: number,
+  state: { numerator: number; kg: number }
+): void {
+  if (hwKg <= 0 || hwAmt <= 0) return;
+  const tariff =
+    HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY[HEAVY_WEIGHT_ITEM_KA] ?? 0;
+  const inferred = hwAmt / hwKg;
+  const nearTariff =
+    tariff > 0 && inferred > 0 && Math.abs(inferred - tariff) <= 0.08;
+
+  // Prefer nominal tariff when this day's billed ₾/kg (amount÷kg) matches it — before using
+  // sheet row `price`, which can disagree with max(byField, legacy) amount/kg and skew an
+  // invoice-level weighted average (e.g. blended column shows 2.47 instead of 2.5).
+  if (nearTariff) {
+    state.numerator += tariff * hwKg;
+    state.kg += hwKg;
+    return;
+  }
+
+  const p = liveHeavyWeightInvoiceDisplayPricePerKgGel(ds);
+  if (p > 0) {
+    state.numerator += p * hwKg;
+    state.kg += hwKg;
+  } else {
+    state.numerator += hwAmt;
+    state.kg += hwKg;
+  }
+}
+
 /**
  * ინვოისის PDF: თითო დღეზე აღწერაში DD.MM.YY, «წონა (კგ)/ცალი» სვეტში კგ; ბოლოს მძიმე/დამცავების ჯამები იგივე სვეტით შევსებული.
  */
@@ -355,6 +411,7 @@ export function invoicePdfLineItemsFromSortedSends(
   >();
   let heavySum = 0;
   let heavyKgSum = 0;
+  const heavyPdfDisplayUnit = { numerator: 0, kg: 0 };
   let protSum = 0;
   let protKgSum = 0;
   let protPiecesSum = 0;
@@ -386,6 +443,7 @@ export function invoicePdfLineItemsFromSortedSends(
 
         heavySum += hwAmt;
         heavyKgSum += hwKg;
+        accumulateHeavyPdfDisplayUnit(ds, hwAmt, hwKg, heavyPdfDisplayUnit);
         protSum += pAmt;
         protKgSum += pKg;
         protPiecesSum += pPieces;
@@ -436,8 +494,11 @@ export function invoicePdfLineItemsFromSortedSends(
         });
       }
     }
-    heavySum += liveHeavyWeightAmountGel(ds);
-    heavyKgSum += liveHeavyWeightKg(ds);
+    const hwAmt = liveHeavyWeightAmountGel(ds);
+    const hwKg = liveHeavyWeightKg(ds);
+    heavySum += hwAmt;
+    heavyKgSum += hwKg;
+    accumulateHeavyPdfDisplayUnit(ds, hwAmt, hwKg, heavyPdfDisplayUnit);
     protSum += liveProtectorsAmount(ds);
     protKgSum += liveProtectorsWeightKg(ds);
     protPiecesSum += liveProtectorsDispatchedPieces(ds);
@@ -460,10 +521,27 @@ export function invoicePdfLineItemsFromSortedSends(
   if (heavySum > 0) {
     const heavyQty =
       heavyKgSum > 0 ? `${heavyKgSum.toFixed(1)} კგ.` : "1 ც.";
+    let heavyUnitDisplay =
+      heavyPdfDisplayUnit.kg > 0
+        ? heavyPdfDisplayUnit.numerator / heavyPdfDisplayUnit.kg
+        : heavyKgSum > 0
+          ? heavySum / heavyKgSum
+          : heavySum;
+
+    const tariffHeavyPdfRow =
+      HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY[HEAVY_WEIGHT_ITEM_KA] ?? 0;
+    if (
+      heavyKgSum > 0 &&
+      tariffHeavyPdfRow > 0 &&
+      Math.abs(heavySum / heavyKgSum - tariffHeavyPdfRow) <= 0.08
+    ) {
+      heavyUnitDisplay = tariffHeavyPdfRow;
+    }
+
     rows.push({
       description: "მძიმე წონა - ჯამი",
       quantity: heavyQty,
-      unitPrice: heavyKgSum > 0 ? heavySum / heavyKgSum : heavySum,
+      unitPrice: heavyKgSum > 0 ? heavyUnitDisplay : heavySum,
       total: heavySum,
     });
   }
