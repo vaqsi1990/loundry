@@ -761,10 +761,6 @@ export default function DailySheetsSection() {
     return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
-  if (loading) {
-    return <div className="text-center py-8 text-black">იტვირთება...</div>;
-  }
-
   const toggleMonth = (monthKey: string) => {
     setExpandedMonths(prev => {
       const next = new Set(prev);
@@ -874,6 +870,60 @@ export default function DailySheetsSection() {
         return sum + (price * (item.dispatched || 0));
       }, 0);
   };
+
+  const monthlyHotelSummary = React.useMemo(() => {
+    if (!selectedHotel) return null;
+
+    const effectiveMonthKey = selectedMonth || monthKeyFromSheetDate(new Date());
+    if (!effectiveMonthKey) return null;
+
+    const relevant = sheets.filter((s) => {
+      if (s.hotelName !== selectedHotel) return false;
+      return monthKeyFromSheetDate(s.date) === effectiveMonthKey;
+    });
+
+    const acc = relevant.reduce(
+      (a, sheet) => {
+        const totals = calculateTotals(sheet.items);
+        const hasProtectors = sheet.items.some((item) => item.category === "PROTECTORS");
+        const hasLinenOrTowels = sheet.items.some(
+          (item) => item.category === "LINEN" || item.category === "TOWELS"
+        );
+
+        const weightKg =
+          sheet.sheetType === "STANDARD" && sheet.totalWeight ? sheet.totalWeight : totals.totalWeight;
+
+        let linenTowelsPrice = 0;
+        if (hasLinenOrTowels && sheet.pricePerKg && weightKg) {
+          linenTowelsPrice = sheet.pricePerKg * weightKg;
+        }
+
+        const heavyWeightPrice =
+          sheet.heavyWeight && sheet.heavyPricePerKg ? sheet.heavyWeight * sheet.heavyPricePerKg : 0;
+
+        let protectorsPrice = 0;
+        if (hasProtectors) {
+          if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
+            protectorsPrice = Math.max(0, sheet.totalPrice);
+          } else {
+            protectorsPrice = calculateProtectorsPrice(sheet.items);
+          }
+        }
+
+        const totalPrice = linenTowelsPrice + heavyWeightPrice + protectorsPrice;
+
+        return {
+          count: a.count + 1,
+          weightKg: a.weightKg + (weightKg || 0),
+          dispatchedPieces: a.dispatchedPieces + (totals.dispatched || 0),
+          totalPrice: a.totalPrice + (totalPrice || 0),
+        };
+      },
+      { count: 0, weightKg: 0, dispatchedPieces: 0, totalPrice: 0 }
+    );
+
+    return { monthKey: effectiveMonthKey, ...acc };
+  }, [sheets, selectedHotel, selectedMonth]);
 
   const renderSheetTable = (sheet: DailySheet) => {
     const categories = ["LINEN", "TOWELS", "PROTECTORS"];
@@ -1079,6 +1129,10 @@ export default function DailySheetsSection() {
         </div>
       )}
 
+      {loading && (
+        <div className="text-center py-8 text-black">იტვირთება...</div>
+      )}
+
       {/* Filters */}
       <div className="mb-4 flex items-end gap-4 flex-wrap">
         <div>
@@ -1125,6 +1179,19 @@ export default function DailySheetsSection() {
           ყველა
         </button>
       </div>
+
+      {selectedHotel && monthlyHotelSummary && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-black">
+          <div className="font-semibold">
+            {selectedHotel} — {formatMonthGe(monthlyHotelSummary.monthKey)}
+          </div>
+          <div className="text-[14px] md:text-[16px] mt-1">
+            ფურცლები: {monthlyHotelSummary.count} | ჯამი წონა: {monthlyHotelSummary.weightKg.toFixed(2)} კგ | გაგზავნილი:
+            {" "}
+            {monthlyHotelSummary.dispatchedPieces} ც. | ჯამი ფასი: {monthlyHotelSummary.totalPrice.toFixed(2)} ₾
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Form (Modal) */}
       {showAddForm && (

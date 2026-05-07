@@ -277,11 +277,29 @@ export async function GET(request: NextRequest) {
       sheetGroups.get(groupKey)!.push(emailSend);
     });
 
+    const sendSortKey = (es: any) => {
+      // Prefer a record that has manual override (edited "სულ (₾)").
+      const hasOverride = es?.totalAmount != null && finNum(es.totalAmount) > 0 ? 1 : 0;
+      const sentAt = es?.sentAt ? new Date(es.sentAt).getTime() : 0;
+      const date = es?.date ? new Date(es.date).getTime() : 0;
+      // Higher is better.
+      return { hasOverride, t: Math.max(sentAt, date) };
+    };
+
     // Create invoice entries – one per daily sheet (per hotel)
     const invoiceEntries = Array.from(sheetGroups.values()).map((group) => {
-      const firstSend = group[0];
-      const sheet = firstSend.dailySheet;
-      const defaultPg = finNum(firstSend.pricePerKg) || 1.8;
+      // Choose the "best" send to represent this sheet in the UI:
+      // - if any send was edited (totalAmount override), show that one
+      // - otherwise, use the most recent send
+      const bestSend = [...group].sort((a: any, b: any) => {
+        const ka = sendSortKey(a);
+        const kb = sendSortKey(b);
+        if (kb.hasOverride !== ka.hasOverride) return kb.hasOverride - ka.hasOverride;
+        return kb.t - ka.t;
+      })[0];
+
+      const sheet = bestSend.dailySheet;
+      const defaultPg = finNum(bestSend.pricePerKg) || 1.8;
 
       const emailWeight = liveDisplayedTotalWeightKg(sheet);
       const emailProtectorsAmount = liveProtectorsAmount(sheet);
@@ -290,20 +308,20 @@ export async function GET(request: NextRequest) {
       // Manager UI reuses the admin invoices table which treats heavy weight as a separate column and adds it to "სულ".
       // Therefore, `totalAmount` here MUST be base total excluding heavy weight, otherwise totals will be inconsistent.
       const emailTotalAmount = (() => {
-        const manualBase = (firstSend as any).totalAmount != null ? finNum((firstSend as any).totalAmount) : 0;
+        const manualBase = (bestSend as any).totalAmount != null ? finNum((bestSend as any).totalAmount) : 0;
         if (manualBase > 0) return manualBase;
         const grand = liveGrandTotalAmountGel(sheet, defaultPg);
         return Math.max(0, finNum(grand) - finNum(emailHeavyWeightAmount));
       })();
 
       // Track by service date (sheet date) using UTC to avoid timezone issues
-      const dateObj = new Date(firstSend.date);
+      const dateObj = new Date(bestSend.date);
       const year = dateObj.getUTCFullYear();
       const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getUTCDate()).padStart(2, '0');
       const dateKey = `${year}-${month}-${day}`;
       
-      const hotelKey = normalizeHotel(firstSend.hotelName);
+      const hotelKey = normalizeHotel(bestSend.hotelName);
       
       // Calculate dispatched count from sheet items
       const totals = sheet.items.reduce(
@@ -331,7 +349,7 @@ export async function GET(request: NextRequest) {
 
       return {
         hotelName: hotelKey === "-" ? null : hotelKey,
-        displayHotelName: firstSend.hotelName?.trim() || null,
+        displayHotelName: bestSend.hotelName?.trim() || null,
         sheetCount: 1,
         totalDispatched: totals.dispatched,
         totalWeightKg: emailWeight,

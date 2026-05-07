@@ -276,7 +276,9 @@ export async function GET(request: NextRequest) {
       // Therefore, `totalAmount` here MUST be the base total (linens+towels+protectors) excluding heavy weight,
       // otherwise the UI would double-count heavy weight.
       const emailTotalAmount = (() => {
-        const manualBase = (emailSend as any).totalAmount != null ? finNum((emailSend as any).totalAmount) : 0;
+        // Treat manual override as active only when it's a positive number (matches PDF logic).
+        const manualBase =
+          (emailSend as any).totalAmount != null ? finNum((emailSend as any).totalAmount) : 0;
         if (manualBase > 0) return manualBase;
         const grand = liveGrandTotalAmountGel(sheet, defaultPg);
         // Convert grand-total -> base-total by subtracting heavy (computed from the same sheet).
