@@ -4,6 +4,10 @@ import React, { useEffect, useState, useRef } from "react";
 import { getApiPath } from "@/lib/api-helper";
 import { monthKeyFromSheetDate, dayKeyFromSheetDate } from "@/lib/daily-sheet-dates";
 import { FormattedDateInput } from "./ui/DatePickerSection";
+import {
+  liveHeavyWeightAmountGel,
+  liveHeavyWeightKg,
+} from "@/lib/daily-sheet-email-send-financial";
 
 interface Hotel {
   id: string;
@@ -898,8 +902,8 @@ export default function DailySheetsSection() {
           linenTowelsPrice = sheet.pricePerKg * weightKg;
         }
 
-        const heavyWeightPrice =
-          sheet.heavyWeight && sheet.heavyPricePerKg ? sheet.heavyWeight * sheet.heavyPricePerKg : 0;
+        const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
+        const heavyKg = liveHeavyWeightKg(sheet);
 
         let protectorsPrice = 0;
         if (hasProtectors) {
@@ -922,7 +926,8 @@ export default function DailySheetsSection() {
         return {
           count: a.count + 1,
           weightKg: a.weightKg + (weightKg || 0),
-          heavyWeightKg: a.heavyWeightKg + (sheet.heavyWeight || 0),
+          heavyWeightKg: a.heavyWeightKg + (heavyKg || 0),
+          heavyWeightGel: a.heavyWeightGel + (heavyWeightPrice || 0),
           dispatchedPieces: a.dispatchedPieces + (totals.dispatched || 0),
           protectorsDispatched: a.protectorsDispatched + protectorsDispatchedSheet,
           protectorsPrice: a.protectorsPrice + (protectorsPrice || 0),
@@ -933,6 +938,7 @@ export default function DailySheetsSection() {
         count: 0,
         weightKg: 0,
         heavyWeightKg: 0,
+        heavyWeightGel: 0,
         dispatchedPieces: 0,
         protectorsDispatched: 0,
         protectorsPrice: 0,
@@ -965,10 +971,7 @@ export default function DailySheetsSection() {
       }
     }
 
-    const heavyWeightPrice =
-      sheet.heavyWeight && sheet.heavyPricePerKg
-        ? sheet.heavyWeight * sheet.heavyPricePerKg
-        : 0;
+    const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
     
     // დამცავების ფასის გამოთვლა (STANDARD და INDIVIDUAL ტიპებისთვის)
     // თუ STANDARD ტიპია და totalPrice არის, გამოიყენე ის
@@ -1204,10 +1207,8 @@ export default function DailySheetsSection() {
             {selectedHotel} — {formatMonthGe(monthlyHotelSummary.monthKey)}
           </div>
           <div className="text-[14px] md:text-[16px] mt-1">
-            ფურცლები: {monthlyHotelSummary.count} | ჯამი წონა: {monthlyHotelSummary.weightKg.toFixed(2)} კგ | მძიმე წონა:
-            {" "}
-            {monthlyHotelSummary.heavyWeightKg.toFixed(2)} კგ | გაგზავნილი:
-            {" "}
+            ფურცლები: {monthlyHotelSummary.count} | ჯამი წონა: {monthlyHotelSummary.weightKg.toFixed(2)} კგ | მძიმე წონა:{" "}
+            {monthlyHotelSummary.heavyWeightKg.toFixed(2)} კგ ({monthlyHotelSummary.heavyWeightGel.toFixed(2)} ₾) | გაგზავნილი:{" "}
             {monthlyHotelSummary.dispatchedPieces} ც. | ჯამი ფასი: {monthlyHotelSummary.totalPrice.toFixed(2)} ₾
           </div>
           <div className="text-[14px] md:text-[16px] mt-1">
