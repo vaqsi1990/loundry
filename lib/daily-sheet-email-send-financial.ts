@@ -65,31 +65,32 @@ export function liveDisplayedTotalWeightKg(
 export function liveHeavyWeightAmountGel(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  // Prefer explicit sheet fields; fall back to legacy «მძიმე წონა» PROTECTORS line.
-  // In the wild we sometimes see BOTH representations populated but inconsistent
-  // (e.g. a stale heavyWeight field + a correct legacy row). To avoid undercounting
-  // on invoices and monthly summaries, we take the larger of the two totals.
+  // როცა `heavyWeight` და `heavyPricePerKg` ორივე დასეტებულია, ეს წყაროა ავტორიტეტული.
+  // წინა ლოგიკა `Math.max(byField, legacy)` ხშირად ზრდიდა ჯამს: ძველი «მძიმე წონა»
+  // items-ხაზი (დიდი dispatched / მოძველებული) + ახალი ველები ერთდროულად → max() ირჩევდა არასწორად დიდ ₾-ს.
   const byFieldKg = num(sheet?.heavyWeight);
   const byFieldUnit = num(sheet?.heavyPricePerKg);
-  const byField = byFieldKg > 0 && byFieldUnit > 0 ? byFieldKg * byFieldUnit : 0;
+  if (byFieldKg > 0 && byFieldUnit > 0) {
+    return byFieldKg * byFieldUnit;
+  }
 
-  const legacy = heavyWeightProtectorsLineAmountGel(
+  return heavyWeightProtectorsLineAmountGel(
     sheet?.items ?? [],
     HEAVY_WEIGHT_AMOUNT_FALLBACK_GEL_ONLY
   );
-
-  return Math.max(byField, legacy);
 }
 
 /** მძიმე წონის კგ — `sheet.heavyWeight`, თორემ legacy «მძიმე წონა» ხაზის dispatched ჯამი. */
 export function liveHeavyWeightKg(
   sheet: DailySheetForTotals | null | undefined
 ): number {
-  const byField = num(sheet?.heavyWeight);
+  const byFieldKg = num(sheet?.heavyWeight);
+  const byFieldUnit = num(sheet?.heavyPricePerKg);
   const legacy = heavyWeightProtectorsDispatchedQty(sheet?.items ?? []);
-  if (byField <= 0 && legacy <= 0) return 0;
-  // Avoid undercount when both exist but disagree.
-  return Math.max(byField, legacy);
+
+  if (byFieldKg > 0 && byFieldUnit > 0) return byFieldKg;
+  if (legacy > 0) return legacy;
+  return byFieldKg;
 }
 
 /** მძიმე წონის ₾/კგ — `sheet.heavyPricePerKg`, თორემ legacy «მძიმე წონა» ხაზის price. */

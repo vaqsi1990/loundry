@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import React from "react";
+import {
+  liveHeavyWeightAmountGel,
+  liveProtectorsAmount,
+} from "@/lib/daily-sheet-email-send-financial";
 
 interface DailySheetItem {
   id?: string;
@@ -111,19 +115,6 @@ const calculateTotals = (items: DailySheetItem[]) =>
     }),
     { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
   );
-
-const calculateProtectorsPrice = (items: DailySheetItem[]): number => {
-  return items
-    .filter(
-      (item) =>
-        item.category === "PROTECTORS" &&
-        item.itemNameKa !== "მძიმე წონა"
-    )
-    .reduce((sum, item) => {
-      const price = item.price || PROTECTOR_PRICES[item.itemNameKa] || 0;
-      return sum + (price * (item.dispatched || 0));
-    }, 0);
-};
 
 export default function PhysicalDailySheetsPage() {
   const { data: session, status } = useSession();
@@ -258,11 +249,8 @@ export default function PhysicalDailySheetsPage() {
     let calculatedTotalPrice: string | null = null;
     let linenTowelsPrice = 0;
     let protectorsPrice = 0;
-    const heavyWeightPrice =
-      sheet.heavyWeight && sheet.heavyPricePerKg
-        ? sheet.heavyWeight * sheet.heavyPricePerKg
-        : 0;
-    
+    const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
+
     if (hasLinenOrTowels) {
       const weightForPrice = sheet.sheetType === "STANDARD" && sheet.totalWeight 
         ? sheet.totalWeight 
@@ -271,13 +259,9 @@ export default function PhysicalDailySheetsPage() {
         linenTowelsPrice = sheet.pricePerKg * weightForPrice;
       }
     }
-    
+
     if (hasProtectors) {
-      if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-        protectorsPrice = Math.max(0, sheet.totalPrice);
-      } else {
-        protectorsPrice = calculateProtectorsPrice(sheet.items);
-      }
+      protectorsPrice = liveProtectorsAmount(sheet);
     }
     
     const totalSum = linenTowelsPrice + heavyWeightPrice + protectorsPrice;

@@ -7,6 +7,7 @@ import { FormattedDateInput } from "./ui/DatePickerSection";
 import {
   liveHeavyWeightAmountGel,
   liveHeavyWeightKg,
+  liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
 
 interface Hotel {
@@ -905,14 +906,7 @@ export default function DailySheetsSection() {
         const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
         const heavyKg = liveHeavyWeightKg(sheet);
 
-        let protectorsPrice = 0;
-        if (hasProtectors) {
-          if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-            protectorsPrice = Math.max(0, sheet.totalPrice);
-          } else {
-            protectorsPrice = calculateProtectorsPrice(sheet.items);
-          }
-        }
+        const protectorsPrice = hasProtectors ? liveProtectorsAmount(sheet) : 0;
 
         const protectorsDispatchedSheet = sheet.items
           .filter(
@@ -977,11 +971,7 @@ export default function DailySheetsSection() {
     // თუ STANDARD ტიპია და totalPrice არის, გამოიყენე ის
     // წინააღმდეგ შემთხვევაში გამოთვალე პროდუქტებიდან: ფასი * მიღებული
     if (hasProtectors) {
-      if (sheet.sheetType === "STANDARD" && sheet.totalPrice) {
-        protectorsPrice = Math.max(0, sheet.totalPrice);
-      } else {
-        protectorsPrice = calculateProtectorsPrice(sheet.items);
-      }
+      protectorsPrice = liveProtectorsAmount(sheet);
     }
 
     const totalSum = linenTowelsPrice + heavyWeightPrice + protectorsPrice;
@@ -1812,22 +1802,19 @@ export default function DailySheetsSection() {
                 const linenTowelsPrice = formData.totalWeight && formData.pricePerKg 
                   ? formData.totalWeight * formData.pricePerKg 
                   : 0;
-                const heavyWeightPrice =
-                  formData.heavyWeight && formData.heavyPricePerKg
-                    ? formData.heavyWeight * formData.heavyPricePerKg
-                    : 0;
-                let protectorsPrice = 0;
-                if (hasProtectors) {
-                  if (formData.totalPrice != null) {
-                    protectorsPrice = Math.max(
-                      0,
-                      formData.totalPrice
-                    );
-                  } else {
-                    protectorsPrice =
-                      calculateProtectorsPrice(formData.items);
-                  }
-                }
+                const previewSheetForTotals = {
+                  sheetType: formData.sheetType,
+                  totalWeight: formData.totalWeight,
+                  totalPrice: formData.totalPrice,
+                  pricePerKg: formData.pricePerKg,
+                  heavyWeight: formData.heavyWeight,
+                  heavyPricePerKg: formData.heavyPricePerKg,
+                  items: formData.items,
+                };
+                const heavyWeightPrice = liveHeavyWeightAmountGel(previewSheetForTotals);
+                const protectorsPrice = hasProtectors
+                  ? liveProtectorsAmount(previewSheetForTotals)
+                  : 0;
                 const totalSum =
                   linenTowelsPrice +
                   heavyWeightPrice +
