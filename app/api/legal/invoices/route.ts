@@ -7,6 +7,7 @@ import {
   liveGrandTotalAmountGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
+import { dedupeInvoicesByResendFingerprint, type RevenueInvoiceDedupeRow } from "@/lib/revenue-invoice-dedupe";
 
 // Normalize hotel name for case-insensitive matching
 const normalizeHotel = (name: string | null) => {
@@ -69,9 +70,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Filter invoices by normalized hotel name (case-insensitive)
-    const invoices = allInvoices.filter((inv) => 
+    const invoicesFiltered = allInvoices.filter((inv) =>
       normalizeHotel(inv.customerName) === normalizedHotelName
     );
+    const invoices = dedupeInvoicesByResendFingerprint(
+      invoicesFiltered as RevenueInvoiceDedupeRow[]
+    ) as typeof invoicesFiltered;
 
     // Also get emailSends to check confirmation status
     // When invoices are sent, the corresponding emailSends are confirmed

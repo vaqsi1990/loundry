@@ -53,6 +53,16 @@ const getTransporter = () => {
 
 const transporter = getTransporter();
 
+/** Same calendar day in local TZ (aligned with /admin/revenues date filters). */
+function localDayBounds(d: Date): { start: Date; end: Date } {
+  const x = new Date(d);
+  const start = new Date(x.getFullYear(), x.getMonth(), x.getDate(), 0, 0, 0, 0);
+  const end = new Date(x.getFullYear(), x.getMonth(), x.getDate(), 23, 59, 59, 999);
+  return { start, end };
+}
+
+const INVOICE_AMOUNT_NEAR_EQUAL = 0.02;
+
 // Seller information
 const SELLER_INFO = {
   name: 'შპს "ქინგ ლონდრი"',
@@ -851,63 +861,62 @@ export async function POST(request: NextRequest) {
       0
     );
 
+    const { start: serviceDayStart, end: serviceDayEnd } = localDayBounds(serviceDate);
+
     // Create LegalInvoice or PhysicalInvoice based on hotel type
     // Note: We don't create AdminInvoice anymore to avoid duplicates
     if (hotel.type === "LEGAL") {
-      // Get last LegalInvoice to generate next invoice number
-      const lastLegalInvoice = await prisma.legalInvoice.findFirst({
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          invoiceNumber: true,
-        },
-      });
-
-      let legalInvoiceNumber = "1";
-      if (lastLegalInvoice && lastLegalInvoice.invoiceNumber) {
-        const lastNumber = parseInt(lastLegalInvoice.invoiceNumber);
-        if (!isNaN(lastNumber) && lastNumber > 0) {
-          legalInvoiceNumber = (lastNumber + 1).toString();
+      let skipNewLegalInvoice = false;
+      if (forceResend === true) {
+        const existingResend = await prisma.legalInvoice.findFirst({
+          where: {
+            customerName: buyerName,
+            dueDate: { gte: serviceDayStart, lte: serviceDayEnd },
+            totalAmount: {
+              gte: totalAmount - INVOICE_AMOUNT_NEAR_EQUAL,
+              lte: totalAmount + INVOICE_AMOUNT_NEAR_EQUAL,
+            },
+          },
+          orderBy: [{ paidAmount: "desc" }, { createdAt: "desc" }],
+          select: { id: true, invoiceNumber: true },
+        });
+        if (existingResend) {
+          invoiceNumber = existingResend.invoiceNumber;
+          skipNewLegalInvoice = true;
+          await prisma.legalInvoice.update({
+            where: { id: existingResend.id },
+            data: {
+              ...(recipientEmail ? { customerEmail: recipientEmail } : {}),
+              totalWeightKg,
+              protectorsAmount,
+              amount: totalAmount,
+              totalAmount,
+            },
+          });
         }
       }
 
-      // Create LegalInvoice with retry if duplicate
-      try {
-        await prisma.legalInvoice.create({
-          data: {
-            invoiceNumber: legalInvoiceNumber,
-            customerName: buyerName,
-            customerEmail: email,
-            amount: totalAmount,
-            totalWeightKg,
-            protectorsAmount,
-            totalAmount,
-            paidAmount: 0,
-            status: "PENDING",
-            // Store the service (daily sheet) date so RevenuesSection can show the same date as detail.date
-            dueDate: serviceDate,
+      if (!skipNewLegalInvoice) {
+        // Get last LegalInvoice to generate next invoice number
+        const lastLegalInvoice = await prisma.legalInvoice.findFirst({
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            invoiceNumber: true,
           },
         });
-        invoiceNumber = legalInvoiceNumber; // Set invoiceNumber for PDF generation
-      } catch (error: any) {
-        // If invoice number already exists, get next number
-        if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
-          const lastLegalInvoice = await prisma.legalInvoice.findFirst({
-            orderBy: {
-              createdAt: "desc",
-            },
-            select: {
-              invoiceNumber: true,
-            },
-          });
-          if (lastLegalInvoice && lastLegalInvoice.invoiceNumber) {
-            const lastNumber = parseInt(lastLegalInvoice.invoiceNumber);
-            if (!isNaN(lastNumber) && lastNumber > 0) {
-              legalInvoiceNumber = (lastNumber + 1).toString();
-            }
+
+        let legalInvoiceNumber = "1";
+        if (lastLegalInvoice && lastLegalInvoice.invoiceNumber) {
+          const lastNumber = parseInt(lastLegalInvoice.invoiceNumber);
+          if (!isNaN(lastNumber) && lastNumber > 0) {
+            legalInvoiceNumber = (lastNumber + 1).toString();
           }
-          // Retry with new number
+        }
+
+        // Create LegalInvoice with retry if duplicate
+        try {
           await prisma.legalInvoice.create({
             data: {
               invoiceNumber: legalInvoiceNumber,
@@ -919,68 +928,102 @@ export async function POST(request: NextRequest) {
               totalAmount,
               paidAmount: 0,
               status: "PENDING",
+              // Store the service (daily sheet) date so RevenuesSection can show the same date as detail.date
               dueDate: serviceDate,
             },
           });
-        } else {
-          console.error("Error creating LegalInvoice:", error);
-          // Don't throw - continue even if LegalInvoice creation fails
+          invoiceNumber = legalInvoiceNumber; // Set invoiceNumber for PDF generation
+        } catch (error: any) {
+          // If invoice number already exists, get next number
+          if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
+            const lastLegalInvoiceRetry = await prisma.legalInvoice.findFirst({
+              orderBy: {
+                createdAt: "desc",
+              },
+              select: {
+                invoiceNumber: true,
+              },
+            });
+            if (lastLegalInvoiceRetry && lastLegalInvoiceRetry.invoiceNumber) {
+              const lastNumber = parseInt(lastLegalInvoiceRetry.invoiceNumber);
+              if (!isNaN(lastNumber) && lastNumber > 0) {
+                legalInvoiceNumber = (lastNumber + 1).toString();
+              }
+            }
+            // Retry with new number
+            await prisma.legalInvoice.create({
+              data: {
+                invoiceNumber: legalInvoiceNumber,
+                customerName: buyerName,
+                customerEmail: email,
+                amount: totalAmount,
+                totalWeightKg,
+                protectorsAmount,
+                totalAmount,
+                paidAmount: 0,
+                status: "PENDING",
+                dueDate: serviceDate,
+              },
+            });
+            invoiceNumber = legalInvoiceNumber;
+          } else {
+            console.error("Error creating LegalInvoice:", error);
+            // Don't throw - continue even if LegalInvoice creation fails
+          }
         }
       }
     } else if (hotel.type === "PHYSICAL") {
-      // Get last PhysicalInvoice to generate next invoice number
-      const lastPhysicalInvoice = await prisma.physicalInvoice.findFirst({
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          invoiceNumber: true,
-        },
-      });
-
-      let physicalInvoiceNumber = "1";
-      if (lastPhysicalInvoice && lastPhysicalInvoice.invoiceNumber) {
-        const lastNumber = parseInt(lastPhysicalInvoice.invoiceNumber);
-        if (!isNaN(lastNumber) && lastNumber > 0) {
-          physicalInvoiceNumber = (lastNumber + 1).toString();
+      let skipNewPhysicalInvoice = false;
+      if (forceResend === true) {
+        const existingResend = await prisma.physicalInvoice.findFirst({
+          where: {
+            customerName: buyerName,
+            dueDate: { gte: serviceDayStart, lte: serviceDayEnd },
+            totalAmount: {
+              gte: totalAmount - INVOICE_AMOUNT_NEAR_EQUAL,
+              lte: totalAmount + INVOICE_AMOUNT_NEAR_EQUAL,
+            },
+          },
+          orderBy: [{ paidAmount: "desc" }, { createdAt: "desc" }],
+          select: { id: true, invoiceNumber: true },
+        });
+        if (existingResend) {
+          invoiceNumber = existingResend.invoiceNumber;
+          skipNewPhysicalInvoice = true;
+          await prisma.physicalInvoice.update({
+            where: { id: existingResend.id },
+            data: {
+              ...(recipientEmail ? { customerEmail: recipientEmail } : {}),
+              totalWeightKg,
+              protectorsAmount,
+              amount: totalAmount,
+              totalAmount,
+            },
+          });
         }
       }
 
-      // Create PhysicalInvoice with retry if duplicate
-      try {
-        await prisma.physicalInvoice.create({
-          data: {
-            invoiceNumber: physicalInvoiceNumber,
-            customerName: buyerName,
-            customerEmail: email,
-            amount: totalAmount,
-            totalWeightKg,
-            protectorsAmount,
-            totalAmount,
-            paidAmount: 0,
-            status: "PENDING",
-            dueDate: serviceDate,
+      if (!skipNewPhysicalInvoice) {
+        // Get last PhysicalInvoice to generate next invoice number
+        const lastPhysicalInvoice = await prisma.physicalInvoice.findFirst({
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            invoiceNumber: true,
           },
         });
-        invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
-      } catch (error: any) {
-        // If invoice number already exists, get next number
-        if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
-          const lastPhysicalInvoice = await prisma.physicalInvoice.findFirst({
-            orderBy: {
-              createdAt: "desc",
-            },
-            select: {
-              invoiceNumber: true,
-            },
-          });
-          if (lastPhysicalInvoice && lastPhysicalInvoice.invoiceNumber) {
-            const lastNumber = parseInt(lastPhysicalInvoice.invoiceNumber);
-            if (!isNaN(lastNumber) && lastNumber > 0) {
-              physicalInvoiceNumber = (lastNumber + 1).toString();
-            }
+
+        let physicalInvoiceNumber = "1";
+        if (lastPhysicalInvoice && lastPhysicalInvoice.invoiceNumber) {
+          const lastNumber = parseInt(lastPhysicalInvoice.invoiceNumber);
+          if (!isNaN(lastNumber) && lastNumber > 0) {
+            physicalInvoiceNumber = (lastNumber + 1).toString();
           }
-          // Retry with new number
+        }
+
+        // Create PhysicalInvoice with retry if duplicate
+        try {
           await prisma.physicalInvoice.create({
             data: {
               invoiceNumber: physicalInvoiceNumber,
@@ -996,9 +1039,43 @@ export async function POST(request: NextRequest) {
             },
           });
           invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
-        } else {
-          console.error("Error creating PhysicalInvoice:", error);
-          // Don't throw - continue even if PhysicalInvoice creation fails
+        } catch (error: any) {
+          // If invoice number already exists, get next number
+          if (error.code === "P2002" && error.meta?.target?.includes("invoiceNumber")) {
+            const lastPhysicalInvoiceRetry = await prisma.physicalInvoice.findFirst({
+              orderBy: {
+                createdAt: "desc",
+              },
+              select: {
+                invoiceNumber: true,
+              },
+            });
+            if (lastPhysicalInvoiceRetry && lastPhysicalInvoiceRetry.invoiceNumber) {
+              const lastNumber = parseInt(lastPhysicalInvoiceRetry.invoiceNumber);
+              if (!isNaN(lastNumber) && lastNumber > 0) {
+                physicalInvoiceNumber = (lastNumber + 1).toString();
+              }
+            }
+            // Retry with new number
+            await prisma.physicalInvoice.create({
+              data: {
+                invoiceNumber: physicalInvoiceNumber,
+                customerName: buyerName,
+                customerEmail: email,
+                amount: totalAmount,
+                totalWeightKg,
+                protectorsAmount,
+                totalAmount,
+                paidAmount: 0,
+                status: "PENDING",
+                dueDate: serviceDate,
+              },
+            });
+            invoiceNumber = physicalInvoiceNumber; // Set invoiceNumber for PDF generation
+          } else {
+            console.error("Error creating PhysicalInvoice:", error);
+            // Don't throw - continue even if PhysicalInvoice creation fails
+          }
         }
       }
     }

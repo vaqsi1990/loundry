@@ -26,6 +26,67 @@ interface SentInvoice {
   dueDate?: string;
 }
 
+interface DedupeInvoiceBrief {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  totalAmount: number | null;
+  amount: number;
+  paidAmount: number | null;
+  status: string;
+  createdAt: string;
+  dueDate?: string;
+}
+
+interface DedupeGroupRow {
+  table: string;
+  fingerprint: string;
+  kept: DedupeInvoiceBrief;
+  removed: DedupeInvoiceBrief[];
+}
+
+interface DedupePreviewPayload {
+  totalRemoved: number;
+  groupCount: number;
+  groups: DedupeGroupRow[];
+}
+
+/** წაშლის შემდეგ პრევიუდან ამოაგდებს id-ს; ცარიელი ჯგუფები იშლება. null = ყველა დუბლიკატი მორჩა. */
+function applyRemoveIdFromDedupePreview(
+  prev: DedupePreviewPayload,
+  removedId: string
+): DedupePreviewPayload | null {
+  const nextGroups = prev.groups
+    .map((g) => ({
+      ...g,
+      removed: g.removed.filter((r) => r.id !== removedId),
+    }))
+    .filter((g) => g.removed.length > 0);
+
+  if (nextGroups.length === 0) return null;
+
+  const totalRemoved = nextGroups.reduce((sum, g) => sum + g.removed.length, 0);
+  return {
+    groupCount: nextGroups.length,
+    totalRemoved,
+    groups: nextGroups,
+  };
+}
+
+function formatDedupeDate(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ka-GE", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function invoiceTableLabelGe(table: string): string {
+  if (table === "legal") return "იურიდიული ინვოისი";
+  if (table === "physical") return "ფიზიკური ინვოისი";
+  if (table === "admin") return "ადმინის ინვოისი";
+  return table;
+}
+
 
 
 export default function RevenuesSection() {
@@ -40,6 +101,10 @@ export default function RevenuesSection() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Record<string, boolean>>({});
   const [hotelSearch, setHotelSearch] = useState<string>("");
+  const [dedupeScanning, setDedupeScanning] = useState(false);
+  const [dedupeDeleting, setDedupeDeleting] = useState(false);
+  const [deletingDuplicateId, setDeletingDuplicateId] = useState<string | null>(null);
+  const [dedupePreview, setDedupePreview] = useState<DedupePreviewPayload | null>(null);
 
   const formatMonthYearGe = (date: Date) => {
     const monthIndex = date.getMonth(); // 0-based
@@ -71,6 +136,15 @@ export default function RevenuesSection() {
   useEffect(() => {
     fetchRevenues(selectedMonth || undefined);
   }, [selectedMonth]);
+
+  useEffect(() => {
+    if (!dedupePreview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDedupePreview(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dedupePreview]);
 
   const fetchRevenues = async (month?: string) => {
     try {
@@ -493,6 +567,95 @@ export default function RevenuesSection() {
     }
   };
 
+  const loadDedupePreview = async () => {
+    setError("");
+    setDedupeScanning(true);
+    try {
+      const res = await fetch("/api/admin/revenues/deduplicate-invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || "ვერ მოხერხდა შემოწმება");
+      }
+      const total = (data as { totalRemoved?: number }).totalRemoved ?? 0;
+      if (total === 0) {
+        alert("მსგავსი (დუბლიკატი) ინვოისები ბაზაში არ მოიძებნა.");
+        return;
+      }
+      const groups: DedupeGroupRow[] = [
+        ...((data as { admin?: { groups: DedupeGroupRow[] } }).admin?.groups ?? []),
+        ...((data as { legal?: { groups: DedupeGroupRow[] } }).legal?.groups ?? []),
+        ...((data as { physical?: { groups: DedupeGroupRow[] } }).physical?.groups ?? []),
+      ];
+      setDedupePreview({
+        totalRemoved: total,
+        groupCount: (data as { groupCount?: number }).groupCount ?? groups.length,
+        groups,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setDedupeScanning(false);
+    }
+  };
+
+  const closeDedupePreview = () => {
+    setDedupePreview(null);
+  };
+
+  const confirmDedupeDeleteFromDb = async () => {
+    if (!dedupePreview || dedupePreview.totalRemoved === 0) return;
+    setError("");
+    setDedupeDeleting(true);
+    try {
+      const res2 = await fetch("/api/admin/revenues/deduplicate-invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const data2 = await res2.json().catch(() => ({}));
+      if (!res2.ok) {
+        throw new Error((data2 as { error?: string }).error || "წაშლა ვერ მოხერხდა");
+      }
+      setDedupePreview(null);
+      await fetchRevenues(selectedMonth || undefined);
+      alert(`წაიშალა ${(data2 as { totalRemoved?: number }).totalRemoved ?? 0} დუბლიკატი ჩანაწერი ბაზიდან.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setDedupeDeleting(false);
+    }
+  };
+
+  const deleteSingleDuplicateFromModal = async (invoiceId: string) => {
+    if (!dedupePreview) return;
+    if (!confirm("წავშალო ეს დუბლიკატი ჩანაწერი ბაზიდან?")) return;
+    setDeletingDuplicateId(invoiceId);
+    setError("");
+    try {
+      const apiPath = getApiPath("invoices");
+      const res = await fetch(`${apiPath}/${invoiceId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || "წაშლა ვერ მოხერხდა");
+      }
+      setDedupePreview((prev) => {
+        if (!prev) return null;
+        return applyRemoveIdFromDedupePreview(prev, invoiceId);
+      });
+      await fetchRevenues(selectedMonth || undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setDeletingDuplicateId(null);
+    }
+  };
+
+  const dedupeModalBusy = dedupeDeleting || deletingDuplicateId !== null;
+
   const totalRevenueAmount = revenues.reduce((sum, r) => sum + r.amount, 0);
   // Sum by invoice amounts (ბილინგის მიხედვით), არა დღის ფურცლების გაგზავნის მიხედვით
   const totalInvoiceAmount = sentInvoices.reduce(
@@ -560,11 +723,24 @@ export default function RevenuesSection() {
       )}
 
       {/* Summary */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="text-lg font-bold text-black">
           {/* ჯამი მხოლოდ ინვოისების მიხედვით (ხელით შემოსავალი არ ემატებაში) */}
           სულ ინვოისები: {totalInvoiceAmount.toFixed(2)} ₾ ({sentInvoices.length} ინვოისი)
         </div>
+        <button
+          type="button"
+          onClick={loadDedupePreview}
+          disabled={dedupeScanning}
+          title="ჯერ აჩვენებს დუბლიკატების სიას; წაშლა ცალკე დაადასტურებთ ფანჯარაში"
+          className={`whitespace-nowrap px-4 py-2 rounded-lg text-[15px] font-medium ${
+            dedupeScanning
+              ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+              : "bg-amber-600 text-white hover:bg-amber-700"
+          }`}
+        >
+          {dedupeScanning ? "იტვირთება..." : "დუბლიკატების ნახვა / წაშლა"}
+        </button>
       </div>
 
       {/* Add Form */}
@@ -725,7 +901,7 @@ export default function RevenuesSection() {
                   <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                     თარიღი
                   </th>
-                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider max-w-[14rem] md:max-w-[18rem]">
                     სასტუმროს სახელი
                   </th>
                   <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
@@ -770,7 +946,7 @@ export default function RevenuesSection() {
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                         {monthYear}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-semibold">
+                      <td className="px-6 py-4 text-[16px] md:text-[18px] text-black font-semibold max-w-[14rem] md:max-w-[18rem] align-top leading-snug break-words [overflow-wrap:anywhere]">
                         {invoice.customerName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-bold">
@@ -910,6 +1086,145 @@ export default function RevenuesSection() {
       ) : (
         <div className="text-center py-8 text-black">
           გაგზავნილი ინვოისები არ მოიძებნა
+        </div>
+      )}
+
+      {dedupePreview && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/50"
+          onClick={closeDedupePreview}
+          role="presentation"
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col text-black border border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-bold text-black">დუბლიკატები (წაშლამდე)</h3>
+                <p className="text-[14px] text-gray-600 mt-1">
+                  ჯგუფი: {dedupePreview.groupCount} · წასაშლელი ჩანაწერი: {dedupePreview.totalRemoved}. თითო ჯგუფში
+                  რჩება უმაღლესი გადახდით ან უახლესი ინვოისი. ცალკე წაშლა — ხაზზე „წაშლა“; დარჩენილების ერთად
+                  წაშლა — ქვედა „წაშლა ყველა დარჩენილი“.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDedupePreview}
+                className="shrink-0 text-gray-500 hover:text-black text-2xl leading-none px-2"
+                aria-label="დახურვა"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-4 py-3 sm:px-5 space-y-5">
+              {dedupePreview.groups.map((g, idx) => (
+                <div key={`${g.table}-${g.fingerprint}-${idx}`} className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-2 text-[13px] text-gray-700 break-all">
+                    <span className="font-semibold text-black">{invoiceTableLabelGe(g.table)}</span>
+                    <span className="text-gray-400 mx-2">·</span>
+                    {g.fingerprint}
+                  </div>
+                  <div className="p-3 space-y-3">
+                    <div>
+                      <div className="text-sm font-semibold text-green-800 mb-1">დარჩება (ბაზაში)</div>
+                      <table className="min-w-full text-[14px] border border-green-200 rounded-md overflow-hidden">
+                        <thead className="bg-green-50">
+                          <tr>
+                            <th className="text-left px-2 py-1.5 font-medium">№</th>
+                            <th className="text-left px-2 py-1.5 font-medium">სასტუმრო</th>
+                            <th className="text-right px-2 py-1.5 font-medium">ჯამი</th>
+                            <th className="text-right px-2 py-1.5 font-medium">გადახდილი</th>
+                            <th className="text-left px-2 py-1.5 font-medium">სერვისის თარიღი</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white">
+                            <td className="px-2 py-1.5 font-mono">{g.kept.invoiceNumber}</td>
+                            <td className="px-2 py-1.5 max-w-[200px] break-words">{g.kept.customerName}</td>
+                            <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                              {Number(g.kept.totalAmount ?? g.kept.amount ?? 0).toFixed(2)} ₾
+                            </td>
+                            <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                              {Number(g.kept.paidAmount ?? 0).toFixed(2)} ₾
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">{formatDedupeDate(g.kept.dueDate)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-red-800 mb-1">წაიშლება ({g.removed.length})</div>
+                      <table className="min-w-full text-[14px] border border-red-200 rounded-md overflow-hidden">
+                        <thead className="bg-red-50">
+                          <tr>
+                            <th className="text-left px-2 py-1.5 font-medium">№</th>
+                            <th className="text-left px-2 py-1.5 font-medium">სასტუმრო</th>
+                            <th className="text-right px-2 py-1.5 font-medium">ჯამი</th>
+                            <th className="text-right px-2 py-1.5 font-medium">გადახდილი</th>
+                            <th className="text-left px-2 py-1.5 font-medium">შექმნის თარიღი</th>
+                            <th className="text-right px-2 py-1.5 font-medium w-[100px]">მოქმედება</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.removed.map((r) => (
+                            <tr key={r.id} className="bg-white border-t border-red-100">
+                              <td className="px-2 py-1.5 font-mono">{r.invoiceNumber}</td>
+                              <td className="px-2 py-1.5 max-w-[200px] break-words">{r.customerName}</td>
+                              <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                                {Number(r.totalAmount ?? r.amount ?? 0).toFixed(2)} ₾
+                              </td>
+                              <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                                {Number(r.paidAmount ?? 0).toFixed(2)} ₾
+                              </td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">{formatDedupeDate(r.createdAt)}</td>
+                              <td className="px-2 py-1.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => deleteSingleDuplicateFromModal(r.id)}
+                                  disabled={dedupeModalBusy}
+                                  className={`text-sm font-medium ${
+                                    dedupeModalBusy
+                                      ? "text-gray-400 cursor-not-allowed"
+                                      : "text-red-600 hover:underline"
+                                  }`}
+                                >
+                                  {deletingDuplicateId === r.id ? "..." : "წაშლა"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 px-4 py-3 sm:px-5 border-t border-gray-200 bg-gray-50">
+              <button
+                type="button"
+                onClick={closeDedupePreview}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-black hover:bg-gray-100 text-[15px] font-medium"
+              >
+                დახურვა
+              </button>
+              <button
+                type="button"
+                onClick={confirmDedupeDeleteFromDb}
+                disabled={dedupeModalBusy || dedupePreview.totalRemoved === 0}
+                className={`px-4 py-2 rounded-lg text-[15px] font-medium text-white ${
+                  dedupeModalBusy || dedupePreview.totalRemoved === 0
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {dedupeDeleting ? "იშლება..." : "წაშლა ყველა დარჩენილი"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  prismaInvoiceDedupeSelect,
+  sumDedupedInvoicesPaidAmount,
+  type RevenueInvoiceDedupeRow,
+} from "@/lib/revenue-invoice-dedupe";
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,7 +51,7 @@ export async function GET(request: NextRequest) {
         const endOfMonth = new Date(parseInt(year), month, 0);
         endOfMonth.setHours(23, 59, 59, 999);
 
-        const [revenues, expenses, invoices] = await Promise.all([
+        const [revenues, expenses, adminRows, legalRows, physicalRows] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -69,53 +74,45 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          Promise.all([
-            prisma.adminInvoice.findMany({
-              where: {
-                createdAt: {
-                  gte: startOfMonth,
-                  lte: endOfMonth,
-                },
-                paidAmount: {
-                  not: null,
-                  gt: 0,
-                },
+          prisma.adminInvoice.findMany({
+            where: {
+              createdAt: {
+                gte: startOfMonth,
+                lte: endOfMonth,
               },
-              select: {
-                paidAmount: true,
+              paidAmount: {
+                not: null,
+                gt: 0,
               },
-            }),
-            prisma.legalInvoice.findMany({
-              where: {
-                createdAt: {
-                  gte: startOfMonth,
-                  lte: endOfMonth,
-                },
-                paidAmount: {
-                  not: null,
-                  gt: 0,
-                },
+            },
+            select: prismaInvoiceDedupeSelect,
+          }),
+          prisma.legalInvoice.findMany({
+            where: {
+              createdAt: {
+                gte: startOfMonth,
+                lte: endOfMonth,
               },
-              select: {
-                paidAmount: true,
+              paidAmount: {
+                not: null,
+                gt: 0,
               },
-            }),
-            prisma.physicalInvoice.findMany({
-              where: {
-                createdAt: {
-                  gte: startOfMonth,
-                  lte: endOfMonth,
-                },
-                paidAmount: {
-                  not: null,
-                  gt: 0,
-                },
+            },
+            select: prismaInvoiceDedupeSelect,
+          }),
+          prisma.physicalInvoice.findMany({
+            where: {
+              createdAt: {
+                gte: startOfMonth,
+                lte: endOfMonth,
               },
-              select: {
-                paidAmount: true,
+              paidAmount: {
+                not: null,
+                gt: 0,
               },
-            }),
-          ]).then(([admin, legal, physical]) => [...admin, ...legal, ...physical]),
+            },
+            select: prismaInvoiceDedupeSelect,
+          }),
         ]);
 
         const monthNames = [
@@ -123,8 +120,12 @@ export async function GET(request: NextRequest) {
           "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი"
         ];
 
-        const monthRevenues = (revenues._sum.amount || 0) + 
-          (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        const monthRevenues = (revenues._sum.amount || 0) +
+          sumDedupedInvoicesPaidAmount(
+            adminRows as RevenueInvoiceDedupeRow[],
+            legalRows as RevenueInvoiceDedupeRow[],
+            physicalRows as RevenueInvoiceDedupeRow[]
+          );
         const monthExpenses = expenses._sum.amount || 0;
         
         // Only add period if there is actual data
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
         const endOfYear = new Date(y, 11, 31);
         endOfYear.setHours(23, 59, 59, 999);
 
-        const [revenues, expenses, invoices] = await Promise.all([
+        const [revenues, expenses, adminRows, legalRows, physicalRows] = await Promise.all([
           prisma.revenue.aggregate({
             where: {
               date: {
@@ -170,57 +171,53 @@ export async function GET(request: NextRequest) {
               amount: true,
             },
           }),
-          Promise.all([
-            prisma.adminInvoice.findMany({
-              where: {
-                createdAt: {
-                  gte: startOfYear,
-                  lte: endOfYear,
-                },
-                paidAmount: {
-                  not: null,
-                  gt: 0,
-                },
+          prisma.adminInvoice.findMany({
+            where: {
+              createdAt: {
+                gte: startOfYear,
+                lte: endOfYear,
               },
-              select: {
-                paidAmount: true,
+              paidAmount: {
+                not: null,
+                gt: 0,
               },
-            }),
-            prisma.legalInvoice.findMany({
-              where: {
-                createdAt: {
-                  gte: startOfYear,
-                  lte: endOfYear,
-                },
-                paidAmount: {
-                  not: null,
-                  gt: 0,
-                },
+            },
+            select: prismaInvoiceDedupeSelect,
+          }),
+          prisma.legalInvoice.findMany({
+            where: {
+              createdAt: {
+                gte: startOfYear,
+                lte: endOfYear,
               },
-              select: {
-                paidAmount: true,
+              paidAmount: {
+                not: null,
+                gt: 0,
               },
-            }),
-            prisma.physicalInvoice.findMany({
-              where: {
-                createdAt: {
-                  gte: startOfYear,
-                  lte: endOfYear,
-                },
-                paidAmount: {
-                  not: null,
-                  gt: 0,
-                },
+            },
+            select: prismaInvoiceDedupeSelect,
+          }),
+          prisma.physicalInvoice.findMany({
+            where: {
+              createdAt: {
+                gte: startOfYear,
+                lte: endOfYear,
               },
-              select: {
-                paidAmount: true,
+              paidAmount: {
+                not: null,
+                gt: 0,
               },
-            }),
-          ]).then(([admin, legal, physical]) => [...admin, ...legal, ...physical]),
+            },
+            select: prismaInvoiceDedupeSelect,
+          }),
         ]);
 
-        const yearRevenues = (revenues._sum.amount || 0) + 
-          (invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0));
+        const yearRevenues = (revenues._sum.amount || 0) +
+          sumDedupedInvoicesPaidAmount(
+            adminRows as RevenueInvoiceDedupeRow[],
+            legalRows as RevenueInvoiceDedupeRow[],
+            physicalRows as RevenueInvoiceDedupeRow[]
+          );
         const yearExpenses = expenses._sum.amount || 0;
         
         // Only add period if there is actual data

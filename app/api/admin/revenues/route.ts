@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { dedupeInvoicesByResendFingerprint } from "@/lib/revenue-invoice-dedupe";
 
 export async function GET(request: NextRequest) {
   try {
@@ -194,7 +195,11 @@ export async function GET(request: NextRequest) {
         },
       }),
     ]);
-    const sentInvoices = [...adminInvoices, ...legalInvoices, ...physicalInvoices];
+    const sentInvoices = [
+      ...dedupeInvoicesByResendFingerprint(adminInvoices),
+      ...dedupeInvoicesByResendFingerprint(legalInvoices),
+      ...dedupeInvoicesByResendFingerprint(physicalInvoices),
+    ];
 
     console.log("Revenues API - Found invoices after filter:", sentInvoices.length, "View:", view, "Date:", date, "Month:", month);
     console.log("Revenues API - Invoice date filter:", JSON.stringify(invoiceDateFilter));
