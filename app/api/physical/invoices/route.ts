@@ -15,6 +15,25 @@ const normalizeHotel = (name: string | null) => {
   return name.trim().replace(/\s+/g, " ").toLowerCase();
 };
 
+/** PhysicalInvoice.customerName = send-pdf buyerName: (first + last) || hotelName */
+function physicalInvoiceCustomerMatchesHotel(
+  customerName: string,
+  hotel: { hotelName: string; firstName: string | null; lastName: string | null }
+): boolean {
+  const inv = normalizeHotel(customerName);
+  const variants = new Set<string>();
+  const add = (s: string | null | undefined) => {
+    const n = normalizeHotel(s ?? null);
+    if (n) variants.add(n);
+  };
+  add(hotel.hotelName);
+  const fullName = [hotel.firstName?.trim(), hotel.lastName?.trim()].filter(Boolean).join(" ");
+  add(fullName);
+  const buyer = fullName || hotel.hotelName;
+  add(buyer);
+  return variants.has(inv);
+}
+
 // Get invoices for physical person hotel grouped by month
 // Invoices come from Invoice table (created when admin/manager sends invoices)
 export async function GET(request: NextRequest) {
@@ -60,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     // Filter invoices by normalized hotel name (case-insensitive)
     const invoicesFiltered = allInvoices.filter((inv) =>
-      normalizeHotel(inv.customerName) === normalizedHotelName
+      physicalInvoiceCustomerMatchesHotel(inv.customerName, hotel)
     );
     const invoices = dedupeInvoicesByResendFingerprint(
       invoicesFiltered as RevenueInvoiceDedupeRow[]
