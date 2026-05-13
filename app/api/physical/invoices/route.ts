@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import {
   liveDisplayedTotalWeightKg,
-  liveGrandTotalAmountGel,
   liveProtectorsAmount,
+  emailSendInvoiceGrandTotalGel,
 } from "@/lib/daily-sheet-email-send-financial";
 import { dedupeInvoicesByResendFingerprint, type RevenueInvoiceDedupeRow } from "@/lib/revenue-invoice-dedupe";
 
@@ -138,7 +138,15 @@ export async function GET(request: NextRequest) {
     const pricePerKg = hotel.pricePerKg || 1.8;
 
     const lineTotal = (es: (typeof emailSends)[number]) =>
-      liveGrandTotalAmountGel(es.dailySheet, pricePerKg);
+      emailSendInvoiceGrandTotalGel(
+        {
+          date: es.date,
+          dailySheet: es.dailySheet,
+          totalAmount: es.totalAmount,
+          payload: es.payload,
+        },
+        pricePerKg
+      );
     
     // Create a map to track which invoices contain which emailSends
     const invoiceEmailSendMap = new Map<string, string[]>(); // invoiceId -> emailSendIds[]
@@ -161,27 +169,21 @@ export async function GET(request: NextRequest) {
       // Strategy: Find all emailSends confirmed around the same time as invoice creation,
       // then group them by timestamp and match groups to invoices by total amount
       const candidateEmailSends = emailSends.filter((es) => {
-        if (usedEmailSendIds.has(es.id)) return false; // Already assigned to another invoice
-        
-        // Primary: Match by confirmedAt (if set)
-        if (es.confirmedAt) {
-          const confirmedDate = new Date(es.confirmedAt);
-          const timeDiffMinutes = Math.abs((confirmedDate.getTime() - invoiceDate.getTime()) / (1000 * 60));
-          // Allow up to 10 minutes difference (in case of multiple invoices sent close together)
-          return timeDiffMinutes <= 10;
-        }
-        
-        // Secondary: Match by sentAt (when invoice was sent from admin)
-        if (es.sentAt) {
-          const sentDate = new Date(es.sentAt);
-          const timeDiffMinutes = Math.abs((sentDate.getTime() - invoiceDate.getTime()) / (1000 * 60));
-          // Allow up to 10 minutes difference (in case of multiple invoices sent close together)
-          return timeDiffMinutes <= 10;
-        }
-        
-        // Fallback: Match by date (within 1 day)
+        if (usedEmailSendIds.has(es.id)) return false;
+
+        const invMs = invoiceDate.getTime();
+        const withinMin = (d: Date, maxMin: number) =>
+          Math.abs(d.getTime() - invMs) / (1000 * 60) <= maxMin;
+
+        if (es.invoicePdfSentAt && withinMin(new Date(es.invoicePdfSentAt), 10))
+          return true;
+        if (es.confirmedAt && withinMin(new Date(es.confirmedAt), 10)) return true;
+        if (es.sentAt && withinMin(new Date(es.sentAt), 10)) return true;
+
         const esDate = new Date(es.date);
-        const dateDiff = Math.abs((esDate.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+        const dateDiff = Math.abs(
+          (esDate.getTime() - invMs) / (1000 * 60 * 60 * 24)
+        );
         return dateDiff <= 1;
       });
       
@@ -194,11 +196,14 @@ export async function GET(request: NextRequest) {
       const emailSendGroups = new Map<string, typeof candidateEmailSends>();
       
       candidateEmailSends.forEach((es) => {
-        // Use confirmedAt if available, otherwise use sentAt, otherwise fallback
-        const referenceDate = es.confirmedAt 
-          ? new Date(es.confirmedAt)
-          : (es.sentAt ? new Date(es.sentAt) : null);
-        
+        const referenceDate = es.invoicePdfSentAt
+          ? new Date(es.invoicePdfSentAt)
+          : es.sentAt
+            ? new Date(es.sentAt)
+            : es.confirmedAt
+              ? new Date(es.confirmedAt)
+              : null;
+
         if (!referenceDate) {
           // If no confirmedAt or sentAt, create a group based on invoice date
           const groupKey = `fallback-${invoice.id}`;

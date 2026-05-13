@@ -588,3 +588,33 @@ export function invoicePdfLineItemsFromSortedSends(
 
   return rows;
 }
+
+/**
+ * ერთი emailSend-ის ინვოისის მთლიანი ₾ (PDF-ის იგივე ლოგიკა: manual totalAmount, payload, მძიმე/დამცავები).
+ * საჭიროა /legal/invoices და /physical/invoices-ში რედაქტის შემდეგ სწორი ჯამი და LegalInvoice-თან მატჩინგი.
+ */
+export function emailSendInvoiceGrandTotalGel(
+  es: {
+    date: Date | string;
+    dailySheet: DailySheetForTotals | null | undefined;
+    totalAmount?: number | null;
+    payload?: unknown;
+  },
+  defaultPricePerKg: number
+): number {
+  const items = invoicePdfLineItemsFromSortedSends(
+    [
+      {
+        date: es.date,
+        dailySheet: es.dailySheet,
+        totalAmountOverrideGel: es.totalAmount ?? null,
+        invoiceManualTotalStoredAsBase:
+          invoiceManualTotalStoredAsBaseFromPayload(es.payload),
+      },
+    ],
+    defaultPricePerKg
+  );
+  return parseFloat(
+    items.reduce((sum, item) => sum + num(item.total), 0).toFixed(2)
+  );
+}

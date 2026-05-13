@@ -6,6 +6,7 @@ import {
   invoiceManualTotalStoredAsBaseFromPayload,
   mergeInvoiceManualTotalPayload,
 } from "@/lib/daily-sheet-email-send-financial";
+import { syncPersistedInvoiceFromEmailSendBatch } from "@/lib/sync-persisted-invoice-from-email-send-batch";
 
 type UpdateBody = {
   pricePerKg?: number | string | null;
@@ -210,6 +211,7 @@ export async function PATCH(
             })
           : prisma.legalDailySheetEmailSend.findUnique({ where: { id } }),
       ]);
+      await syncPersistedInvoiceFromEmailSendBatch("LEGAL", id);
       return NextResponse.json({
         ok: true,
         kind: "LEGAL",
@@ -253,6 +255,7 @@ export async function PATCH(
             })
           : prisma.physicalDailySheetEmailSend.findUnique({ where: { id } }),
       ]);
+      await syncPersistedInvoiceFromEmailSendBatch("PHYSICAL", id);
       return NextResponse.json({
         ok: true,
         kind: "PHYSICAL",
