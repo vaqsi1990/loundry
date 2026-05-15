@@ -14,7 +14,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loginType, setLoginType] = useState<"HOTEL" | "ADMIN" | null>(null);
-  const [adminRole, setAdminRole] = useState<"ADMIN" | "MANAGER" | "">("");
+  const [adminRole, setAdminRole] = useState<"ADMIN" | "MANAGER" | "ACCOUNTANT" | "">("");
   const [identifier, setIdentifier] = useState(""); // Combined field for personalId or identificationCode
   const [password, setPassword] = useState(""); // Combined password field
   const [adminEmail, setAdminEmail] = useState("");
@@ -111,8 +111,8 @@ function LoginForm() {
         return;
       }
 
-      if (adminRole === "ADMIN") {
-        // Admin login with email
+      if (adminRole === "ADMIN" || adminRole === "ACCOUNTANT") {
+        // Admin / Accountant login with email
         if (!adminEmail.trim()) {
           setError("გთხოვთ შეიყვანოთ ელფოსტა");
           return;
@@ -143,7 +143,14 @@ function LoginForm() {
               router.refresh();
               return;
             }
-            router.push("/");
+            const role = (session?.user as any)?.role;
+            if (role === "ACCOUNTANT") {
+              router.push("/accountant");
+            } else if (role === "ADMIN") {
+              router.push("/admin");
+            } else {
+              router.push("/");
+            }
             router.refresh();
           }
         } catch (err) {
@@ -353,7 +360,7 @@ function LoginForm() {
                 <h3 className="text-lg font-medium text-black mb-4 text-center">
                   როლი
                 </h3>
-                <div className="grid grid-cols-1 text-center md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 text-center md:grid-cols-3 gap-4">
                   <label className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     adminRole === "ADMIN" 
                       ? "border-blue-600 bg-blue-50" 
@@ -410,11 +417,39 @@ function LoginForm() {
                       მენეჯერი/მენეჯერის თანაშემწე
                     </span>
                   </label>
+                  <label className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    adminRole === "ACCOUNTANT"
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="adminRole"
+                      value="ACCOUNTANT"
+                      checked={adminRole === "ACCOUNTANT"}
+                      onChange={(e) => setAdminRole(e.target.value as "ACCOUNTANT")}
+                      className="sr-only"
+                    />
+                    <div className={`w-5 h-5 rounded-full border-2 mb-2 flex items-center justify-center ${
+                      adminRole === "ACCOUNTANT"
+                        ? "border-blue-600 bg-blue-600"
+                        : "border-gray-400"
+                    }`}>
+                      {adminRole === "ACCOUNTANT" && (
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span className={`text-[14px] md:text-[16px] font-medium ${
+                      adminRole === "ACCOUNTANT" ? "text-blue-600" : "text-black"
+                    }`}>
+                      ბუღალტერი
+                    </span>
+                  </label>
                 </div>
               </div>
 
-              {/* Admin Login - Email and Password */}
-              {adminRole === "ADMIN" && (
+              {/* Admin / Accountant Login - Email and Password */}
+              {(adminRole === "ADMIN" || adminRole === "ACCOUNTANT") && (
                 <>
                   <div>
                     <input

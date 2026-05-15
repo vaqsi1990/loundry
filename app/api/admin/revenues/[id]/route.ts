@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { canAccessRevenuesApi } from "@/lib/roles";
 
 export async function DELETE(
   request: NextRequest,
@@ -22,7 +23,7 @@ export async function DELETE(
       select: { role: true },
     });
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+    if (!user || !canAccessRevenuesApi(user.role)) {
       return NextResponse.json(
         { error: "დაუშვებელია. მხოლოდ ადმინს, მენეჯერს ან მენეჯერის ასისტენტს შეუძლია შემოსავლების წაშლა" },
         { status: 403 }

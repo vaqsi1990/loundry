@@ -31,6 +31,7 @@ enum EmployeeRole {
   MANAGER
   MANAGER_ASSISTANT
   COURIER
+  ACCOUNTANT // ბუღალტერი
   IRON // უთო
   LAUNDRY_WORKER // მრეცხავი
   OTHER
@@ -193,7 +194,7 @@ model Employee {
   phone        String
   position     EmployeeRole
   contractFile String? // File path for contract
-  canLogin     Boolean      @default(false) // Only MANAGER, MANAGER_ASSISTANT, COURIER can login
+  canLogin     Boolean      @default(false) // MANAGER, MANAGER_ASSISTANT, COURIER, ACCOUNTANT
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

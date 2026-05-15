@@ -79,6 +79,8 @@ export default function TableSection() {
     switch (position) {
       case "COURIER":
         return "კურიერი";
+      case "ACCOUNTANT":
+        return "ბუღალტერი";
       case "LAUNDRY_WORKER":
         return "მრეცხავი";
       case "IRON":

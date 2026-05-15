@@ -29,6 +29,7 @@ export default function EmployeesSection() {
       | "MANAGER"
       | "MANAGER_ASSISTANT"
       | "COURIER"
+      | "ACCOUNTANT"
       | "LAUNDRY_WORKER"
       | "IRON"
       | "OTHER",
@@ -176,6 +177,8 @@ export default function EmployeesSection() {
         return "მენეჯერ ასისტანტი";
       case "COURIER":
         return "კურიერი";
+      case "ACCOUNTANT":
+        return "ბუღალტერი";
       case "LAUNDRY_WORKER":
         return "მრეცხავი";
       case "IRON":
@@ -277,7 +280,7 @@ export default function EmployeesSection() {
                 value={formData.position}
                 onChange={(e) => {
                   const pos = e.target.value as any;
-                  const allowedLogin = ["MANAGER", "MANAGER_ASSISTANT", "COURIER"].includes(pos);
+                  const allowedLogin = ["MANAGER", "MANAGER_ASSISTANT", "COURIER", "ACCOUNTANT"].includes(pos);
                   setFormData({ 
                     ...formData, 
                     position: pos,
@@ -293,6 +296,7 @@ export default function EmployeesSection() {
                 <option value="MANAGER">მენეჯერი</option>
                 <option value="MANAGER_ASSISTANT">მენეჯერ ასისტანტი</option>
                 <option value="COURIER">კურიერი</option>
+                <option value="ACCOUNTANT">ბუღალტერი</option>
                 <option value="LAUNDRY_WORKER">მრეცხავი</option>
                 <option value="IRON">უთო</option>
               </select>
@@ -303,11 +307,11 @@ export default function EmployeesSection() {
                 id="canLogin"
                 checked={formData.canLogin}
                 onChange={(e) => setFormData({ ...formData, canLogin: e.target.checked })}
-                disabled={!["MANAGER", "MANAGER_ASSISTANT", "COURIER"].includes(formData.position)}
+                disabled={!["MANAGER", "MANAGER_ASSISTANT", "COURIER", "ACCOUNTANT"].includes(formData.position)}
                 className="mr-2"
               />
               <label htmlFor="canLogin" className="text-[16px] md:text-[18px] text-black">
-                შეუძლია სისტემაში შესვლა (მხოლოდ მენეჯერი, მენეჯერ ასისტანტი და კურიერი)
+                შეუძლია სისტემაში შესვლა (მენეჯერი, ასისტენტი, კურიერი, ბუღალტერი)
               </label>
             </div>
             <div>

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createHotelDisplayNameResolver } from "@/lib/hotel-customer-resolve";
+import { canAccessRevenuesApi } from "@/lib/roles";
 import {
   planDuplicateInvoiceRemovals,
   prismaInvoiceDedupeSelect,
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       select: { role: true },
     });
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT")) {
+    if (!user || !canAccessRevenuesApi(user.role)) {
       return NextResponse.json({ error: "დაუშვებელია" }, { status: 403 });
     }
 

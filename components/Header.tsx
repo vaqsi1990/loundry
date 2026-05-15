@@ -80,7 +80,8 @@ export default function Header() {
               <>
                 {(session.user as any)?.role !== "ADMIN" && 
                  (session.user as any)?.role !== "MANAGER" && 
-                 (session.user as any)?.role !== "MANAGER_ASSISTANT" && (
+                 (session.user as any)?.role !== "MANAGER_ASSISTANT" &&
+                 (session.user as any)?.role !== "ACCOUNTANT" && (
                   <Link href={profileLink} className="text-black md:text-[18px] text-[16px] transition">
                     პროფილი
                   </Link>
@@ -98,6 +99,11 @@ export default function Header() {
                 {(session.user as any)?.role === "MANAGER_ASSISTANT" && (
                   <Link href="/assistant" className="text-black md:text-[18px] text-[16px] transition">
                     მენეჯერის ასისტენტის პანელი
+                  </Link>
+                )}
+                {(session.user as any)?.role === "ACCOUNTANT" && (
+                  <Link href="/accountant" className="text-black md:text-[18px] text-[16px] transition">
+                    ბუღალტრის პანელი
                   </Link>
                 )}
                 <button
@@ -180,7 +186,8 @@ export default function Header() {
               <>
                 {(session.user as any)?.role !== "ADMIN" && 
                  (session.user as any)?.role !== "MANAGER" && 
-                 (session.user as any)?.role !== "MANAGER_ASSISTANT" && (
+                 (session.user as any)?.role !== "MANAGER_ASSISTANT" &&
+                 (session.user as any)?.role !== "ACCOUNTANT" && (
                   <Link
                     href={profileLink}
                     className="block text-black text-[16px] transition"
@@ -214,6 +221,15 @@ export default function Header() {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     მენეჯერის ასისტენტის პანელი
+                  </Link>
+                )}
+                {(session.user as any)?.role === "ACCOUNTANT" && (
+                  <Link
+                    href="/accountant"
+                    className="block text-black text-[16px] transition"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    ბუღალტრის პანელი
                   </Link>
                 )}
                 <button

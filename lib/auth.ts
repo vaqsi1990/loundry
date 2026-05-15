@@ -24,7 +24,7 @@ export const authOptions: NextAuthOptions = {
 
         // Admin/Manager login
         if (userType === "ADMIN") {
-          const adminRole = credentials.adminRole as "ADMIN" | "MANAGER" | undefined;
+          const adminRole = credentials.adminRole as "ADMIN" | "MANAGER" | "ACCOUNTANT" | undefined;
 
           // Manager login with personalId
           if (adminRole === "MANAGER" && credentials?.personalId) {
@@ -101,9 +101,18 @@ export const authOptions: NextAuthOptions = {
             if (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT") {
               throw new Error("ეს ანგარიში არ არის მენეჯერის ან მენეჯერის თანაშემწის ანგარიში");
             }
+          } else if (adminRole === "ACCOUNTANT") {
+            if (user.role !== "ACCOUNTANT") {
+              throw new Error("ეს ანგარიში არ არის ბუღალტრის ანგარიში");
+            }
           } else {
-            // If no adminRole specified, allow ADMIN, MANAGER, or MANAGER_ASSISTANT
-            if (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT") {
+            // If no adminRole specified, allow staff with email login
+            if (
+              user.role !== "ADMIN" &&
+              user.role !== "MANAGER" &&
+              user.role !== "MANAGER_ASSISTANT" &&
+              user.role !== "ACCOUNTANT"
+            ) {
               throw new Error("ელფოსტა ან პაროლი არასწორია");
             }
           }

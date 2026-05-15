@@ -5,6 +5,10 @@ import prisma from "@/lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import bcrypt from "bcryptjs";
+import {
+  canEmployeePositionLogin,
+  userRoleFromEmployeePosition,
+} from "@/lib/roles";
 
 export async function GET(request: NextRequest) {
   try {
@@ -152,14 +156,19 @@ export async function POST(request: NextRequest) {
       await writeFile(filePath, buffer);
     }
 
-    // Determine user role based on position
-    let userRole: "MANAGER" | "MANAGER_ASSISTANT" | "COURIER" = "COURIER";
-    if (position === "MANAGER") {
-      userRole = "MANAGER";
-    } else if (position === "MANAGER_ASSISTANT") {
-      userRole = "MANAGER_ASSISTANT";
-    } else if (position === "COURIER") {
-      userRole = "COURIER";
+    if (canLogin && !canEmployeePositionLogin(position)) {
+      return NextResponse.json(
+        { error: "ამ პოზიციას არ აქვს სისტემაში შესვლის უფლება" },
+        { status: 400 }
+      );
+    }
+
+    const mappedRole = userRoleFromEmployeePosition(position);
+    if (canLogin && !mappedRole) {
+      return NextResponse.json(
+        { error: "შესვლისთვის აირჩიეთ მენეჯერი, ასისტენტი, კურიერი ან ბუღალტერი" },
+        { status: 400 }
+      );
     }
 
     // Create employee and optionally user in a transaction
@@ -186,7 +195,7 @@ export async function POST(request: NextRequest) {
             email: email.trim(),
             password: hashedPassword,
             mobileNumber: phone,
-            role: userRole,
+            role: mappedRole!,
           },
         });
       }

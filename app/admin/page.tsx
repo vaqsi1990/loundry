@@ -17,6 +17,10 @@ export default function AdminPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
+      if (userRole === "ACCOUNTANT") {
+        router.push("/accountant");
+        return;
+      }
       if (userRole !== "ADMIN") {
         if (userRole === "MANAGER" || userRole === "MANAGER_ASSISTANT") {
           router.push("/manager");

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
 import ExpensesSection from "../components/ExpensesSection";
+import { canAccessFinanceStaffPages } from "@/lib/roles";
 
 export default function ExpensesPage() {
   const { data: session, status } = useSession();
@@ -18,7 +19,7 @@ export default function ExpensesPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT") {
+      if (!canAccessFinanceStaffPages(userRole)) {
         router.push("/");
         return;
       }
@@ -36,9 +37,12 @@ export default function ExpensesPage() {
   }
 
   const userRole = session ? (session.user as any)?.role : null;
-  if (!session || (userRole !== "ADMIN" && userRole !== "MANAGER" && userRole !== "MANAGER_ASSISTANT")) {
+  if (!session || !canAccessFinanceStaffPages(userRole)) {
     return null;
   }
+
+  const backHref =
+    userRole === "ACCOUNTANT" ? "/accountant" : userRole === "ADMIN" ? "/admin" : "/manager";
 
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
@@ -46,7 +50,7 @@ export default function ExpensesPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Link
-              href="/admin"
+              href={backHref}
               className="text-blue-600 hover:underline text-[18px] mb-2 font-bold inline-block"
             >
               ← უკან

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
 import RevenuesSection from "../components/RevenuesSection";
+import { canAccessAccountantPanel } from "@/lib/roles";
 
 export default function RevenuesPage() {
   const { data: session, status } = useSession();
@@ -18,7 +19,7 @@ export default function RevenuesPage() {
 
     if (status === "authenticated" && session) {
       const userRole = (session.user as any)?.role;
-      if (userRole !== "ADMIN") {
+      if (!canAccessAccountantPanel(userRole)) {
         router.push("/");
         return;
       }
@@ -35,9 +36,12 @@ export default function RevenuesPage() {
     );
   }
 
-  if (!session || (session.user as any)?.role !== "ADMIN") {
+  const userRole = session ? (session.user as { role?: string })?.role : null;
+  if (!session || !canAccessAccountantPanel(userRole)) {
     return null;
   }
+
+  const backHref = userRole === "ACCOUNTANT" ? "/accountant" : "/admin";
 
   return (
     <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 mt-10 min-h-screen">
@@ -45,7 +49,7 @@ export default function RevenuesPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Link
-              href="/admin"
+              href={backHref}
               className="text-blue-600 hover:underline text-[18px] mb-2 font-bold inline-block"
             >
               ← უკან
