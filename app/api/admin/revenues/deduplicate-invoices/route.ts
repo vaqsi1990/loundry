@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { createHotelDisplayNameResolver } from "@/lib/hotel-customer-resolve";
 import {
   planDuplicateInvoiceRemovals,
   prismaInvoiceDedupeSelect,
@@ -62,15 +63,34 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const dryRun = body.dryRun === true;
 
-    const [adminRows, legalRows, physicalRows] = await Promise.all([
+    const [adminRows, legalRows, physicalRows, hotels] = await Promise.all([
       prisma.adminInvoice.findMany({ select: prismaInvoiceDedupeSelect }),
       prisma.legalInvoice.findMany({ select: prismaInvoiceDedupeSelect }),
       prisma.physicalInvoice.findMany({ select: prismaInvoiceDedupeSelect }),
+      prisma.hotel.findMany({
+        select: {
+          hotelName: true,
+          type: true,
+          legalEntityName: true,
+          companyName: true,
+          firstName: true,
+          lastName: true,
+        },
+      }),
     ]);
 
-    const adminPlans = planDuplicateInvoiceRemovals(adminRows as RevenueInvoiceDedupeRow[]);
-    const legalPlans = planDuplicateInvoiceRemovals(legalRows as RevenueInvoiceDedupeRow[]);
-    const physicalPlans = planDuplicateInvoiceRemovals(physicalRows as RevenueInvoiceDedupeRow[]);
+    const resolveHotelDisplayName = createHotelDisplayNameResolver(hotels);
+    const canonicalize = (rows: RevenueInvoiceDedupeRow[]) =>
+      rows.map((row) => ({
+        ...row,
+        customerName: resolveHotelDisplayName(row.customerName || ""),
+      }));
+
+    const adminPlans = planDuplicateInvoiceRemovals(canonicalize(adminRows as RevenueInvoiceDedupeRow[]));
+    const legalPlans = planDuplicateInvoiceRemovals(canonicalize(legalRows as RevenueInvoiceDedupeRow[]));
+    const physicalPlans = planDuplicateInvoiceRemovals(
+      canonicalize(physicalRows as RevenueInvoiceDedupeRow[])
+    );
 
     const adminIds = adminPlans.flatMap((p) => p.removed.map((r) => r.id));
     const legalIds = legalPlans.flatMap((p) => p.removed.map((r) => r.id));

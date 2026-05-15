@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { dedupeInvoicesByResendFingerprint } from "@/lib/revenue-invoice-dedupe";
+import { createHotelDisplayNameResolver } from "@/lib/hotel-customer-resolve";
+import {
+  dedupeInvoicesByResendFingerprint,
+  type RevenueInvoiceDedupeRow,
+} from "@/lib/revenue-invoice-dedupe";
 
 export async function GET(request: NextRequest) {
   try {
@@ -133,6 +137,24 @@ export async function GET(request: NextRequest) {
     
     console.log("Revenues API - Total invoices:", totalInvoices, "Total in date range:", totalInvoicesInRange);
 
+    const hotels = await prisma.hotel.findMany({
+      select: {
+        hotelName: true,
+        type: true,
+        legalEntityName: true,
+        companyName: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+    const resolveHotelDisplayName = createHotelDisplayNameResolver(hotels);
+
+    const canonicalizeForDedupe = (rows: RevenueInvoiceDedupeRow[]) =>
+      rows.map((row) => ({
+        ...row,
+        customerName: resolveHotelDisplayName(row.customerName || ""),
+      }));
+
     const [adminInvoices, legalInvoices, physicalInvoices] = await Promise.all([
       prisma.adminInvoice.findMany({
         where: invoiceWhere,
@@ -196,10 +218,13 @@ export async function GET(request: NextRequest) {
       }),
     ]);
     const sentInvoices = [
-      ...dedupeInvoicesByResendFingerprint(adminInvoices),
-      ...dedupeInvoicesByResendFingerprint(legalInvoices),
-      ...dedupeInvoicesByResendFingerprint(physicalInvoices),
-    ];
+      ...dedupeInvoicesByResendFingerprint(canonicalizeForDedupe(adminInvoices)),
+      ...dedupeInvoicesByResendFingerprint(canonicalizeForDedupe(legalInvoices)),
+      ...dedupeInvoicesByResendFingerprint(canonicalizeForDedupe(physicalInvoices)),
+    ].map((inv) => ({
+      ...inv,
+      displayHotelName: inv.customerName,
+    }));
 
     console.log("Revenues API - Found invoices after filter:", sentInvoices.length, "View:", view, "Date:", date, "Month:", month);
     console.log("Revenues API - Invoice date filter:", JSON.stringify(invoiceDateFilter));

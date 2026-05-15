@@ -17,6 +17,8 @@ interface SentInvoice {
   id: string;
   invoiceNumber: string;
   customerName: string;
+  /** სასტუმროს დასახელება (hotelName), თუ customerName შპს/სხვა ვარიანტია */
+  displayHotelName?: string;
   totalAmount: number | null;
   amount: number;
   paidAmount: number | null;
@@ -24,6 +26,10 @@ interface SentInvoice {
   createdAt: string;
   // დღის ფურცლის თარიღი / სერვისის თარიღი (თუ არსებობს)
   dueDate?: string;
+}
+
+function invoiceHotelLabel(inv: SentInvoice): string {
+  return inv.displayHotelName?.trim() || inv.customerName;
 }
 
 interface DedupeInvoiceBrief {
@@ -427,9 +433,11 @@ export default function RevenuesSection() {
 
   const normalizedSearch = hotelSearch.trim().toLowerCase();
   const filteredSentInvoices = normalizedSearch
-    ? sentInvoices.filter((inv) =>
-        (inv.customerName || "").toLowerCase().includes(normalizedSearch)
-      )
+    ? sentInvoices.filter((inv) => {
+        const label = invoiceHotelLabel(inv).toLowerCase();
+        const raw = (inv.customerName || "").toLowerCase();
+        return label.includes(normalizedSearch) || raw.includes(normalizedSearch);
+      })
     : sentInvoices;
 
   const selectedInvoicesCount = Object.values(selectedInvoiceIds).filter(Boolean).length;
@@ -534,7 +542,7 @@ export default function RevenuesSection() {
     // Show detailed confirmation message with invoice details
     const invoiceDate = new Date(invoice.createdAt).toLocaleDateString("ka-GE");
     const invoiceNumber = invoice.invoiceNumber || "N/A";
-    const confirmMessage = `დარწმუნებული ხართ რომ ინვოისი სრულად ჩაირიცხა?\n\nინვოისის ნომერი: ${invoiceNumber}\nსასტუმრო: ${invoice.customerName}\nთარიღი: ${invoiceDate}\nთანხა: ${totalAmount.toFixed(2)} ₾\nგადახდილი: ${paidAmount.toFixed(2)} ₾\n\nამის შემდეგ ფასის შეცვლა ვეღარ შეიძლება.`;
+    const confirmMessage = `დარწმუნებული ხართ რომ ინვოისი სრულად ჩაირიცხა?\n\nინვოისის ნომერი: ${invoiceNumber}\nსასტუმრო: ${invoiceHotelLabel(invoice)}\nთარიღი: ${invoiceDate}\nთანხა: ${totalAmount.toFixed(2)} ₾\nგადახდილი: ${paidAmount.toFixed(2)} ₾\n\nამის შემდეგ ფასის შეცვლა ვეღარ შეიძლება.`;
 
     if (!confirm(confirmMessage)) {
       return;
@@ -947,7 +955,7 @@ export default function RevenuesSection() {
                         {monthYear}
                       </td>
                       <td className="px-6 py-4 text-[16px] md:text-[18px] text-black font-semibold max-w-[14rem] md:max-w-[18rem] align-top leading-snug break-words [overflow-wrap:anywhere]">
-                        {invoice.customerName}
+                        {invoiceHotelLabel(invoice)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black font-bold">
                         {totalAmount.toFixed(2)} ₾
