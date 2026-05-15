@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { EmployeeRole } from "@/app/generated/prisma/client";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import bcrypt from "bcryptjs";
@@ -92,6 +93,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "პოზიცია სავალდებულოა" }, { status: 400 });
     }
 
+    const validPositions = new Set<string>(Object.values(EmployeeRole));
+    if (!validPositions.has(position)) {
+      return NextResponse.json({ error: "არასწორი პოზიცია" }, { status: 400 });
+    }
+    const employeePosition = position as (typeof EmployeeRole)[keyof typeof EmployeeRole];
+
     // Require personalId for MANAGER and MANAGER_ASSISTANT
     if ((position === "MANAGER" || position === "MANAGER_ASSISTANT") && !personalId) {
       return NextResponse.json(
@@ -179,7 +186,7 @@ export async function POST(request: NextRequest) {
           name,
           personalId: personalId || null,
           phone,
-          position: position as any,
+          position: employeePosition,
           canLogin,
           contractFile: contractFilePath,
           email: canLogin && email ? email.trim() : null,
