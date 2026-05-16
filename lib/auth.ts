@@ -13,7 +13,6 @@ export const authOptions: NextAuthOptions = {
         personalId: { label: "Personal ID", type: "text" },
         identificationCode: { label: "Identification Code", type: "text" },
         userType: { label: "User Type", type: "text" },
-        adminRole: { label: "Admin Role", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.password) {
@@ -22,29 +21,54 @@ export const authOptions: NextAuthOptions = {
 
         const userType = credentials.userType as "ADMIN" | "PHYSICAL" | "LEGAL";
 
-        // Admin/Manager login
+        // Staff login: email → admin; personalId → manager / accountant
         if (userType === "ADMIN") {
-          const adminRole = credentials.adminRole as "ADMIN" | "MANAGER" | "ACCOUNTANT" | undefined;
+          const email = credentials.email?.trim();
+          const personalId = credentials.personalId?.trim();
 
-          // Manager / Accountant login with personalId
-          if (adminRole === "MANAGER" || adminRole === "ACCOUNTANT") {
-            const personalId = credentials.personalId?.trim();
-            if (!personalId) {
-              throw new Error("გთხოვთ შეიყვანოთ პირადი ნომერი");
+          if (email) {
+            const user = await prisma.user.findUnique({
+              where: { email },
+            });
+
+            if (!user) {
+              throw new Error("ელფოსტა ან პაროლი არასწორია");
             }
 
+            if (user.role !== "ADMIN") {
+              throw new Error("ელფოსტა ან პაროლი არასწორია");
+            }
+
+            const isPasswordValid = await bcrypt.compare(
+              credentials.password,
+              user.password
+            );
+
+            if (!isPasswordValid) {
+              throw new Error("ელფოსტა ან პაროლი არასწორია");
+            }
+
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              mustChangePassword: user.mustChangePassword,
+            };
+          }
+
+          if (personalId) {
             const employee = await prisma.employee.findFirst({
               where: {
                 personalId,
                 canLogin: true,
-                position:
-                  adminRole === "MANAGER"
-                    ? { in: ["MANAGER", "MANAGER_ASSISTANT"] }
-                    : "ACCOUNTANT",
+                position: {
+                  in: ["MANAGER", "MANAGER_ASSISTANT", "ACCOUNTANT"],
+                },
               },
             });
 
-            if (!employee || !employee.email) {
+            if (!employee?.email) {
               throw new Error("პირადი ნომერი ან პაროლი არასწორია");
             }
 
@@ -56,17 +80,9 @@ export const authOptions: NextAuthOptions = {
               throw new Error("პირადი ნომერი ან პაროლი არასწორია");
             }
 
-            if (adminRole === "ACCOUNTANT" && user.role !== "ACCOUNTANT") {
-              throw new Error("ეს ანგარიში არ არის ბუღალტრის ანგარიში");
-            }
-            if (
-              adminRole === "MANAGER" &&
-              user.role !== "MANAGER" &&
-              user.role !== "MANAGER_ASSISTANT"
-            ) {
-              throw new Error(
-                "ეს ანგარიში არ არის მენეჯერის ან მენეჯერის თანაშემწის ანგარიში"
-              );
+            const staffRoles = ["MANAGER", "MANAGER_ASSISTANT", "ACCOUNTANT"];
+            if (!staffRoles.includes(user.role)) {
+              throw new Error("პირადი ნომერი ან პაროლი არასწორია");
             }
 
             const isPasswordValid = await bcrypt.compare(
@@ -87,43 +103,7 @@ export const authOptions: NextAuthOptions = {
             };
           }
 
-          // Admin login with email only
-          if (adminRole !== "ADMIN") {
-            throw new Error("გთხოვთ აირჩიოთ როლი და შეიყვანოთ სწორი მონაცემები");
-          }
-
-          if (!credentials?.email) {
-            throw new Error("გთხოვთ შეიყვანოთ ელფოსტა");
-          }
-
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
-          });
-
-          if (!user) {
-            throw new Error("ელფოსტა ან პაროლი არასწორია");
-          }
-
-          if (user.role !== "ADMIN") {
-            throw new Error("ეს ანგარიში არ არის ადმინისტრატორის ანგარიში");
-          }
-
-          const isPasswordValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
-
-          if (!isPasswordValid) {
-            throw new Error("ელფოსტა ან პაროლი არასწორია");
-          }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            mustChangePassword: user.mustChangePassword,
-          };
+          throw new Error("გთხოვთ შეიყვანოთ ელფოსტა ან პირადი ნომერი");
         }
 
         // Physical person login - personalId and password
