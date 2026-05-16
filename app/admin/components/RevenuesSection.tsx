@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getApiPath } from "@/lib/api-helper";
 import { FormattedDateInput } from "./ui/DatePickerSection";
 
@@ -93,9 +94,64 @@ function invoiceTableLabelGe(table: string): string {
   return table;
 }
 
+const GEORGIAN_MONTH_NAMES = [
+  "იანვარი",
+  "თებერვალი",
+  "მარტი",
+  "აპრილი",
+  "მაისი",
+  "ივნისი",
+  "ივლისი",
+  "აგვისტო",
+  "სექტემბერი",
+  "ოქტომბერი",
+  "ნოემბერი",
+  "დეკემბერი",
+] as const;
+
+function formatMonthYearGe(date: Date) {
+  return GEORGIAN_MONTH_NAMES[date.getMonth()] ?? "";
+}
+
+function buildRevenueMonthOptions(selectedMonth: string) {
+  const options: { value: string; label: string }[] = [];
+  const seen = new Set<string>();
+
+  const add = (year: number, monthIndex: number) => {
+    const value = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+    if (seen.has(value)) return;
+    seen.add(value);
+    const date = new Date(year, monthIndex, 1);
+    options.push({
+      value,
+      label: `${formatMonthYearGe(date)} ${year}`,
+    });
+  };
+
+  const now = new Date();
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    add(d.getFullYear(), d.getMonth());
+  }
+
+  if (/^\d{4}-\d{2}$/.test(selectedMonth) && !seen.has(selectedMonth)) {
+    const [year, month] = selectedMonth.split("-").map(Number);
+    if (year && month >= 1 && month <= 12) {
+      add(year, month - 1);
+    }
+  }
+
+  return options.sort((a, b) => b.value.localeCompare(a.value));
+}
+
 
 
 export default function RevenuesSection() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selectedMonth = searchParams.get("month") ?? "";
+
   const [revenues, setRevenues] = useState<Revenue[]>([]);
   const [sentInvoices, setSentInvoices] = useState<SentInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +160,6 @@ export default function RevenuesSection() {
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Record<string, boolean>>({});
   const [hotelSearch, setHotelSearch] = useState<string>("");
   const [dedupeScanning, setDedupeScanning] = useState(false);
@@ -112,24 +167,20 @@ export default function RevenuesSection() {
   const [deletingDuplicateId, setDeletingDuplicateId] = useState<string | null>(null);
   const [dedupePreview, setDedupePreview] = useState<DedupePreviewPayload | null>(null);
 
-  const formatMonthYearGe = (date: Date) => {
-    const monthIndex = date.getMonth(); // 0-based
-    const months = [
-      "იანვარი",
-      "თებერვალი",
-      "მარტი",
-      "აპრილი",
-      "მაისი",
-      "ივნისი",
-      "ივლისი",
-      "აგვისტო",
-      "სექტემბერი",
-      "ოქტომბერი",
-      "ნოემბერი",
-      "დეკემბერი",
-    ];
-    const monthName = months[monthIndex] ?? "";
-    return monthName;
+  const monthFilterOptions = useMemo(
+    () => buildRevenueMonthOptions(selectedMonth),
+    [selectedMonth]
+  );
+
+  const setSelectedMonth = (month: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (month) {
+      params.set("month", month);
+    } else {
+      params.delete("month");
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
   const [formData, setFormData] = useState({
@@ -709,17 +760,11 @@ export default function RevenuesSection() {
             className="px-3 py-2 border border-gray-300 rounded-md text-black bg-white min-w-[180px]"
           >
             <option value="">ყველა თვე</option>
-            {Array.from({ length: 12 }).map((_, index) => {
-              const date = new Date();
-              date.setMonth(index);
-              const value = `${date.getFullYear()}-${String(index + 1).padStart(2, "0")}`;
-              const label = formatMonthYearGe(date);
-              return (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              );
-            })}
+            {monthFilterOptions.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
