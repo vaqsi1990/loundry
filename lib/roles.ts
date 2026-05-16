@@ -31,20 +31,27 @@ export function userRoleFromEmployeePosition(
 }
 
 export function isAccountantRole(role: string | undefined | null): boolean {
-  return role === "ACCOUNTANT";
+  return normalizeRole(role) === "ACCOUNTANT";
+}
+
+function normalizeRole(role: string | undefined | null): string {
+  if (role == null) return "";
+  return String(role);
 }
 
 export function canAccessRevenuesApi(role: string | undefined | null): boolean {
+  const r = normalizeRole(role);
   return (
-    role === "ADMIN" ||
-    role === "ACCOUNTANT" ||
-    role === "MANAGER" ||
-    role === "MANAGER_ASSISTANT"
+    r === "ADMIN" ||
+    r === "ACCOUNTANT" ||
+    r === "MANAGER" ||
+    r === "MANAGER_ASSISTANT"
   );
 }
 
 export function canAccessAccountantPanel(role: string | undefined | null): boolean {
-  return role === "ADMIN" || role === "ACCOUNTANT";
+  const r = normalizeRole(role);
+  return r === "ADMIN" || r === "ACCOUNTANT";
 }
 
 export function canAccessAdminInvoicesForPayments(role: string | undefined | null): boolean {

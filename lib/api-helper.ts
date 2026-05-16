@@ -14,7 +14,11 @@ export function getApiBasePath(): string {
   if (pathname.startsWith('/manager') || pathname.startsWith('/assistant')) {
     return '/api/manager';
   }
-  
+
+  if (pathname.startsWith('/accountant') || pathname.startsWith('/admin')) {
+    return '/api/admin';
+  }
+
   // Default to admin
   return '/api/admin';
 }

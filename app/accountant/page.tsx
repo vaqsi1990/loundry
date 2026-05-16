@@ -7,30 +7,14 @@ import Link from "next/link";
 import { canAccessAccountantPanel } from "@/lib/roles";
 
 const sections = [
-  {
-    id: "revenues",
-    label: "შემოსავლები",
-    description: "ინვოისები, გადახდები და შემოსავლები",
-    path: "/admin/revenues",
-  },
+ 
   {
     id: "invoices",
     label: "ინვოისები",
     description: "გაგზავნილი ინვოისები და დღის ფურცლები",
-    path: "/admin/invoices",
+    path: "/accountant/invoices",
   },
-  {
-    id: "invoicesArchive",
-    label: "ინვოისების არქივი",
-    description: "თვიური არქივი და მოძიება",
-    path: "/admin/invoices/archive",
-  },
-  {
-    id: "expenses",
-    label: "ხარჯები",
-    description: "ხარჯების ჩანაწერები",
-    path: "/admin/expenses",
-  },
+ 
 ];
 
 export default function AccountantPage() {

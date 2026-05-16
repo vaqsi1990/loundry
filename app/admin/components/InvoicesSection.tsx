@@ -167,7 +167,12 @@ export default function InvoicesSection() {
         : `${apiPath}?${cacheBust}`;
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) {
-        throw new Error("ინვოისების ჩატვირთვა ვერ მოხერხდა");
+        const payload = await response.json().catch(() => ({}));
+        const msg =
+          typeof payload?.error === "string"
+            ? payload.error
+            : "ინვოისების ჩატვირთვა ვერ მოხერხდა";
+        throw new Error(msg);
       }
       const data = await response.json();
       setSummaries(data || []);
@@ -765,7 +770,7 @@ export default function InvoicesSection() {
     <div>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl font-bold text-black">ინვოისები (ცალკეული ინვოისები)</h2>
+          <h2 className="text-xl font-bold text-black">ინვოისები</h2>
           <p className="text-gray-600 text-sm md:text-base">
             ყველა გაგზავნილი დღის ფურცელი ცალკეული ინვოისების მიხედვით, დაყოფილი თვეებად.
           </p>
