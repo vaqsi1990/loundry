@@ -83,6 +83,7 @@ export default function OurHotelsSection() {
   const [identificationCode, setIdentificationCode] = useState("");
   const [responsiblePersonName, setResponsiblePersonName] = useState("");
   const [hasDgg, setHasDgg] = useState(false);
+  const [changePassword, setChangePassword] = useState(false);
 
   useEffect(() => {
     const p = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
@@ -165,6 +166,7 @@ export default function OurHotelsSection() {
     setIdentificationCode("");
     setResponsiblePersonName("");
     setHasDgg(false);
+    setChangePassword(false);
     setFormError("");
     setFormSuccess("");
     setIsEditing(false);
@@ -182,6 +184,18 @@ export default function OurHotelsSection() {
       const trimmedHotelEmail = hotelEmail.trim();
       const trimmedName = name.trim();
       const trimmedLastName = lastName.trim();
+      const trimmedPassword = password.trim();
+
+      if (isEditing && changePassword) {
+        if (trimmedPassword.length < 6) {
+          setFormError("ახალი პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან");
+          return;
+        }
+        if (trimmedPassword !== confirmPassword.trim()) {
+          setFormError("პაროლები არ ემთხვევა");
+          return;
+        }
+      }
 
       const requestBody: any = {
         hotelType,
@@ -200,15 +214,14 @@ export default function OurHotelsSection() {
       requestBody.lastName = trimmedLastName || undefined;
       requestBody.email = trimmedEmail || undefined;
       
-      // Only include password fields if they're provided (for editing) or required (for creating)
       if (isEditing) {
-        if (password) {
-          requestBody.password = password;
-          requestBody.confirmPassword = confirmPassword;
+        if (changePassword && trimmedPassword) {
+          requestBody.password = trimmedPassword;
+          requestBody.confirmPassword = confirmPassword.trim();
         }
       } else {
-        requestBody.password = password;
-        requestBody.confirmPassword = confirmPassword;
+        requestBody.password = trimmedPassword;
+        requestBody.confirmPassword = confirmPassword.trim();
       }
 
       if (hotelType === "PHYSICAL") {
@@ -292,6 +305,7 @@ export default function OurHotelsSection() {
     setEmail(hotel.user?.email || "");
     setPassword("");
     setConfirmPassword("");
+    setChangePassword(false);
     // Populate physical/legal person specific fields
     setPersonalId(hotel.personalId || "");
     setLegalEntityName(hotel.legalEntityName || "");
@@ -552,14 +566,42 @@ export default function OurHotelsSection() {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
+                  {isEditing && (
+                    <div className="md:col-span-2 flex items-center gap-2">
+                      <input
+                        id="changePassword"
+                        type="checkbox"
+                        checked={changePassword}
+                        onChange={(e) => {
+                          setChangePassword(e.target.checked);
+                          if (!e.target.checked) {
+                            setPassword("");
+                            setConfirmPassword("");
+                            setShowPassword(false);
+                            setShowConfirmPassword(false);
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      />
+                      <label htmlFor="changePassword" className="text-[16px] md:text-[18px] text-black">
+                        პაროლის შეცვლა (არასავალდებულო)
+                      </label>
+                    </div>
+                  )}
+                  {(!isEditing || changePassword) && (
+                  <>
                   <div className="relative">
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      required={!isEditing}
-                      minLength={password ? 6 : undefined}
+                      required={!isEditing || changePassword}
+                      minLength={!isEditing || changePassword ? 6 : undefined}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 pr-10 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="პაროლი (მინიმუმ 6 სიმბოლო)"
+                      placeholder={
+                        isEditing
+                          ? "ახალი პაროლი (მინიმუმ 6 სიმბოლო)"
+                          : "პაროლი (მინიმუმ 6 სიმბოლო)"
+                      }
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
@@ -609,10 +651,10 @@ export default function OurHotelsSection() {
                     <input
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
-                      required={!isEditing && !!password}
-                      minLength={password ? 6 : undefined}
+                      required={(!isEditing || changePassword) && !!password.trim()}
+                      minLength={!isEditing || changePassword ? 6 : undefined}
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 pr-10 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="გაიმეორეთ პაროლი"
+                      placeholder="გაიმეორეთ ახალი პაროლი"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                     />
@@ -658,6 +700,8 @@ export default function OurHotelsSection() {
                       )}
                     </button>
                   </div>
+                  </>
+                  )}
                   <div>
                    
                     <input

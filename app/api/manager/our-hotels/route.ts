@@ -11,6 +11,17 @@ const generatePlaceholderEmail = () =>
 
 const emailSchema = z.string().trim().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა");
 
+const emptyToUndefined = (val: unknown) => {
+  if (val === undefined || val === null) return undefined;
+  if (typeof val === "string" && val.trim() === "") return undefined;
+  return val;
+};
+
+const optionalPasswordField = z.preprocess(
+  emptyToUndefined,
+  z.string().min(6, "პაროლი მინ. 6 სიმბოლო").optional()
+);
+
 const hotelSchema = z.object({
   hotelType: z.enum(["PHYSICAL", "LEGAL"]),
   hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა"),
@@ -96,8 +107,8 @@ const updateHotelSchema = z
     name: z.string().optional(),
     lastName: z.string().optional(),
     email: emailSchema.optional(),
-    password: z.string().min(6, "პაროლი მინ. 6 სიმბოლო").optional(),
-    confirmPassword: z.string().min(6, "გაიმეორეთ პაროლი").optional(),
+    password: optionalPasswordField,
+    confirmPassword: optionalPasswordField,
     personalId: z.string().optional(),
     legalEntityName: z.string().optional(),
     identificationCode: z.string().optional(),
@@ -105,10 +116,10 @@ const updateHotelSchema = z
   })
   .refine(
     (data) => {
-      if (data.password || data.confirmPassword) {
-        return data.password === data.confirmPassword;
-      }
-      return true;
+      const pw = data.password;
+      const cp = data.confirmPassword;
+      if (!pw && !cp) return true;
+      return Boolean(pw && cp && pw === cp);
     },
     { message: "პაროლები არ ემთხვევა", path: ["confirmPassword"] }
   )
@@ -285,6 +296,14 @@ export async function PUT(request: NextRequest) {
       body.name = body?.name?.trim();
       body.lastName = body?.lastName?.trim();
       body.email = body?.email?.trim();
+      body.password =
+        typeof body?.password === "string" && body.password.trim()
+          ? body.password.trim()
+          : undefined;
+      body.confirmPassword =
+        typeof body?.confirmPassword === "string" && body.confirmPassword.trim()
+          ? body.confirmPassword.trim()
+          : undefined;
       body.personalId = body?.personalId?.trim() || undefined;
       body.identificationCode = body?.identificationCode?.trim() || undefined;
       body.legalEntityName = body?.legalEntityName?.trim() || undefined;
