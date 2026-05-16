@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import React from "react";
 import {
@@ -11,6 +11,10 @@ import {
   explicitHeavyPricePerKgGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
+import {
+  formatMonthGeLabel,
+  monthKeysFromSheetList,
+} from "@/lib/daily-sheet-dates";
 
 interface DailySheetItem {
   id?: string;
@@ -121,7 +125,8 @@ const calculateTotals = (items: DailySheetItem[]) =>
 export default function LegalDailySheetsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [sheetsLoading, setSheetsLoading] = useState(false);
   const [dailySheets, setDailySheets] = useState<DailySheet[]>([]);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedDay, setSelectedDay] = useState("");
@@ -135,11 +140,42 @@ export default function LegalDailySheetsPage() {
     }
 
     if (status === "authenticated" && session?.user?.id) {
-      fetchDailySheets();
+      void (async () => {
+        setInitialLoading(true);
+        await loadAvailableMonths();
+        await fetchDailySheets();
+        setInitialLoading(false);
+      })();
     }
-  }, [status, session, router, selectedMonth, selectedDay]);
+  }, [status, session, router]);
+
+  useEffect(() => {
+    if (status === "unauthenticated" || initialLoading) return;
+
+    if (status === "authenticated" && session?.user?.id) {
+      void fetchDailySheets();
+    }
+  }, [status, session, selectedMonth, selectedDay, initialLoading]);
+
+  const monthFilterOptions = useMemo(() => {
+    const merged = new Set(availableMonths);
+    if (selectedMonth) merged.add(selectedMonth);
+    return Array.from(merged).sort().reverse();
+  }, [availableMonths, selectedMonth]);
+
+  const loadAvailableMonths = async () => {
+    try {
+      const response = await fetch("/api/legal/daily-sheets");
+      if (!response.ok) return;
+      const data = await response.json();
+      setAvailableMonths(monthKeysFromSheetList(data));
+    } catch (err) {
+      console.error("Error loading available months:", err);
+    }
+  };
 
   const fetchDailySheets = async () => {
+    setSheetsLoading(true);
     try {
       let url = "/api/legal/daily-sheets";
       if (selectedDay) {
@@ -147,24 +183,15 @@ export default function LegalDailySheetsPage() {
       } else if (selectedMonth) {
         url += `?month=${selectedMonth}`;
       }
-      
+
       const response = await fetch(url);
       if (!response.ok) throw new Error("დღის ფურცლების ჩატვირთვა ვერ მოხერხდა");
       const data = await response.json();
       setDailySheets(data);
-      
-      // Extract available months
-      const months = new Set<string>();
-      data.forEach((sheet: DailySheet) => {
-        const date = new Date(sheet.date);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        months.add(monthKey);
-      });
-      setAvailableMonths(Array.from(months).sort().reverse());
     } catch (err) {
       console.error("Error fetching daily sheets:", err);
     } finally {
-      setLoading(false);
+      setSheetsLoading(false);
     }
   };
 
@@ -174,7 +201,7 @@ export default function LegalDailySheetsPage() {
         method: "PUT",
       });
       if (!response.ok) throw new Error("დადასტურება ვერ მოხერხდა");
-      await fetchDailySheets();
+      await Promise.all([fetchDailySheets(), loadAvailableMonths()]);
       alert("დღის ფურცელი წარმატებით დაადასტურა");
     } catch (err) {
       alert("დადასტურებისას მოხდა შეცდომა");
@@ -202,17 +229,6 @@ export default function LegalDailySheetsPage() {
     ];
     return `${weekdays[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
-
-  const formatMonthGe = (monthKey: string) => {
-    const [year, monthNum] = monthKey.split("-");
-    const months = [
-      "იანვარი", "თებერვალი", "მარტი", "აპრილი", "მაისი", "ივნისი",
-      "ივლისი", "აგვისტო", "სექტემბერი", "ოქტომბერი", "ნოემბერი", "დეკემბერი",
-    ];
-    const monthIndex = parseInt(monthNum) - 1;
-    return `${months[monthIndex]} ${year}`;
-  };
-
 
   const parseNumCellInput = (raw: string) => {
     if (raw === "" || raw === "-") return 0;
@@ -485,7 +501,7 @@ export default function LegalDailySheetsPage() {
     );
   };
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || initialLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
@@ -529,9 +545,9 @@ export default function LegalDailySheetsPage() {
                 className="w-full px-3 py-2 border rounded-md text-[16px] md:text-[18px]"
               >
                 <option value="">ყველა თვე</option>
-                {availableMonths.map((month) => (
+                {monthFilterOptions.map((month) => (
                   <option key={month} value={month}>
-                    {formatMonthGe(month)}
+                    {formatMonthGeLabel(month)}
                   </option>
                 ))}
               </select>
@@ -551,6 +567,12 @@ export default function LegalDailySheetsPage() {
               />
             </div>
           </div>
+
+          {sheetsLoading && (
+            <p className="text-center text-gray-500 text-[14px] md:text-[16px] mb-4">
+              იტვირთება...
+            </p>
+          )}
 
           {/* Sheets List */}
           <div className="space-y-6">
