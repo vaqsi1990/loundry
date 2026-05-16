@@ -111,8 +111,7 @@ function LoginForm() {
         return;
       }
 
-      if (adminRole === "ADMIN" || adminRole === "ACCOUNTANT") {
-        // Admin / Accountant login with email
+      if (adminRole === "ADMIN") {
         if (!adminEmail.trim()) {
           setError("გთხოვთ შეიყვანოთ ელფოსტა");
           return;
@@ -143,14 +142,7 @@ function LoginForm() {
               router.refresh();
               return;
             }
-            const role = (session?.user as any)?.role;
-            if (role === "ACCOUNTANT") {
-              router.push("/accountant");
-            } else if (role === "ADMIN") {
-              router.push("/admin");
-            } else {
-              router.push("/");
-            }
+            router.push("/admin");
             router.refresh();
           }
         } catch (err) {
@@ -158,8 +150,7 @@ function LoginForm() {
         } finally {
           setLoading(false);
         }
-      } else if (adminRole === "MANAGER") {
-        // Manager login with personalId
+      } else if (adminRole === "MANAGER" || adminRole === "ACCOUNTANT") {
         if (!managerPersonalId.trim()) {
           setError("გთხოვთ შეიყვანოთ პირადი ნომერი");
           return;
@@ -190,7 +181,12 @@ function LoginForm() {
               router.refresh();
               return;
             }
-            router.push("/");
+            const role = (session?.user as any)?.role;
+            if (role === "ACCOUNTANT") {
+              router.push("/accountant");
+            } else {
+              router.push("/");
+            }
             router.refresh();
           }
         } catch (err) {
@@ -448,8 +444,8 @@ function LoginForm() {
                 </div>
               </div>
 
-              {/* Admin / Accountant Login - Email and Password */}
-              {(adminRole === "ADMIN" || adminRole === "ACCOUNTANT") && (
+              {/* Admin login — email and password */}
+              {adminRole === "ADMIN" && (
                 <>
                   <div>
                     <input
@@ -507,8 +503,8 @@ function LoginForm() {
                 </>
               )}
 
-              {/* Manager Login - Personal ID and Password */}
-              {adminRole === "MANAGER" && (
+              {/* Manager / Accountant — personal ID and password */}
+              {(adminRole === "MANAGER" || adminRole === "ACCOUNTANT") && (
                 <>
                   <div>
                     <input

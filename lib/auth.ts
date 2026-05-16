@@ -26,20 +26,21 @@ export const authOptions: NextAuthOptions = {
         if (userType === "ADMIN") {
           const adminRole = credentials.adminRole as "ADMIN" | "MANAGER" | "ACCOUNTANT" | undefined;
 
-          // Manager login with personalId
-          if (adminRole === "MANAGER" && credentials?.personalId) {
-            if (!credentials.personalId) {
+          // Manager / Accountant login with personalId
+          if (adminRole === "MANAGER" || adminRole === "ACCOUNTANT") {
+            const personalId = credentials.personalId?.trim();
+            if (!personalId) {
               throw new Error("გთხოვთ შეიყვანოთ პირადი ნომერი");
             }
 
-            // Find employee by personalId
             const employee = await prisma.employee.findFirst({
               where: {
-                personalId: credentials.personalId,
+                personalId,
                 canLogin: true,
-                position: {
-                  in: ["MANAGER", "MANAGER_ASSISTANT"],
-                },
+                position:
+                  adminRole === "MANAGER"
+                    ? { in: ["MANAGER", "MANAGER_ASSISTANT"] }
+                    : "ACCOUNTANT",
               },
             });
 
@@ -47,7 +48,6 @@ export const authOptions: NextAuthOptions = {
               throw new Error("პირადი ნომერი ან პაროლი არასწორია");
             }
 
-            // Find user by employee email
             const user = await prisma.user.findUnique({
               where: { email: employee.email },
             });
@@ -56,9 +56,17 @@ export const authOptions: NextAuthOptions = {
               throw new Error("პირადი ნომერი ან პაროლი არასწორია");
             }
 
-            // Check if user role matches manager or manager assistant
-            if (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT") {
-              throw new Error("ეს ანგარიში არ არის მენეჯერის ან მენეჯერის თანაშემწის ანგარიში");
+            if (adminRole === "ACCOUNTANT" && user.role !== "ACCOUNTANT") {
+              throw new Error("ეს ანგარიში არ არის ბუღალტრის ანგარიში");
+            }
+            if (
+              adminRole === "MANAGER" &&
+              user.role !== "MANAGER" &&
+              user.role !== "MANAGER_ASSISTANT"
+            ) {
+              throw new Error(
+                "ეს ანგარიში არ არის მენეჯერის ან მენეჯერის თანაშემწის ანგარიში"
+              );
             }
 
             const isPasswordValid = await bcrypt.compare(
@@ -79,7 +87,11 @@ export const authOptions: NextAuthOptions = {
             };
           }
 
-          // Admin login with email
+          // Admin login with email only
+          if (adminRole !== "ADMIN") {
+            throw new Error("გთხოვთ აირჩიოთ როლი და შეიყვანოთ სწორი მონაცემები");
+          }
+
           if (!credentials?.email) {
             throw new Error("გთხოვთ შეიყვანოთ ელფოსტა");
           }
@@ -92,29 +104,8 @@ export const authOptions: NextAuthOptions = {
             throw new Error("ელფოსტა ან პაროლი არასწორია");
           }
 
-          // Check role based on selected adminRole
-          if (adminRole === "ADMIN") {
-            if (user.role !== "ADMIN") {
-              throw new Error("ეს ანგარიში არ არის ადმინისტრატორის ანგარიში");
-            }
-          } else if (adminRole === "MANAGER") {
-            if (user.role !== "MANAGER" && user.role !== "MANAGER_ASSISTANT") {
-              throw new Error("ეს ანგარიში არ არის მენეჯერის ან მენეჯერის თანაშემწის ანგარიში");
-            }
-          } else if (adminRole === "ACCOUNTANT") {
-            if (user.role !== "ACCOUNTANT") {
-              throw new Error("ეს ანგარიში არ არის ბუღალტრის ანგარიში");
-            }
-          } else {
-            // If no adminRole specified, allow staff with email login
-            if (
-              user.role !== "ADMIN" &&
-              user.role !== "MANAGER" &&
-              user.role !== "MANAGER_ASSISTANT" &&
-              user.role !== "ACCOUNTANT"
-            ) {
-              throw new Error("ელფოსტა ან პაროლი არასწორია");
-            }
+          if (user.role !== "ADMIN") {
+            throw new Error("ეს ანგარიში არ არის ადმინისტრატორის ანგარიში");
           }
 
           const isPasswordValid = await bcrypt.compare(
