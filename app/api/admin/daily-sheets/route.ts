@@ -6,6 +6,7 @@ import {
   serializeDailySheetForClient,
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
+import { syncAllDailySheetHotelNames } from "@/lib/hotel-daily-sheet-ownership";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,6 +32,8 @@ export async function GET(request: NextRequest) {
     }
 
     try {
+      await syncAllDailySheetHotelNames();
+
       // Fetch from both legal and physical daily sheets
       const [legalSheets, physicalSheets] = await Promise.all([
         prisma.legalDailySheet.findMany({

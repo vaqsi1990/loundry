@@ -7,6 +7,11 @@ import {
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
 import { syncEmailSendTotalsAfterSheetSaveLegal } from "@/lib/sync-daily-sheet-email-send-totals";
+import {
+  collectHotelDailySheetNameAliases,
+  dailySheetBelongsToHotel,
+  getHotelContactEmails,
+} from "@/lib/hotel-daily-sheet-ownership";
 
 // Hotel user: update emailed daily sheet line items / notes (immutable date/hotel locked on server).
 export async function PUT(
@@ -40,13 +45,22 @@ export async function PUT(
     }
 
     const hotel = user.hotels[0];
+    const contactEmails = getHotelContactEmails(hotel, user);
+    const nameAliases = await collectHotelDailySheetNameAliases(
+      "legal",
+      hotel,
+      user
+    );
     const { id } = await params;
 
     const existing = await prisma.legalDailySheet.findUnique({
       where: { id },
     });
 
-    if (!existing || existing.hotelName !== hotel.hotelName) {
+    if (
+      !existing ||
+      !dailySheetBelongsToHotel(existing, nameAliases, contactEmails)
+    ) {
       return NextResponse.json(
         { error: "დღის ფურცელი ვერ მოიძებნა" },
         { status: 404 }
@@ -236,13 +250,18 @@ export async function DELETE(
     }
 
     const hotel = user.hotels[0];
+    const contactEmails = getHotelContactEmails(hotel, user);
+    const nameAliases = await collectHotelDailySheetNameAliases(
+      "legal",
+      hotel,
+      user
+    );
 
-    // Check if sheet belongs to this hotel
     const sheet = await prisma.legalDailySheet.findUnique({
       where: { id },
     });
 
-    if (!sheet || sheet.hotelName !== hotel.hotelName) {
+    if (!sheet || !dailySheetBelongsToHotel(sheet, nameAliases, contactEmails)) {
       return NextResponse.json(
         { error: "დღის ფურცელი ვერ მოიძებნა" },
         { status: 404 }

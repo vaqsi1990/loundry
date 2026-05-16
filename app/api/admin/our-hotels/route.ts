@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireFinanceStaffApiAccess } from "@/lib/finance-api-auth";
 import { parseHasDggInput } from "@/lib/hotel-has-dgg";
+import { syncDailySheetHotelNamesForHotelRecord } from "@/lib/hotel-daily-sheet-ownership";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -342,6 +343,13 @@ export async function PUT(request: NextRequest) {
           data: userUpdates,
         });
       }
+    }
+
+    if (validatedData.hotelName !== existingHotel.hotelName) {
+      await syncDailySheetHotelNamesForHotelRecord(
+        existingHotel,
+        validatedData.hotelName
+      );
     }
 
     const updated = await prisma.hotel.update({

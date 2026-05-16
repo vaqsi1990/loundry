@@ -7,11 +7,12 @@ import {
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
 import { syncEmailSendTotalsAfterSheetSavePhysical } from "@/lib/sync-daily-sheet-email-send-totals";
-
-const normalizeHotel = (name: string | null) => {
-  if (!name) return "";
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-};
+import {
+  collectHotelDailySheetNameAliases,
+  dailySheetBelongsToHotel,
+  getHotelContactEmails,
+} from "@/lib/hotel-daily-sheet-ownership";
+import { normalizeHotelName } from "@/lib/hotel-customer-resolve";
 
 // Hotel user: update emailed daily sheet line items / notes (immutable date/hotel locked on server).
 export async function PUT(
@@ -45,7 +46,12 @@ export async function PUT(
     }
 
     const hotel = user.hotels[0];
-    const normalizedHotelName = normalizeHotel(hotel.hotelName);
+    const contactEmails = getHotelContactEmails(hotel, user);
+    const nameAliases = await collectHotelDailySheetNameAliases(
+      "physical",
+      hotel,
+      user
+    );
     const { id } = await params;
 
     const existing = await prisma.physicalDailySheet.findUnique({
@@ -54,7 +60,7 @@ export async function PUT(
 
     if (
       !existing ||
-      normalizeHotel(existing.hotelName) !== normalizedHotelName
+      !dailySheetBelongsToHotel(existing, nameAliases, contactEmails)
     ) {
       return NextResponse.json(
         { error: "დღის ფურცელი ვერ მოიძებნა" },
@@ -107,7 +113,7 @@ export async function PUT(
           ? pricePerKg
           : parseFloat(String(pricePerKg));
     } else if (existing.hotelName) {
-      const normalizedSheetHotel = normalizeHotel(existing.hotelName);
+      const normalizedSheetHotel = normalizeHotelName(existing.hotelName);
       let dbHotel = await prisma.hotel.findFirst({
         where: { hotelName: existing.hotelName },
         select: { pricePerKg: true },
@@ -119,7 +125,10 @@ export async function PUT(
         dbHotel =
           allHotels
             .filter((h) => h.hotelName != null)
-            .find((h) => normalizeHotel(h.hotelName) === normalizedSheetHotel) ||
+            .find(
+              (h) =>
+                normalizeHotelName(h.hotelName) === normalizedSheetHotel
+            ) ||
           null;
       }
       finalPricePerKg = dbHotel?.pricePerKg ?? finalPricePerKg;
@@ -256,13 +265,18 @@ export async function DELETE(
     }
 
     const hotel = user.hotels[0];
+    const contactEmails = getHotelContactEmails(hotel, user);
+    const nameAliases = await collectHotelDailySheetNameAliases(
+      "physical",
+      hotel,
+      user
+    );
 
-    // Check if sheet belongs to this hotel
     const sheet = await prisma.physicalDailySheet.findUnique({
       where: { id },
     });
 
-    if (!sheet || sheet.hotelName !== hotel.hotelName) {
+    if (!sheet || !dailySheetBelongsToHotel(sheet, nameAliases, contactEmails)) {
       return NextResponse.json(
         { error: "დღის ფურცელი ვერ მოიძებნა" },
         { status: 404 }

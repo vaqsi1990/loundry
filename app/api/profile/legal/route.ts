@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { shouldUpdateUserLoginEmail } from "@/lib/profile-email-update";
+import { renameDailySheetHotelNames } from "@/lib/hotel-daily-sheet-ownership";
 
 const updateLegalHotelSchema = z.object({
   hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა").optional(),
@@ -161,9 +162,20 @@ export async function PUT(request: NextRequest) {
       });
     }
 
+    const newHotelName = validatedData.hotelName?.trim();
+    if (newHotelName && newHotelName !== hotel.hotelName) {
+      await renameDailySheetHotelNames(
+        "legal",
+        hotel.hotelName,
+        newHotelName,
+        hotel,
+        user
+      );
+    }
+
     // Update hotel
-    const hotelUpdates: any = {};
-    if (validatedData.hotelName) hotelUpdates.hotelName = validatedData.hotelName.trim();
+    const hotelUpdates: Record<string, unknown> = {};
+    if (newHotelName) hotelUpdates.hotelName = newHotelName;
     if (validatedData.hotelRegistrationNumber) hotelUpdates.hotelRegistrationNumber = validatedData.hotelRegistrationNumber.trim();
     if (validatedData.numberOfRooms !== undefined) hotelUpdates.numberOfRooms = validatedData.numberOfRooms;
     if (validatedData.email) hotelUpdates.email = validatedData.email.trim();

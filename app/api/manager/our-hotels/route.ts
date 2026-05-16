@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { parseHasDggInput } from "@/lib/hotel-has-dgg";
+import { syncDailySheetHotelNamesForHotelRecord } from "@/lib/hotel-daily-sheet-ownership";
 
 const generatePlaceholderEmail = () =>
   `no-email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@placeholder.loundry`;
@@ -357,6 +358,13 @@ export async function PUT(request: NextRequest) {
           data: userUpdates,
         });
       }
+    }
+
+    if (validatedData.hotelName !== existingHotel.hotelName) {
+      await syncDailySheetHotelNamesForHotelRecord(
+        existingHotel,
+        validatedData.hotelName
+      );
     }
 
     const updated = await prisma.hotel.update({

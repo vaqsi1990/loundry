@@ -3,12 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { serializeDailySheetForClient } from "@/lib/daily-sheet-api";
-
-// Normalize hotel name for case/spacing-insensitive matching
-const normalizeHotel = (name: string | null) => {
-  if (!name) return "";
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-};
+import {
+  collectHotelDailySheetNameAliases,
+  dailySheetBelongsToHotel,
+  getHotelContactEmails,
+  syncOwnedDailySheetHotelNames,
+} from "@/lib/hotel-daily-sheet-ownership";
 
 // Get daily sheets for physical person hotel
 export async function GET(request: NextRequest) {
@@ -39,17 +39,19 @@ export async function GET(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
-    const normalizedHotelName = normalizeHotel(hotel.hotelName);
+    await syncOwnedDailySheetHotelNames("physical", hotel, user);
+    const contactEmails = getHotelContactEmails(hotel, user);
+    const nameAliases = await collectHotelDailySheetNameAliases(
+      "physical",
+      hotel,
+      user
+    );
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month"); // YYYY-MM format
     const day = searchParams.get("day"); // YYYY-MM-DD format
 
-    // Base where: only emailed sheets, any non-null hotelName (we'll normalize in JS)
-    const where: any = {
-      hotelName: {
-        not: null,
-      },
-      emailedAt: { not: null }, // Only show sheets that have been emailed
+    const where: Record<string, unknown> = {
+      emailedAt: { not: null },
     };
 
     if (day) {
@@ -92,10 +94,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Filter by normalized hotel name so that sheets with the same hotel
-    // (but different spacing/case) are all shown, including "similar" sheets.
-    const sheets = allSheets.filter(
-      (sheet) => normalizeHotel(sheet.hotelName) === normalizedHotelName
+    const sheets = allSheets.filter((sheet) =>
+      dailySheetBelongsToHotel(sheet, nameAliases, contactEmails)
     );
 
     // Return sheets with their email sends (but confirmation status is separate)
@@ -157,13 +157,18 @@ export async function PUT(request: NextRequest) {
     }
 
     const hotel = user.hotels[0];
+    const contactEmails = getHotelContactEmails(hotel, user);
+    const nameAliases = await collectHotelDailySheetNameAliases(
+      "physical",
+      hotel,
+      user
+    );
 
-    // Check if sheet belongs to this hotel
     const sheet = await prisma.physicalDailySheet.findUnique({
       where: { id: sheetId },
     });
 
-    if (!sheet || sheet.hotelName !== hotel.hotelName) {
+    if (!sheet || !dailySheetBelongsToHotel(sheet, nameAliases, contactEmails)) {
       return NextResponse.json(
         { error: "დღის ფურცელი ვერ მოიძებნა" },
         { status: 404 }
