@@ -66,13 +66,11 @@ export default function LegalProfilePage() {
         const hotel = data.hotels[0];
         setEditData({
           hotelName: hotel.hotelName || "",
-          hotelRegistrationNumber: hotel.hotelRegistrationNumber || "",
           numberOfRooms: hotel.numberOfRooms || 0,
           email: hotel.email || data.email || "",
           mobileNumber: hotel.mobileNumber || data.mobileNumber || "",
           pricePerKg: hotel.pricePerKg || 0,
           hasDgg: Boolean(hotel.hasDgg),
-          companyName: hotel.companyName || "",
           address: hotel.address || "",
           legalEntityName: hotel.legalEntityName || "",
           identificationCode: hotel.identificationCode || "",
@@ -203,15 +201,6 @@ export default function LegalProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">რეგისტრაციის ნომერი</label>
-                <input
-                  type="text"
-                  value={editData.hotelRegistrationNumber || ""}
-                  onChange={(e) => setEditData({ ...editData, hotelRegistrationNumber: e.target.value })}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium mb-1">იურიდიული/შპს დასახელება</label>
                 <input
                   type="text"
@@ -262,16 +251,6 @@ export default function LegalProfilePage() {
                   type="number"
                   value={editData.numberOfRooms || 0}
                   onChange={(e) => setEditData({ ...editData, numberOfRooms: parseInt(e.target.value) || 0 })}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-            
-              <div>
-                <label className="block text-sm font-medium mb-1">კომპანიის სახელი</label>
-                <input
-                  type="text"
-                  value={editData.companyName || ""}
-                  onChange={(e) => setEditData({ ...editData, companyName: e.target.value })}
                   className="w-full border rounded px-3 py-2"
                 />
               </div>

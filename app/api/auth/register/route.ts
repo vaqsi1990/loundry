@@ -51,7 +51,7 @@ const baseSchema = z.object({
   (data) => {
     // If hotelType is provided (PHYSICAL or LEGAL), all hotel fields must be provided
     if (data.hotelType) {
-      if (!data.hotelName || !data.hotelRegistrationNumber || !data.numberOfRooms || !data.hotelEmail || !data.pricePerKg || !data.address || !data.companyName) {
+      if (!data.hotelName || !data.numberOfRooms || !data.hotelEmail || !data.pricePerKg || !data.address) {
         return false;
       }
     }
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
           type: validatedData.hotelType,
           userId: user.id,
           hotelName: validatedData.hotelName!,
-          hotelRegistrationNumber: validatedData.hotelRegistrationNumber!,
+          hotelRegistrationNumber: validatedData.hotelRegistrationNumber?.trim() || "",
           numberOfRooms: validatedData.numberOfRooms!,
           email: validatedData.hotelEmail!,
           mobileNumber: validatedData.mobileNumber,

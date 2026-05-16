@@ -67,13 +67,11 @@ export default function PhysicalProfilePage() {
         const nameParts = (data.name || "").split(" ");
         setEditData({
           hotelName: hotel.hotelName || "",
-          hotelRegistrationNumber: hotel.hotelRegistrationNumber || "",
           numberOfRooms: hotel.numberOfRooms || 0,
           email: hotel.email || data.email || "",
           mobileNumber: hotel.mobileNumber || data.mobileNumber || "",
           pricePerKg: hotel.pricePerKg || 0,
           hasDgg: Boolean(hotel.hasDgg),
-          companyName: hotel.companyName || "",
           address: hotel.address || "",
           firstName: hotel.firstName || nameParts[0] || "",
           lastName: hotel.lastName || nameParts.slice(1).join(" ") || "",
@@ -204,15 +202,6 @@ export default function PhysicalProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">რეგისტრაციის ნომერი</label>
-                <input
-                  type="text"
-                  value={editData.hotelRegistrationNumber || ""}
-                  onChange={(e) => setEditData({ ...editData, hotelRegistrationNumber: e.target.value })}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium mb-1">სახელი</label>
                 <input
                   type="text"
@@ -267,15 +256,6 @@ export default function PhysicalProfilePage() {
                 />
               </div>
        
-              <div>
-                <label className="block text-sm font-medium mb-1">კომპანიის სახელი</label>
-                <input
-                  type="text"
-                  value={editData.companyName || ""}
-                  onChange={(e) => setEditData({ ...editData, companyName: e.target.value })}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">მისამართი</label>
                 <input

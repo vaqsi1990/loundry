@@ -24,7 +24,7 @@ const optionalPasswordField = z.preprocess(
 const hotelSchema = z.object({
   hotelType: z.enum(["PHYSICAL", "LEGAL"]),
   hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა"),
-  hotelRegistrationNumber: z.string().min(1, "რეგისტრაციის ნომერი სავალდებულოა"),
+  hotelRegistrationNumber: z.string().optional(),
   numberOfRooms: z.number().int().positive("ნომრების რაოდენობა უნდა იყოს დადებითი რიცხვი"),
   hotelEmail: emailSchema.optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
@@ -95,7 +95,7 @@ const updateHotelSchema = z
   .object({
     hotelType: z.enum(["PHYSICAL", "LEGAL"]).optional(),
     hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა"),
-    hotelRegistrationNumber: z.string().min(1, "რეგისტრაციის ნომერი სავალდებულოა"),
+    hotelRegistrationNumber: z.string().optional(),
     numberOfRooms: z.number().int().positive("ნომრების რაოდენობა უნდა იყოს დადებითი რიცხვი"),
     hotelEmail: emailSchema.optional(),
     mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
@@ -274,7 +274,7 @@ export async function PUT(request: NextRequest) {
     try {
       body = await request.json();
       body.hotelName = body?.hotelName?.trim();
-      body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim();
+      body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim() || undefined;
       body.hotelEmail = body?.hotelEmail?.trim() || undefined;
       body.companyName = body?.companyName?.trim();
       body.address = body?.address?.trim();
@@ -349,7 +349,9 @@ export async function PUT(request: NextRequest) {
       data: {
         type: validatedData.hotelType ?? existingHotel.type,
         hotelName: validatedData.hotelName,
-        hotelRegistrationNumber: validatedData.hotelRegistrationNumber,
+        hotelRegistrationNumber:
+          validatedData.hotelRegistrationNumber?.trim() ??
+          existingHotel.hotelRegistrationNumber,
         numberOfRooms: validatedData.numberOfRooms,
         email: validatedData.hotelEmail ?? existingHotel.email,
         mobileNumber: validatedData.mobileNumber,
@@ -357,7 +359,10 @@ export async function PUT(request: NextRequest) {
         ...(validatedData.hasDgg !== undefined
           ? { hasDgg: validatedData.hasDgg }
           : {}),
-        companyName: validatedData.companyName ?? null,
+        companyName:
+          validatedData.companyName !== undefined
+            ? validatedData.companyName?.trim() || null
+            : existingHotel.companyName,
         address: validatedData.address,
         personalId:
           (validatedData.hotelType ?? existingHotel.type) === "PHYSICAL"
@@ -411,7 +416,7 @@ export async function POST(request: NextRequest) {
       body.hotelName = body?.hotelName?.trim();
       body.companyName = body?.companyName?.trim();
       body.address = body?.address?.trim();
-      body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim();
+      body.hotelRegistrationNumber = body?.hotelRegistrationNumber?.trim() || undefined;
       body.personalId = body?.personalId?.trim() || undefined;
       body.identificationCode = body?.identificationCode?.trim() || undefined;
       body.legalEntityName = body?.legalEntityName?.trim() || undefined;
@@ -476,7 +481,7 @@ export async function POST(request: NextRequest) {
         type: validatedData.hotelType,
         user: { connect: { id: newUser.id } },
         hotelName: validatedData.hotelName,
-        hotelRegistrationNumber: validatedData.hotelRegistrationNumber,
+        hotelRegistrationNumber: validatedData.hotelRegistrationNumber?.trim() || "",
         numberOfRooms: validatedData.numberOfRooms,
         email: hotelEmailForRecord,
         mobileNumber: validatedData.mobileNumber,

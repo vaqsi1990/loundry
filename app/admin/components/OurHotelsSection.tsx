@@ -201,11 +201,9 @@ export default function OurHotelsSection() {
         hotelType,
         mobileNumber,
         hotelName: hotelName.trim(),
-        hotelRegistrationNumber: hotelRegistrationNumber.trim(),
         numberOfRooms: numberOfRooms ? parseInt(numberOfRooms) : undefined,
         hotelEmail: trimmedHotelEmail || undefined,
         pricePerKg: pricePerKg ? parseFloat(pricePerKg) : undefined,
-        companyName: companyName.trim() || undefined,
         address: address.trim(),
         hasDgg,
       };
@@ -213,7 +211,14 @@ export default function OurHotelsSection() {
       requestBody.name = trimmedName || undefined;
       requestBody.lastName = trimmedLastName || undefined;
       requestBody.email = trimmedEmail || undefined;
-      
+
+      if (!isEditing) {
+        const regNum = hotelRegistrationNumber.trim();
+        if (regNum) requestBody.hotelRegistrationNumber = regNum;
+        const comp = companyName.trim();
+        if (comp) requestBody.companyName = comp;
+      }
+
       if (isEditing) {
         if (changePassword && trimmedPassword) {
           requestBody.password = trimmedPassword;
@@ -736,18 +741,18 @@ export default function OurHotelsSection() {
                       onChange={(e) => setHotelName(e.target.value)}
                     />
                   </div>
+                  {!isEditing && (
                   <div>
-                   
                     <input
                       id="hotelRegistrationNumber"
                       type="text"
-                      required
                       className="appearance-none placeholder:text-black placeholder:text-[18px] relative block w-full px-3 py-2 border text-black rounded-md text-[16px] md:text-[18px]"
-                      placeholder="სასტუმროს საკ. ნომერი"
+                      placeholder="სასტუმროს საკ. ნომერი (არასავალდებულო)"
                       value={hotelRegistrationNumber}
                       onChange={(e) => setHotelRegistrationNumber(e.target.value)}
                     />
                   </div>
+                  )}
                   <div>
                    
                     <input

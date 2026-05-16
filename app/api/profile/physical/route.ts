@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 
 const updatePhysicalHotelSchema = z.object({
   hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა").optional(),
-  hotelRegistrationNumber: z.string().min(1, "რეგისტრაციის ნომერი სავალდებულოა").optional(),
+  hotelRegistrationNumber: z.string().optional(),
   numberOfRooms: z.number().int().positive("ნომრების რაოდენობა უნდა იყოს დადებითი რიცხვი").optional(),
   email: z.string().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა").optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა").optional(),
