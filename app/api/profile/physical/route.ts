@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { shouldUpdateUserLoginEmail } from "@/lib/profile-email-update";
 
 const updatePhysicalHotelSchema = z.object({
   hotelName: z.string().min(1, "სასტუმროს დასახელება სავალდებულოა").optional(),
@@ -142,19 +143,29 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const validatedData = updatePhysicalHotelSchema.parse(body);
 
-    // Update user if email or password is provided
-    const userUpdates: any = {};
-    if (validatedData.email && validatedData.email !== user.email) {
-      const existingUser = await prisma.user.findUnique({
-        where: { email: validatedData.email },
+    const userUpdates: Record<string, unknown> = {};
+    if (
+      shouldUpdateUserLoginEmail(
+        validatedData.email,
+        user.email,
+        hotel.email
+      )
+    ) {
+      const incomingEmail = validatedData.email!.trim();
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: { equals: incomingEmail, mode: "insensitive" },
+          id: { not: session.user.id },
+        },
+        select: { id: true },
       });
-      if (existingUser && existingUser.id !== session.user.id) {
+      if (existingUser) {
         return NextResponse.json(
           { error: "ეს ელფოსტა უკვე გამოყენებულია" },
           { status: 400 }
         );
       }
-      userUpdates.email = validatedData.email;
+      userUpdates.email = incomingEmail;
     }
     if (validatedData.mobileNumber) {
       userUpdates.mobileNumber = validatedData.mobileNumber;
