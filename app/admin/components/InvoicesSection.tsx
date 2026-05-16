@@ -989,9 +989,7 @@ export default function InvoicesSection() {
                                 <span className="truncate">{displayName}</span>
                                 <DggBadge show={showDgg} />
                               </span>
-                              <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap">
-                                {hotelInvoices.length} ინვოისი
-                              </span>
+                              
                               <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap text-right">
                                 {totalHotelWeight.toFixed(2)} კგ
                               </span>
