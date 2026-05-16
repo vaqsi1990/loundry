@@ -90,10 +90,17 @@ export default function PhysicalProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const { password, ...rest } = editData;
+      const payload = {
+        ...rest,
+        ...(typeof password === "string" && password.trim()
+          ? { password: password.trim() }
+          : {}),
+      };
       const response = await fetch("/api/profile/physical", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editData),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -280,19 +287,24 @@ export default function PhysicalProfilePage() {
                 </label>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">ახალი პაროლი (არასავალდებულო)</label>
+                <label className="block text-sm font-medium mb-1">
+                  ახალი პაროლი (არასავალდებულო)
+                </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={editData.password || ""}
-                    onChange={(e) => setEditData({ ...editData, password: e.target.value })}
+                    onChange={(e) =>
+                      setEditData({ ...editData, password: e.target.value })
+                    }
                     className="w-full border rounded px-3 py-2 pr-10"
                     placeholder="დატოვეთ ცარიელი თუ არ გსურთ შეცვლა"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? "პაროლის დამალვა" : "პაროლის ჩვენება"}
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

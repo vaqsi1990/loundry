@@ -18,7 +18,12 @@ const updatePhysicalHotelSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   personalId: z.string().optional(),
-  password: z.string().min(6, "პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან").optional(),
+  password: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.length >= 6, {
+      message: "პაროლი უნდა შედგებოდეს მინიმუმ 6 სიმბოლოსგან",
+    }),
 });
 
 export async function GET(request: NextRequest) {
@@ -154,8 +159,8 @@ export async function PUT(request: NextRequest) {
     if (validatedData.mobileNumber) {
       userUpdates.mobileNumber = validatedData.mobileNumber;
     }
-    if (validatedData.password) {
-      userUpdates.password = await bcrypt.hash(validatedData.password, 10);
+    if (validatedData.password?.trim()) {
+      userUpdates.password = await bcrypt.hash(validatedData.password.trim(), 10);
       userUpdates.mustChangePassword = false;
       userUpdates.passwordChangedAt = new Date();
     }
