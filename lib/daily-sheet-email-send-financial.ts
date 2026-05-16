@@ -61,6 +61,30 @@ export function liveDisplayedTotalWeightKg(
   return summedItemLineWeightKg(sheet);
 }
 
+/** მძიმე წონა — მხოლოდ ფურცლის `heavyWeight` / `heavyPricePerKg` ველებიდან (არა legacy «მძიმე წონა» ხაზიდან). */
+export function explicitHeavyWeightKg(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  const kg = num(sheet?.heavyWeight);
+  return kg > 0 ? kg : 0;
+}
+
+export function explicitHeavyPricePerKgGel(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  const ppk = num(sheet?.heavyPricePerKg);
+  return ppk > 0 ? ppk : 0;
+}
+
+export function explicitHeavyWeightAmountGel(
+  sheet: DailySheetForTotals | null | undefined
+): number {
+  const kg = explicitHeavyWeightKg(sheet);
+  const ppk = explicitHeavyPricePerKgGel(sheet);
+  if (kg > 0 && ppk > 0) return kg * ppk;
+  return 0;
+}
+
 /** მძიმე წონის ₾ ჯამი დამოუკიდებლად — დამცავების ზოგად ჯამში არ მოიაზრება. */
 export function liveHeavyWeightAmountGel(
   sheet: DailySheetForTotals | null | undefined

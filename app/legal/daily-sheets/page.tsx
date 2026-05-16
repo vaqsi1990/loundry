@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import React from "react";
 import {
-  liveHeavyWeightAmountGel,
+  explicitHeavyWeightAmountGel,
+  explicitHeavyWeightKg,
+  explicitHeavyPricePerKgGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
 
@@ -229,7 +231,9 @@ export default function LegalDailySheetsPage() {
     let calculatedTotalPrice: string | null = null;
     let linenTowelsPrice = 0;
     let protectorsPrice = 0;
-    const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
+    const heavyWeightPrice = explicitHeavyWeightAmountGel(sheet);
+    const heavyKgDisplay = explicitHeavyWeightKg(sheet);
+    const heavyPpkDisplay = explicitHeavyPricePerKgGel(sheet);
 
     if (hasLinenOrTowels) {
       const weightForPrice = sheet.sheetType === "STANDARD" && sheet.totalWeight 
@@ -408,24 +412,24 @@ export default function LegalDailySheetsPage() {
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             ) : null}
-            {sheet.sheetType === "STANDARD" && sheet.heavyWeight != null ? (
+            {sheet.sheetType === "STANDARD" && heavyKgDisplay > 0 ? (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
                   მძიმე წონა - კგ:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {sheet.heavyWeight.toFixed(2)} კგ
+                  {heavyKgDisplay.toFixed(2)} კგ
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>
             ) : null}
-            {sheet.sheetType === "STANDARD" && sheet.heavyPricePerKg != null ? (
+            {sheet.sheetType === "STANDARD" && heavyPpkDisplay > 0 ? (
               <tr className="bg-blue-50 font-semibold">
                 <td colSpan={3} className="border border-gray-300 px-2 py-1 text-right">
                   მძიმე წონის ფასი / 1 კგ:
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">
-                  {sheet.heavyPricePerKg.toFixed(2)} ₾
+                  {heavyPpkDisplay.toFixed(2)} ₾
                 </td>
                 <td className="border border-gray-300 px-2 py-1 text-center">-</td>
               </tr>

@@ -6,9 +6,9 @@ import nodemailer from "nodemailer";
 import path from "path";
 import fs from "fs";
 import {
-  liveHeavyWeightAmountGel,
-  liveHeavyWeightKg,
-  liveHeavyWeightPricePerKgGel,
+  explicitHeavyWeightAmountGel,
+  explicitHeavyWeightKg,
+  explicitHeavyPricePerKgGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
 
@@ -19,6 +19,55 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD,
   },
 });
+
+function footerSummaryExtraCols(showPriceColumn: boolean) {
+  return showPriceColumn
+    ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td><td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>'
+    : "";
+}
+
+function renderWeightKgRow(
+  sheet: any,
+  weightKg: number,
+  showPriceColumn: boolean
+) {
+  const labelColspan = sheet.sheetType === "INDIVIDUAL" ? 6 : 3;
+  return `
+    <tr style="background:#fff;font-weight:600;">
+      <td colspan="${labelColspan}" style="border:1px solid #ccc;padding:6px;text-align:right;">წონა - კგ:</td>
+      <td style="border:1px solid #ccc;padding:6px;text-align:center;">${weightKg.toFixed(2)} კგ</td>
+      ${footerSummaryExtraCols(showPriceColumn)}
+      <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+    </tr>
+  `;
+}
+
+function renderPricePerKgRow(sheet: any, showPriceColumn: boolean) {
+  if (!sheet.pricePerKg) return "";
+  const labelColspan = sheet.sheetType === "INDIVIDUAL" ? 6 : 3;
+  return `
+    <tr style="background:#fff;font-weight:600;">
+      <td colspan="${labelColspan}" style="border:1px solid #ccc;padding:6px;text-align:right;">1 კგ-ის ფასი:</td>
+      <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.pricePerKg.toFixed(2)} ₾</td>
+      ${footerSummaryExtraCols(showPriceColumn)}
+      <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
+    </tr>
+  `;
+}
+
+function renderWeightAndPricePerKgRows(
+  sheet: any,
+  weightKg: number,
+  showPriceColumn: boolean
+) {
+  if (weightKg > 0) {
+    return (
+      renderWeightKgRow(sheet, weightKg, showPriceColumn) +
+      renderPricePerKgRow(sheet, showPriceColumn)
+    );
+  }
+  return renderPricePerKgRow(sheet, showPriceColumn);
+}
 
 function renderSection(
   title: string,
@@ -106,10 +155,10 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
     { received: 0, washCount: 0, dispatched: 0, shortage: 0, totalWeight: 0 }
   );
 
-  const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
+  const heavyWeightPrice = explicitHeavyWeightAmountGel(sheet);
   const protectorsTotal = liveProtectorsAmount(sheet);
-  const heavyKgDisplay = liveHeavyWeightKg(sheet);
-  const heavyPpkDisplay = liveHeavyWeightPricePerKgGel(sheet);
+  const heavyKgDisplay = explicitHeavyWeightKg(sheet);
+  const heavyPpkDisplay = explicitHeavyPricePerKgGel(sheet);
 
   const weightForPrice =
     sheet.sheetType === "STANDARD" && sheet.totalWeight
@@ -191,25 +240,10 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           </tr>
           ${
             sheet.sheetType === "STANDARD" && sheet.totalWeight
-              ? `
-                <tr style="background:#fff;font-weight:600;">
-                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">წონა - კგ:</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.totalWeight.toFixed(2)} კგ</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
-                </tr>
-              `
-              : ""
-          }
-          ${
-            sheet.pricePerKg
-              ? `
-                <tr style="background:#fff;font-weight:600;">
-                  <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">1 კგ-ის ფასი:</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.pricePerKg.toFixed(2)} ₾</td>
-                  <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
-                </tr>
-              `
-              : ""
+              ? renderWeightAndPricePerKgRows(sheet, sheet.totalWeight, showPriceColumn)
+              : sheet.sheetType === "INDIVIDUAL" && totals.totalWeight > 0
+              ? renderWeightAndPricePerKgRows(sheet, totals.totalWeight, showPriceColumn)
+              : renderPricePerKgRow(sheet, showPriceColumn)
           }
           ${
             heavyKgDisplay > 0
@@ -217,6 +251,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                 <tr style="background:#fff;font-weight:600;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონა - კგ:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyKgDisplay.toFixed(2)} კგ</td>
+                  ${footerSummaryExtraCols(showPriceColumn)}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
               `
@@ -228,6 +263,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                 <tr style="background:#fff;font-weight:600;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი / 1 კგ:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyPpkDisplay.toFixed(2)} ₾</td>
+                  ${footerSummaryExtraCols(showPriceColumn)}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
               `
@@ -251,6 +287,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                 <tr style="background:#fff3e0;font-weight:600;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightPrice.toFixed(2)} ₾</td>
+                  ${footerSummaryExtraCols(showPriceColumn)}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
               `
@@ -262,6 +299,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
                 <tr style="background:#fff;font-weight:700;">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მთლიანი ფასი:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${totalPrice.toFixed(2)} ₾</td>
+                  ${footerSummaryExtraCols(showPriceColumn)}
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>
                 </tr>
               `
@@ -366,7 +404,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "სასტუმროს ელფოსტა არ არის მითითებული" }, { status: 400 });
     }
 
-    const heavyWeightPriceForSend = liveHeavyWeightAmountGel(sheet);
+    const heavyWeightPriceForSend = explicitHeavyWeightAmountGel(sheet);
     const protectorsTotal = liveProtectorsAmount(sheet);
 
     const totalsForSend = sheet.items.reduce(

@@ -5,8 +5,8 @@ import { getApiPath } from "@/lib/api-helper";
 import { monthKeyFromSheetDate, dayKeyFromSheetDate } from "@/lib/daily-sheet-dates";
 import { FormattedDateInput } from "./ui/DatePickerSection";
 import {
-  liveHeavyWeightAmountGel,
-  liveHeavyWeightKg,
+  explicitHeavyWeightAmountGel,
+  explicitHeavyWeightKg,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
 
@@ -903,8 +903,8 @@ export default function DailySheetsSection() {
           linenTowelsPrice = sheet.pricePerKg * weightKg;
         }
 
-        const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
-        const heavyKg = liveHeavyWeightKg(sheet);
+        const heavyWeightPrice = explicitHeavyWeightAmountGel(sheet);
+        const heavyKg = explicitHeavyWeightKg(sheet);
 
         const protectorsPrice = hasProtectors ? liveProtectorsAmount(sheet) : 0;
 
@@ -965,7 +965,7 @@ export default function DailySheetsSection() {
       }
     }
 
-    const heavyWeightPrice = liveHeavyWeightAmountGel(sheet);
+    const heavyWeightPrice = explicitHeavyWeightAmountGel(sheet);
     
     // დამცავების ფასის გამოთვლა (STANDARD და INDIVIDUAL ტიპებისთვის)
     // თუ STANDARD ტიპია და totalPrice არის, გამოიყენე ის
@@ -1811,7 +1811,7 @@ export default function DailySheetsSection() {
                   heavyPricePerKg: formData.heavyPricePerKg,
                   items: formData.items,
                 };
-                const heavyWeightPrice = liveHeavyWeightAmountGel(previewSheetForTotals);
+                const heavyWeightPrice = explicitHeavyWeightAmountGel(previewSheetForTotals);
                 const protectorsPrice = hasProtectors
                   ? liveProtectorsAmount(previewSheetForTotals)
                   : 0;
