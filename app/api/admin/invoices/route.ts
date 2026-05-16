@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireFinanceStaffApiAccess } from "@/lib/finance-api-auth";
+import { hasDggLookupFromHotels } from "@/lib/hotel-has-dgg";
 import {
   invoiceListBaseTotalAmountGel,
   liveDisplayedTotalWeightKg,
@@ -391,7 +392,17 @@ export async function GET(request: NextRequest) {
       return 0;
     });
 
-    return NextResponse.json(sorted, {
+    const hasDggByHotelKey = hasDggLookupFromHotels(
+      await prisma.hotel.findMany({
+        select: { hotelName: true, hasDgg: true },
+      })
+    );
+    const sortedWithDgg = sorted.map((inv) => ({
+      ...inv,
+      hasDgg: hasDggByHotelKey.get(inv.hotelName ?? "") ?? false,
+    }));
+
+    return NextResponse.json(sortedWithDgg, {
       headers: {
         "Cache-Control": "no-store",
       },

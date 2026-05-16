@@ -131,6 +131,7 @@ model Hotel {
   email                   String
   mobileNumber            String
   pricePerKg              Float   @default(0)
+  hasDgg                  Boolean @default(false) // დღგ (დამატებითი ღიშების გადასახადი)
   companyName             String?
   address                 String?
 

@@ -12,6 +12,7 @@ const updatePhysicalHotelSchema = z.object({
   email: z.string().email("გთხოვთ შეიყვანოთ სწორი ელფოსტა").optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა").optional(),
   pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი").optional(),
+  hasDgg: z.boolean().optional(),
   companyName: z.string().optional(),
   address: z.string().optional(),
   firstName: z.string().optional(),
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
             email: true,
             mobileNumber: true,
             pricePerKg: true,
+            hasDgg: true,
             companyName: true,
             address: true,
             firstName: true,
@@ -180,6 +182,7 @@ export async function PUT(request: NextRequest) {
     if (validatedData.email) hotelUpdates.email = validatedData.email.trim();
     if (validatedData.mobileNumber) hotelUpdates.mobileNumber = validatedData.mobileNumber.trim();
     if (validatedData.pricePerKg !== undefined) hotelUpdates.pricePerKg = validatedData.pricePerKg;
+    if (validatedData.hasDgg !== undefined) hotelUpdates.hasDgg = validatedData.hasDgg;
     if (validatedData.companyName !== undefined) hotelUpdates.companyName = validatedData.companyName?.trim() || null;
     if (validatedData.address !== undefined) hotelUpdates.address = validatedData.address?.trim() || null;
     if (validatedData.firstName !== undefined) hotelUpdates.firstName = validatedData.firstName?.trim() || null;

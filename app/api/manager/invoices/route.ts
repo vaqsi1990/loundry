@@ -9,6 +9,7 @@ import {
   liveProtectorsAmount,
   num as finNum,
 } from "@/lib/daily-sheet-email-send-financial";
+import { hasDggLookupFromHotels } from "@/lib/hotel-has-dgg";
 
 // Fallback prices for protectors (match DailySheetsSection UI defaults)
 const PROTECTOR_PRICES: Record<string, number> = {
@@ -469,7 +470,17 @@ export async function GET(request: NextRequest) {
       return 0;
     });
 
-    return NextResponse.json(sorted, {
+    const hasDggByHotelKey = hasDggLookupFromHotels(
+      await prisma.hotel.findMany({
+        select: { hotelName: true, hasDgg: true },
+      })
+    );
+    const sortedWithDgg = sorted.map((inv) => ({
+      ...inv,
+      hasDgg: hasDggByHotelKey.get(inv.hotelName ?? "") ?? false,
+    }));
+
+    return NextResponse.json(sortedWithDgg, {
       headers: {
         "Cache-Control": "no-store",
       },

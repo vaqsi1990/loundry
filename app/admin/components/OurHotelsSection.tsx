@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { HOTEL_HAS_DGG_LABEL } from "@/lib/hotel-has-dgg";
 
 interface Hotel {
   id: string;
@@ -18,6 +19,7 @@ interface Hotel {
   identificationCode: string | null;
   responsiblePersonName: string | null;
   pricePerKg: number | null;
+  hasDgg?: boolean;
   createdAt: string;
   companyName: string | null;
   address: string | null;
@@ -80,6 +82,7 @@ export default function OurHotelsSection() {
   const [legalEntityName, setLegalEntityName] = useState("");
   const [identificationCode, setIdentificationCode] = useState("");
   const [responsiblePersonName, setResponsiblePersonName] = useState("");
+  const [hasDgg, setHasDgg] = useState(false);
 
   useEffect(() => {
     const p = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
@@ -161,6 +164,7 @@ export default function OurHotelsSection() {
     setLegalEntityName("");
     setIdentificationCode("");
     setResponsiblePersonName("");
+    setHasDgg(false);
     setFormError("");
     setFormSuccess("");
     setIsEditing(false);
@@ -189,6 +193,7 @@ export default function OurHotelsSection() {
         pricePerKg: pricePerKg ? parseFloat(pricePerKg) : undefined,
         companyName: companyName.trim() || undefined,
         address: address.trim(),
+        hasDgg,
       };
 
       requestBody.name = trimmedName || undefined;
@@ -292,6 +297,7 @@ export default function OurHotelsSection() {
     setLegalEntityName(hotel.legalEntityName || "");
     setIdentificationCode(hotel.identificationCode || "");
     setResponsiblePersonName(hotel.responsiblePersonName || "");
+    setHasDgg(Boolean(hotel.hasDgg));
     setFormError("");
     setFormSuccess("");
   };
@@ -746,6 +752,18 @@ export default function OurHotelsSection() {
                       onChange={(e) => setPricePerKg(e.target.value)}
                     />
                   </div>
+                  <div className="flex items-center gap-2 md:col-span-2">
+                    <input
+                      id="hasDgg"
+                      type="checkbox"
+                      checked={hasDgg}
+                      onChange={(e) => setHasDgg(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                    />
+                    <label htmlFor="hasDgg" className="text-[16px] md:text-[18px] text-black">
+                      {HOTEL_HAS_DGG_LABEL}
+                    </label>
+                  </div>
                 </div>
               </div>
             )}
@@ -863,6 +881,9 @@ export default function OurHotelsSection() {
                 ფასი (კგ)
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
+                {HOTEL_HAS_DGG_LABEL}
+              </th>
+              <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
                 კონტაქტი
               </th>
               <th className="px-6 py-3 text-left text-[16px] md:text-[18px] font-medium text-black uppercase tracking-wider">
@@ -884,6 +905,9 @@ export default function OurHotelsSection() {
                 </td>
               <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                 {hotel.pricePerKg ?? 0}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
+                {hotel.hasDgg ? "კი" : "არა"}
               </td>
                 <td className="px-6 py-4 whitespace-nowrap text-[16px] md:text-[18px] text-black">
                   <div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireFinanceStaffApiAccess } from "@/lib/finance-api-auth";
+import { parseHasDggInput } from "@/lib/hotel-has-dgg";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -17,6 +18,7 @@ const hotelSchema = z.object({
   hotelEmail: emailSchema.optional(),
   mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
   pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
+  hasDgg: z.boolean().optional().default(false),
   companyName: z.string().optional(),
   address: z.string().min(1, "მისამართი სავალდებულოა"),
   // User account fields
@@ -87,6 +89,7 @@ const updateHotelSchema = z
     hotelEmail: emailSchema.optional(),
     mobileNumber: z.string().min(1, "მობილურის ნომერი სავალდებულოა"),
     pricePerKg: z.number().positive("კილოგრამის ფასი უნდა იყოს დადებითი რიცხვი"),
+    hasDgg: z.boolean().optional(),
     companyName: z.string().optional(),
     address: z.string().min(1, "მისამართი სავალდებულოა"),
     name: z.string().optional(),
@@ -274,6 +277,8 @@ export async function PUT(request: NextRequest) {
       body.hotelType = body?.hotelType ?? existingHotel.type;
       body.numberOfRooms = body?.numberOfRooms ? Number(body.numberOfRooms) : body.numberOfRooms;
       body.pricePerKg = body?.pricePerKg ? Number(body.pricePerKg) : body.pricePerKg;
+      const parsedHasDgg = parseHasDggInput(body?.hasDgg);
+      if (parsedHasDgg !== undefined) body.hasDgg = parsedHasDgg;
     } catch (parseErr) {
       return NextResponse.json(
         { error: "ვერ წავიკითხეთ მონაცემები" },
@@ -330,6 +335,9 @@ export async function PUT(request: NextRequest) {
         email: validatedData.hotelEmail ?? existingHotel.email,
         mobileNumber: validatedData.mobileNumber,
         pricePerKg: validatedData.pricePerKg,
+        ...(validatedData.hasDgg !== undefined
+          ? { hasDgg: validatedData.hasDgg }
+          : {}),
         companyName: validatedData.companyName ?? null,
         address: validatedData.address,
         personalId:
@@ -389,6 +397,8 @@ export async function POST(request: NextRequest) {
       body.identificationCode = body?.identificationCode?.trim() || undefined;
       body.legalEntityName = body?.legalEntityName?.trim() || undefined;
       body.responsiblePersonName = body?.responsiblePersonName?.trim() || undefined;
+      const parsedHasDgg = parseHasDggInput(body?.hasDgg);
+      if (parsedHasDgg !== undefined) body.hasDgg = parsedHasDgg;
       console.log("our-hotels POST payload", {
         email: body?.email,
         hotelEmail: body?.hotelEmail,
@@ -452,6 +462,7 @@ export async function POST(request: NextRequest) {
         email: hotelEmailForRecord,
         mobileNumber: validatedData.mobileNumber,
         pricePerKg: validatedData.pricePerKg,
+        hasDgg: validatedData.hasDgg ?? false,
         companyName: validatedData.companyName ?? null,
         address: validatedData.address,
       };

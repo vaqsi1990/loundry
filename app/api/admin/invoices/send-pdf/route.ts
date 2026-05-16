@@ -643,6 +643,7 @@ export async function POST(request: NextRequest) {
   try {
     const access = await requireFinanceStaffApiAccess();
     if ("response" in access) return access.response;
+    const { userId } = access;
 
     const body = await request.json();
     const { hotelName, email, dateDetails, forceResend } = body;
@@ -1138,7 +1139,7 @@ export async function POST(request: NextRequest) {
           sentAt: invoicePdfSentAt,
           invoicePdfSentAt,
           invoicePdfSentTo: recipientEmail,
-          invoicePdfSentBy: session.user.id,
+          invoicePdfSentBy: userId,
         },
       });
       console.log("Physical invoice sent - user must confirm manually in /physical/invoices");
@@ -1154,7 +1155,7 @@ export async function POST(request: NextRequest) {
           sentAt: invoicePdfSentAt,
           invoicePdfSentAt,
           invoicePdfSentTo: recipientEmail,
-          invoicePdfSentBy: session.user.id,
+          invoicePdfSentBy: userId,
         },
       });
       console.log("Legal invoice sent - user must confirm manually in /legal/invoices");

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Hotel" ADD COLUMN "hasDgg" BOOLEAN NOT NULL DEFAULT false;

@@ -21,6 +21,7 @@ const baseSchema = z.object({
   numberOfRooms: z.number().int().positive().optional(),
   hotelEmail: z.string().optional(),
   pricePerKg: z.number().positive().optional(),
+  hasDgg: z.boolean().optional().default(false),
   companyName: z.string().optional(),
   address: z.string().optional(),
   // Optional fields for both types
@@ -176,6 +177,7 @@ export async function POST(request: NextRequest) {
           email: validatedData.hotelEmail!,
           mobileNumber: validatedData.mobileNumber,
           pricePerKg: validatedData.pricePerKg!,
+          hasDgg: validatedData.hasDgg ?? false,
           companyName: validatedData.companyName || null,
           address: validatedData.address || null,
         };

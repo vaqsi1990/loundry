@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import { HOTEL_HAS_DGG_LABEL } from "@/lib/hotel-has-dgg";
 import {
   effectiveManualBaseOverrideGel,
   liveHeavyWeightAmountGel,
@@ -12,6 +13,7 @@ interface Hotel {
   id: string;
   hotelName: string;
   email?: string;
+  hasDgg?: boolean;
 }
 
 interface DateDetail {
@@ -31,6 +33,7 @@ interface DateDetail {
 interface InvoiceDaySummary {
   hotelName: string | null;
   displayHotelName: string | null;
+  hasDgg?: boolean;
   sheetCount: number;
   totalDispatched: number;
   totalWeightKg: number;
@@ -236,6 +239,7 @@ export default function InvoicesSection() {
             hotelName?: unknown;
             email?: unknown;
             hotelEmail?: unknown;
+            hasDgg?: unknown;
           };
           const fromRow =
             typeof row.email === "string" && row.email.trim() !== ""
@@ -247,6 +251,7 @@ export default function InvoicesSection() {
             id: String(row.id ?? ""),
             hotelName: String(row.hotelName ?? "").trim(),
             email: fromRow || undefined,
+            hasDgg: Boolean(row.hasDgg),
           };
         })
       );
@@ -440,6 +445,24 @@ export default function InvoicesSection() {
     if (!name) return "";
     return name.trim().replace(/\s+/g, " ").toLowerCase();
   };
+
+  const hotelShowsDgg = (
+    displayName: string | null,
+    fromApi?: boolean
+  ): boolean => {
+    if (fromApi === true) return true;
+    if (fromApi === false) return false;
+    const key = normalizeHotelName(displayName);
+    const h = hotels.find((row) => normalizeHotelName(row.hotelName) === key);
+    return Boolean(h?.hasDgg);
+  };
+
+  const DggBadge = ({ show }: { show: boolean }) =>
+    show ? (
+      <span className="ml-2 inline-flex shrink-0 items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
+        {HOTEL_HAS_DGG_LABEL}
+      </span>
+    ) : null;
 
   const openPdfModal = (hotelName: string | null, dateDetails?: DateDetail[]) => {
     setSuccessMessage("");
@@ -689,6 +712,7 @@ export default function InvoicesSection() {
       return {
         hotelName: summary.hotelName,
         displayHotelName: summary.displayHotelName,
+        hasDgg: summary.hasDgg,
         detail,
         monthKey,
       };
@@ -872,13 +896,14 @@ export default function InvoicesSection() {
           .map((monthKey) => {
             const monthInvoices = invoicesByMonth[monthKey];
               // Group this month's invoices by hotel
-              const hotelsInMonth = monthInvoices.reduce<Record<string, { hotelName: string | null; displayHotelName: string | null; invoices: typeof monthInvoices }>>((acc, inv) => {
+              const hotelsInMonth = monthInvoices.reduce<Record<string, { hotelName: string | null; displayHotelName: string | null; hasDgg?: boolean; invoices: typeof monthInvoices }>>((acc, inv) => {
                 const rawName = inv.displayHotelName || inv.hotelName || "-";
                 const key = normalizeHotelName(rawName) || "-";
                 if (!acc[key]) {
                   acc[key] = {
                     hotelName: inv.hotelName,
                     displayHotelName: inv.displayHotelName,
+                    hasDgg: inv.hasDgg,
                     invoices: [],
                   };
                 }
@@ -921,6 +946,10 @@ export default function InvoicesSection() {
                   <div className="divide-y divide-gray-200">
                     {Object.entries(hotelsInMonth).map(([hotelKey, group]) => {
                       const displayName = formatHotel(group.displayHotelName || group.hotelName);
+                      const showDgg = hotelShowsDgg(
+                        group.displayHotelName || group.hotelName,
+                        group.hasDgg
+                      );
                       const hotelInvoices = group.invoices.sort((a, b) =>
                         b.detail.date.localeCompare(a.detail.date)
                       );
@@ -956,8 +985,9 @@ export default function InvoicesSection() {
                             onClick={() => toggleHotel(monthKey, hotelKey)}
                           >
                             <div className="grid items-center gap-x-3 gap-y-1 min-w-0 tabular-nums grid-cols-[minmax(120px,1fr)_90px_110px_120px_140px_170px] md:grid-cols-[260px_90px_110px_120px_150px_180px]">
-                              <span className="text-[14px] md:text-[18px] font-semibold text-black truncate min-w-0">
-                                {displayName}
+                              <span className="text-[14px] md:text-[18px] font-semibold text-black flex items-center min-w-0">
+                                <span className="truncate">{displayName}</span>
+                                <DggBadge show={showDgg} />
                               </span>
                               <span className="text-[16px] md:text-[18px] text-black whitespace-nowrap">
                                 {hotelInvoices.length} ინვოისი
@@ -1132,7 +1162,20 @@ export default function InvoicesSection() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-xl font-bold text-black mb-4">PDF ინვოისის გაგზავნა</h3>
             <p className="text-gray-700 mb-4">
-              სასტუმრო: <strong>{formatHotel(pdfModal.hotelName)}</strong>
+              სასტუმრო:{" "}
+              <strong className="inline-flex items-center gap-2">
+                {formatHotel(pdfModal.hotelName)}
+                <DggBadge
+                  show={hotelShowsDgg(
+                    pdfModal.hotelName,
+                    summaries.find(
+                      (s) =>
+                        normalizeHotelName(s.displayHotelName || s.hotelName) ===
+                        normalizeHotelName(pdfModal.hotelName)
+                    )?.hasDgg
+                  )}
+                />
+              </strong>
             </p>
             <p className="text-[16px] text-gray-700 mb-4">
               ელფოსტა ავტომატურად გაიგზავნება სასტუმროს ელ.ფოსტაზე

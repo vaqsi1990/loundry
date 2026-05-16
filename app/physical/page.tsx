@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { HOTEL_HAS_DGG_LABEL } from "@/lib/hotel-has-dgg";
 
 interface PhysicalProfile {
   id: string;
@@ -20,6 +21,7 @@ interface PhysicalProfile {
     email: string;
     mobileNumber: string;
     pricePerKg: number;
+    hasDgg?: boolean;
     companyName: string | null;
     address: string | null;
     firstName: string | null;
@@ -70,6 +72,7 @@ export default function PhysicalProfilePage() {
           email: hotel.email || data.email || "",
           mobileNumber: hotel.mobileNumber || data.mobileNumber || "",
           pricePerKg: hotel.pricePerKg || 0,
+          hasDgg: Boolean(hotel.hasDgg),
           companyName: hotel.companyName || "",
           address: hotel.address || "",
           firstName: hotel.firstName || nameParts[0] || "",
@@ -281,6 +284,20 @@ export default function PhysicalProfilePage() {
                   onChange={(e) => setEditData({ ...editData, address: e.target.value })}
                   className="w-full border rounded px-3 py-2"
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="hasDgg"
+                  type="checkbox"
+                  checked={Boolean(editData.hasDgg)}
+                  onChange={(e) =>
+                    setEditData({ ...editData, hasDgg: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                />
+                <label htmlFor="hasDgg" className="text-sm font-medium">
+                  {HOTEL_HAS_DGG_LABEL}
+                </label>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">ახალი პაროლი (არასავალდებულო)</label>
