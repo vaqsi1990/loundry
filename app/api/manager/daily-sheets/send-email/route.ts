@@ -20,6 +20,17 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const EMAIL_SUMMARY_BG = {
+  blue: "#eff6ff",
+  orange: "#fff7ed",
+  purple: "#faf5ff",
+  green: "#f0fdf4",
+} as const;
+
+function summaryRowTrStyle(kind: keyof typeof EMAIL_SUMMARY_BG, bold = false) {
+  return `background:${EMAIL_SUMMARY_BG[kind]};font-weight:${bold ? "700" : "600"};`;
+}
+
 function footerSummaryExtraCols(showPriceColumn: boolean) {
   return showPriceColumn
     ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td><td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>'
@@ -33,7 +44,7 @@ function renderWeightKgRow(
 ) {
   const labelColspan = sheet.sheetType === "INDIVIDUAL" ? 6 : 3;
   return `
-    <tr style="background:#fff;font-weight:600;">
+    <tr style="${summaryRowTrStyle("blue")}">
       <td colspan="${labelColspan}" style="border:1px solid #ccc;padding:6px;text-align:right;">წონა - კგ:</td>
       <td style="border:1px solid #ccc;padding:6px;text-align:center;">${weightKg.toFixed(2)} კგ</td>
       ${footerSummaryExtraCols(showPriceColumn)}
@@ -46,7 +57,7 @@ function renderPricePerKgRow(sheet: any, showPriceColumn: boolean) {
   if (!sheet.pricePerKg) return "";
   const labelColspan = sheet.sheetType === "INDIVIDUAL" ? 6 : 3;
   return `
-    <tr style="background:#fff;font-weight:600;">
+    <tr style="${summaryRowTrStyle("blue")}">
       <td colspan="${labelColspan}" style="border:1px solid #ccc;padding:6px;text-align:right;">1 კგ-ის ფასი:</td>
       <td style="border:1px solid #ccc;padding:6px;text-align:center;">${sheet.pricePerKg.toFixed(2)} ₾</td>
       ${footerSummaryExtraCols(showPriceColumn)}
@@ -248,7 +259,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           ${
             heavyKgDisplay > 0
               ? `
-                <tr style="background:#fff;font-weight:600;">
+                <tr style="${summaryRowTrStyle("blue")}">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონა - კგ:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyKgDisplay.toFixed(2)} კგ</td>
                   ${footerSummaryExtraCols(showPriceColumn)}
@@ -260,7 +271,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           ${
             heavyPpkDisplay > 0
               ? `
-                <tr style="background:#fff;font-weight:600;">
+                <tr style="${summaryRowTrStyle("blue")}">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი / 1 კგ:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyPpkDisplay.toFixed(2)} ₾</td>
                   ${footerSummaryExtraCols(showPriceColumn)}
@@ -272,7 +283,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           ${
             hasProtectors && protectorsTotal > 0
               ? `
-                <tr style="background:#fff;font-weight:600;">
+                <tr style="${summaryRowTrStyle("purple")}">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? (showPriceColumn ? 6 : 6) : (showPriceColumn ? 3 : 3)}" style="border:1px solid #ccc;padding:6px;text-align:right;">დამცავების ფასი (იც):</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${protectorsTotal.toFixed(2)} ₾</td>
                   ${showPriceColumn ? '<td style="border:1px solid #ccc;padding:6px;text-align:center;">-</td>' : ""}
@@ -284,7 +295,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           ${
             heavyWeightPrice > 0
               ? `
-                <tr style="background:#fff3e0;font-weight:600;">
+                <tr style="${summaryRowTrStyle("orange")}">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მძიმე წონის ფასი:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${heavyWeightPrice.toFixed(2)} ₾</td>
                   ${footerSummaryExtraCols(showPriceColumn)}
@@ -296,7 +307,7 @@ function renderHtml(sheet: any, hotelCompanyName?: string | null) {
           ${
             totalPrice > 0
               ? `
-                <tr style="background:#fff;font-weight:700;">
+                <tr style="${summaryRowTrStyle("green", true)}">
                   <td colspan="${sheet.sheetType === "INDIVIDUAL" ? 6 : 3}" style="border:1px solid #ccc;padding:6px;text-align:right;">მთლიანი ფასი:</td>
                   <td style="border:1px solid #ccc;padding:6px;text-align:center;">${totalPrice.toFixed(2)} ₾</td>
                   ${footerSummaryExtraCols(showPriceColumn)}
