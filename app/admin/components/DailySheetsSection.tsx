@@ -55,6 +55,8 @@ interface DailySheet {
   createdAt: string;
   emailSendCount?: number;
   emailSends?: Array<{
+    id?: string;
+    date?: string;
     sentAt: string;
     sentTo: string;
     payload?: any;
@@ -150,12 +152,28 @@ const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "PROTECTORS", itemNameKa: "", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: undefined, comment: "", isCustom: true },
 ];
 
-/** Matches invoice rows: sheet has at least one email-send record. */
-function isDailySheetSent(sheet: DailySheet): boolean {
-  return (sheet.emailSends?.length ?? 0) > 0 || (sheet.emailSendCount ?? 0) > 0;
+/** Email sends for a month — same rule as /invoices (`emailSendsMonth` on send `date`). */
+function emailSendsInMonth(sheet: DailySheet, monthKey: string) {
+  return (sheet.emailSends ?? []).filter(
+    (send) => monthKeyFromSheetDate(send.date ?? send.sentAt) === monthKey
+  );
 }
 
-type DailySheetSendFilter = "" | "sent" | "unsent";
+/** Sheet has an invoice row in this month (at least one email-send with service date in month). */
+function isDailySheetSent(sheet: DailySheet, monthKey?: string): boolean {
+  return emailSendCountInScope(sheet, monthKey) > 0;
+}
+
+function emailSendCountInScope(sheet: DailySheet, monthKey?: string): number {
+  if (monthKey) return emailSendsInMonth(sheet, monthKey).length;
+  return sheet.emailSends?.length ?? 0;
+}
+
+function isDailySheetMultiSent(sheet: DailySheet, monthKey?: string): boolean {
+  return emailSendCountInScope(sheet, monthKey) > 1;
+}
+
+type DailySheetSendFilter = "" | "sent" | "unsent" | "multi";
 
 export default function DailySheetsSection() {
   const [sheets, setSheets] = useState<DailySheet[]>([]);
@@ -176,6 +194,7 @@ export default function DailySheetsSection() {
     sheetId: null,
   });
   const [modalEmail, setModalEmail] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [editingWeight, setEditingWeight] = useState<{ sheetId: string | null; value: string }>({
     sheetId: null,
     value: "",
@@ -591,11 +610,29 @@ export default function DailySheetsSection() {
     }
   };
 
+  const openSendEmailModal = (sheet: DailySheet) => {
+    if (isDailySheetSent(sheet)) {
+      setError("ეს დღის ფურცელი უკვე გაგზავნილია და მეორედ ვერ გაიგზავნება.");
+      return;
+    }
+    setError("");
+    setEmailModal({ open: true, sheetId: sheet.id });
+    setModalEmail(deriveHotelEmail(sheet.hotelName));
+  };
+
   const handleSendEmail = async () => {
     if (!emailModal.sheetId) {
       setError("ფურცლის ID არ არის მითითებული");
       return;
     }
+    const sheet = sheets.find((s) => s.id === emailModal.sheetId);
+    if (sheet && isDailySheetSent(sheet)) {
+      setError("ეს დღის ფურცელი უკვე გაგზავნილია და მეორედ ვერ გაიგზავნება.");
+      setEmailModal({ open: false, sheetId: null });
+      return;
+    }
+    if (sendingEmail) return;
+    setSendingEmail(true);
     setError("");
     try {
       const apiPath = getApiPath("daily-sheets", "send-email");
@@ -608,10 +645,12 @@ export default function DailySheetsSection() {
         const data = await res.json();
         throw new Error(data.error || "გაგზავნა ვერ მოხერხდა");
       }
-      await fetchSheets(); // refresh to show updated send count
+      await fetchSheets();
       setEmailModal({ open: false, sheetId: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "დაფიქსირდა შეცდომა");
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -751,15 +790,69 @@ export default function DailySheetsSection() {
     const monthKey = monthKeyFromSheetDate(sheet.date);
     const monthMatch = !selectedMonth || monthKey === selectedMonth;
     const hotelMatch = !selectedHotel || sheet.hotelName === selectedHotel;
-    const sent = isDailySheetSent(sheet);
+    const sent = isDailySheetSent(sheet, selectedMonth || undefined);
+    const multi = isDailySheetMultiSent(sheet, selectedMonth || undefined);
     const sendMatch =
       sendFilter === ""
         ? true
         : sendFilter === "sent"
           ? sent
-          : !sent;
+          : sendFilter === "unsent"
+            ? !sent
+            : multi;
     return monthMatch && hotelMatch && sendMatch;
   });
+
+  const monthSendSummary = React.useMemo(() => {
+    if (!selectedMonth) return null;
+    const inMonth = sheets.filter(
+      (s) => monthKeyFromSheetDate(s.date) === selectedMonth
+    );
+    let invoiceRows = 0;
+    let sentSheets = 0;
+    const multiSendSheets: Array<{
+      sheet: DailySheet;
+      sendCount: number;
+      sentAtLabels: string[];
+    }> = [];
+    for (const sheet of inMonth) {
+      const sends = emailSendsInMonth(sheet, selectedMonth);
+      if (sends.length > 0) sentSheets += 1;
+      invoiceRows += sends.length;
+      if (sends.length > 1) {
+        multiSendSheets.push({
+          sheet,
+          sendCount: sends.length,
+          sentAtLabels: sends.map((send) => {
+            const raw = send.sentAt ?? send.date;
+            if (!raw) return "—";
+            return new Date(raw).toLocaleString("ka-GE", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          }),
+        });
+      }
+    }
+    multiSendSheets.sort((a, b) => {
+      const hotel = (a.sheet.hotelName ?? "").localeCompare(b.sheet.hotelName ?? "");
+      if (hotel !== 0) return hotel;
+      return dayKeyFromSheetDate(a.sheet.date).localeCompare(
+        dayKeyFromSheetDate(b.sheet.date)
+      );
+    });
+    return {
+      totalSheets: inMonth.length,
+      sentSheets,
+      unsentSheets: inMonth.length - sentSheets,
+      invoiceRows,
+      extraInvoiceRows: invoiceRows - sentSheets,
+      multiSendSheets,
+    };
+  }, [sheets, selectedMonth]);
 
   const formatDateGe = (date: string | Date) => {
     const d = new Date(date);
@@ -1207,6 +1300,7 @@ export default function DailySheetsSection() {
             <option value="">ყველა</option>
             <option value="sent">გაგზავნილი</option>
             <option value="unsent">არ არის გაგზავნილი</option>
+            <option value="multi">ბევრჯერ გაგზავნილი (2+)</option>
           </select>
         </div>
         <button
@@ -1220,6 +1314,54 @@ export default function DailySheetsSection() {
           ყველა
         </button>
       </div>
+
+      {monthSendSummary && (
+        <div className="mb-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-black text-[14px] md:text-[16px]">
+          <div className="font-semibold mb-1">
+            {formatMonthGe(selectedMonth)} — შედარება ინვოისებთან
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-gray-800">
+            <span>ფურცლები: {monthSendSummary.totalSheets}</span>
+            <span>გაგზავნილი ფურცელი: {monthSendSummary.sentSheets}</span>
+            <span>არ არის გაგზავნილი: {monthSendSummary.unsentSheets}</span>
+            <span>ინვოისის ჩანაწერი (/invoices): {monthSendSummary.invoiceRows}</span>
+          </div>
+          {monthSendSummary.multiSendSheets.length > 0 && (
+            <div className="mt-3 border-t border-amber-200 pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <p className="font-semibold text-amber-900">
+                  ბევრჯერ გაგზავნილი ფურცლები ({monthSendSummary.multiSendSheets.length})
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSendFilter("multi")}
+                  className="text-[13px] md:text-[14px] text-amber-900 underline hover:text-amber-950"
+                >
+                  მხოლოდ ეს სია ფილტრში
+                </button>
+              </div>
+              <ul className="space-y-2 max-h-56 overflow-y-auto">
+                {monthSendSummary.multiSendSheets.map(({ sheet, sendCount, sentAtLabels }) => (
+                  <li
+                    key={sheet.id}
+                    className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-[13px] md:text-[14px]"
+                  >
+                    <div className="font-medium text-black">
+                      {sheet.hotelName || "—"} — {formatDateGe(dayKeyFromSheetDate(sheet.date))}
+                      <span className="ml-2 inline-flex rounded-full bg-amber-200 text-amber-950 px-2 py-0.5 text-xs font-semibold">
+                        {sendCount}× გაგზავნა
+                      </span>
+                    </div>
+                    <div className="text-amber-900 mt-1 text-xs md:text-[13px]">
+                      გაგზავნის დრო: {sentAtLabels.join(" · ")}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {selectedHotel && monthlyHotelSummary && (
         <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-black">
@@ -2211,13 +2353,24 @@ export default function DailySheetsSection() {
                                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                                     .map((sheet) => {
                                       const isExpanded = expandedSheets.has(sheet.id);
+                                      const multiSent = isDailySheetMultiSent(
+                                        sheet,
+                                        selectedMonth || monthKey
+                                      );
                                       const headerTotals = calculateTotals(sheet.items);
                                       const headerTotalWeight =
                                         sheet.sheetType === "STANDARD" && sheet.totalWeight
                                           ? sheet.totalWeight
                                           : headerTotals.totalWeight;
                                       return (
-                                        <div key={sheet.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                        <div
+                                          key={sheet.id}
+                                          className={`bg-white border rounded-lg overflow-hidden ${
+                                            multiSent
+                                              ? "border-amber-400 ring-1 ring-amber-200"
+                                              : "border-gray-200"
+                                          }`}
+                                        >
                                           {/* Header - Always visible */}
                                           <div 
                                             className="flex justify-between items-start p-6 cursor-pointer hover:bg-white transition-colors"
@@ -2262,17 +2415,35 @@ export default function DailySheetsSection() {
                                                         : sheet.comment}
                                                     </span>
                                                   )}
-                                                  <span className="inline-flex items-center rounded-full  text-blue-700 px-3 py-1 text-xs font-semibold">
-                                                    გაგზავნილი {sheet.emailSendCount ?? 0}x
-                                                  </span>
+                                                  {(() => {
+                                                    const sendCount = emailSendCountInScope(
+                                                      sheet,
+                                                      selectedMonth || undefined
+                                                    );
+                                                    if (sendCount === 0) return null;
+                                                    if (sendCount > 1) {
+                                                      return (
+                                                        <span
+                                                          className="inline-flex items-center rounded-full bg-amber-100 text-amber-950 border border-amber-300 px-3 py-1 text-xs font-semibold"
+                                                          title="ამ ფურცელს ერთზე მეტი ინვოისის ჩანაწერი აქვს"
+                                                        >
+                                                          ბევრჯერ გაგზავნილი {sendCount}×
+                                                        </span>
+                                                      );
+                                                    }
+                                                    return (
+                                                      <span className="inline-flex items-center rounded-full text-blue-700 px-3 py-1 text-xs font-semibold">
+                                                        გაგზავნილი {sendCount}×
+                                                      </span>
+                                                    );
+                                                  })()}
                                                   {(() => {
                                                     const lastSend = sheet.emailSends?.[0];
                                                     const sentBy = lastSend?.payload?.sentBy;
-                                                    const isEmailed =
-                                                      !!lastSend ||
-                                                      (sheet.emailSendCount ?? 0) > 0 ||
-                                                      !!sheet.emailedAt ||
-                                                      !!sheet.emailedTo;
+                                                    const isEmailed = isDailySheetSent(
+                                                      sheet,
+                                                      selectedMonth || undefined
+                                                    );
                                                     if (!isEmailed) return null;
                                                     if (!sentBy?.role) {
                                                       return (
@@ -2377,12 +2548,9 @@ export default function DailySheetsSection() {
                                               >
                                                 წაშლა
                                               </button>
-                                              {((sheet.emailSendCount ?? 0) === 0) ? (
+                                              {!isDailySheetSent(sheet) ? (
                                                 <button
-                                                  onClick={() => {
-                                                    setEmailModal({ open: true, sheetId: sheet.id });
-                                                    setModalEmail(deriveHotelEmail(sheet.hotelName));
-                                                  }}
+                                                  onClick={() => openSendEmailModal(sheet)}
                                                   className="text-green-700 hover:underline px-2"
                                                 >
                                                   გაგზავნა მეილზე
@@ -2391,7 +2559,7 @@ export default function DailySheetsSection() {
                                                 <button
                                                   disabled
                                                   className="text-gray-400 px-2 cursor-not-allowed"
-                                                  title="ეს დღის ფურცელი უკვე გაგზავნილია"
+                                                  title="ერთი ფურცელი მხოლოდ ერთხელ იგზავნება"
                                                 >
                                                   უკვე გაგზავნილია
                                                 </button>
@@ -2443,9 +2611,10 @@ export default function DailySheetsSection() {
               <div className="flex space-x-2">
                 <button
                   onClick={handleSendEmail}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  disabled={sendingEmail}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  გაგზავნა
+                  {sendingEmail ? "იგზავნება..." : "გაგზავნა"}
                 </button>
                 <button
                   onClick={() => setEmailModal({ open: false, sheetId: null })}

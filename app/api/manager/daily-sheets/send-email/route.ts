@@ -11,6 +11,10 @@ import {
   explicitHeavyPricePerKgGel,
   liveProtectorsAmount,
 } from "@/lib/daily-sheet-email-send-financial";
+import {
+  dailySheetAlreadySent,
+  DAILY_SHEET_ALREADY_SENT_ERROR,
+} from "@/lib/daily-sheet-already-sent";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -373,6 +377,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ფურცელი ვერ მოიძებნა" }, { status: 404 });
     }
 
+    if (await dailySheetAlreadySent(sheet.id, isLegal)) {
+      return NextResponse.json(
+        { error: DAILY_SHEET_ALREADY_SENT_ERROR },
+        { status: 400 }
+      );
+    }
+
     // Fetch hotel information including email
     let companyName: string | null = null;
     let hotelEmail: string | null = null;
@@ -468,7 +479,7 @@ export async function POST(req: NextRequest) {
           data: {
             emailedAt: new Date(),
             emailedTo: recipientEmail,
-            emailSendCount: { increment: 1 },
+            emailSendCount: 1,
           },
         }),
         prisma.legalDailySheetEmailSend.create({
@@ -504,7 +515,7 @@ export async function POST(req: NextRequest) {
           data: {
             emailedAt: new Date(),
             emailedTo: recipientEmail,
-            emailSendCount: { increment: 1 },
+            emailSendCount: 1,
           },
         }),
         prisma.physicalDailySheetEmailSend.create({

@@ -45,8 +45,13 @@ export async function GET(request: NextRequest) {
             },
             emailSends: {
               orderBy: { sentAt: "desc" },
-              take: 1,
-              select: { sentAt: true, sentTo: true, payload: true },
+              select: {
+                id: true,
+                date: true,
+                sentAt: true,
+                sentTo: true,
+                payload: true,
+              },
             },
           },
           orderBy: {
@@ -62,8 +67,13 @@ export async function GET(request: NextRequest) {
             },
             emailSends: {
               orderBy: { sentAt: "desc" },
-              take: 1,
-              select: { sentAt: true, sentTo: true, payload: true },
+              select: {
+                id: true,
+                date: true,
+                sentAt: true,
+                sentTo: true,
+                payload: true,
+              },
             },
           },
           orderBy: {
