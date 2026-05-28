@@ -150,6 +150,13 @@ const PROTECTOR_ITEMS: Omit<DailySheetItem, "id" | "totalWeight">[] = [
   { category: "PROTECTORS", itemNameKa: "", weight: 0, received: 0, washCount: 0, dispatched: 0, shortage: 0, price: undefined, comment: "", isCustom: true },
 ];
 
+/** Matches invoice rows: sheet has at least one email-send record. */
+function isDailySheetSent(sheet: DailySheet): boolean {
+  return (sheet.emailSends?.length ?? 0) > 0 || (sheet.emailSendCount ?? 0) > 0;
+}
+
+type DailySheetSendFilter = "" | "sent" | "unsent";
+
 export default function DailySheetsSection() {
   const [sheets, setSheets] = useState<DailySheet[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -159,6 +166,7 @@ export default function DailySheetsSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedHotel, setSelectedHotel] = useState<string>("");
+  const [sendFilter, setSendFilter] = useState<DailySheetSendFilter>("");
   const [allMonths, setAllMonths] = useState<string[]>([]);
   const [expandedSheets, setExpandedSheets] = useState<Set<string>>(new Set()); // Track which sheets are expanded
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -739,11 +747,18 @@ export default function DailySheetsSection() {
     return `${months[monthIndex]} ${year}`;
   };
 
-  const filteredSheets = sheets.filter(sheet => {
+  const filteredSheets = sheets.filter((sheet) => {
     const monthKey = monthKeyFromSheetDate(sheet.date);
     const monthMatch = !selectedMonth || monthKey === selectedMonth;
     const hotelMatch = !selectedHotel || sheet.hotelName === selectedHotel;
-    return monthMatch && hotelMatch;
+    const sent = isDailySheetSent(sheet);
+    const sendMatch =
+      sendFilter === ""
+        ? true
+        : sendFilter === "sent"
+          ? sent
+          : !sent;
+    return monthMatch && hotelMatch && sendMatch;
   });
 
   const formatDateGe = (date: string | Date) => {
@@ -1180,10 +1195,25 @@ export default function DailySheetsSection() {
             ))}
           </select>
         </div>
+        <div>
+          <label className="block text-[16px] md:text-[18px] font-medium text-black mb-1">
+            გაგზავნა
+          </label>
+          <select
+            value={sendFilter}
+            onChange={(e) => setSendFilter(e.target.value as DailySheetSendFilter)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-black min-w-[200px]"
+          >
+            <option value="">ყველა</option>
+            <option value="sent">გაგზავნილი</option>
+            <option value="unsent">არ არის გაგზავნილი</option>
+          </select>
+        </div>
         <button
           onClick={() => {
             setSelectedMonth("");
             setSelectedHotel("");
+            setSendFilter("");
           }}
           className="bg-gray-200 text-black px-4 py-2 rounded-lg hover:bg-gray-300 h-[42px]"
         >
