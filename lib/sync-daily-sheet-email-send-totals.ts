@@ -36,6 +36,7 @@ export async function syncEmailSendTotalsAfterSheetSaveLegal(
       return prisma.legalDailySheetEmailSend.update({
         where: { id: es.id },
         data: {
+          hotelName: sheet.hotelName,
           sheetType: sheet.sheetType,
           pricePerKg: sheet.pricePerKg ?? es.pricePerKg,
           totalWeight: storedTw,
@@ -72,6 +73,7 @@ export async function syncEmailSendTotalsAfterSheetSavePhysical(
       return prisma.physicalDailySheetEmailSend.update({
         where: { id: es.id },
         data: {
+          hotelName: sheet.hotelName,
           sheetType: sheet.sheetType,
           pricePerKg: sheet.pricePerKg ?? es.pricePerKg,
           totalWeight: storedTw,

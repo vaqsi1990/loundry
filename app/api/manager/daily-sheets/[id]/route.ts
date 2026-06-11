@@ -7,6 +7,11 @@ import {
   sheetNotesFromBody,
 } from "@/lib/daily-sheet-api";
 import {
+  hotelNamesMatch,
+  syncDailySheetHotelAssignmentLegal,
+  syncDailySheetHotelAssignmentPhysical,
+} from "@/lib/sync-daily-sheet-hotel-assignment";
+import {
   syncEmailSendTotalsAfterSheetSaveLegal,
   syncEmailSendTotalsAfterSheetSavePhysical,
 } from "@/lib/sync-daily-sheet-email-send-totals";
@@ -70,10 +75,13 @@ export async function PUT(
     ]);
     
     const isLegal = !!legalSheet;
+    const existingSheet = legalSheet ?? physicalSheet;
     
-    if (!legalSheet && !physicalSheet) {
+    if (!existingSheet) {
       return NextResponse.json({ error: "დღის ფურცელი ვერ მოიძებნა" }, { status: 404 });
     }
+
+    const hotelChanged = !hotelNamesMatch(existingSheet.hotelName, hotelName);
 
     // Delete existing items from the appropriate table
     if (isLegal) {
@@ -174,8 +182,14 @@ export async function PUT(
         });
 
     try {
-      if (isLegal) await syncEmailSendTotalsAfterSheetSaveLegal(id);
-      else await syncEmailSendTotalsAfterSheetSavePhysical(id);
+      if (hotelChanged) {
+        if (isLegal) await syncDailySheetHotelAssignmentLegal(id, { hotelName });
+        else await syncDailySheetHotelAssignmentPhysical(id, { hotelName });
+      } else if (isLegal) {
+        await syncEmailSendTotalsAfterSheetSaveLegal(id);
+      } else {
+        await syncEmailSendTotalsAfterSheetSavePhysical(id);
+      }
     } catch (e) {
       console.error("Sync email-send totals after daily sheet update:", e);
     }

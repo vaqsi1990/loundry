@@ -205,6 +205,24 @@ async function fetchOwnedDailySheetRows(
   };
 }
 
+async function buildEmailToHotelNameMap(): Promise<Map<string, string>> {
+  const hotels = await prisma.hotel.findMany({
+    include: { user: { select: { email: true } } },
+  });
+  const map = new Map<string, string>();
+  const add = (email: string | null | undefined, hotelName: string) => {
+    const key = email?.trim().toLowerCase();
+    const name = hotelName.trim();
+    if (!key || !name || map.has(key)) return;
+    map.set(key, name);
+  };
+  for (const h of hotels) {
+    add(h.email, h.hotelName);
+    add(h.user?.email, h.hotelName);
+  }
+  return map;
+}
+
 /** Rewrite stored hotelName on owned sheets to the hotel's current name. */
 export async function syncOwnedDailySheetHotelNames(
   kind: DailySheetKind,
@@ -215,12 +233,20 @@ export async function syncOwnedDailySheetHotelNames(
   if (!targetName) return;
 
   const targetNorm = normalizeHotelName(targetName);
+  const emailToHotel = await buildEmailToHotelNameMap();
   const { rows } = await fetchOwnedDailySheetRows(kind, hotel, user);
 
-  const staleRows = rows.filter(
-    (row) =>
-      row.hotelName && normalizeHotelName(row.hotelName) !== targetNorm
-  );
+  const staleRows = rows.filter((row) => {
+    if (!row.hotelName || normalizeHotelName(row.hotelName) === targetNorm) {
+      return false;
+    }
+    const emailKey = row.emailedTo?.trim().toLowerCase();
+    if (emailKey && emailToHotel.has(emailKey)) {
+      const emailOwnerNorm = normalizeHotelName(emailToHotel.get(emailKey)!);
+      if (emailOwnerNorm !== targetNorm) return false;
+    }
+    return true;
+  });
   if (staleRows.length === 0) return;
 
   const idsToUpdate = staleRows.map((row) => row.id);
