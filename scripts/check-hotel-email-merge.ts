@@ -236,7 +236,7 @@ async function main() {
         pricePerKg
       );
       const total = parseFloat(items.reduce((sum, row) => sum + row.total, 0).toFixed(2));
-      const invMatch = invsShared.find(i => Math.abs(i.totalAmount - total) < 0.02);
+      const invMatch = invsShared.find(i => i.totalAmount != null && Math.abs(i.totalAmount - total) < 0.02);
       if (invMatch) {
         console.log({ pdfAt, hotel: h.hotelName, computedTotal: total, invoiceCustomer: invMatch.customerName, invoiceDue: invMatch.dueDate });
       }
