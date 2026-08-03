@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 interface ArchivedInvoice {
   id: string;
@@ -124,7 +125,7 @@ export default function InvoicesArchiveSection() {
   };
 
   const deleteInvoice = async (id: string) => {
-    if (!confirm("წაიშალოს ეს ინვოისი?")) return;
+    if (!confirmDelete("წაიშალოს ეს ინვოისი?")) return;
     setDeletingId(id);
     setArchivedError("");
     try {

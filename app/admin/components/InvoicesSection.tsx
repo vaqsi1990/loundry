@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import { confirmDelete } from "@/lib/confirm-delete";
 import { HOTEL_HAS_DGG_LABEL } from "@/lib/hotel-has-dgg";
 import {
   effectiveManualBaseOverrideGel,
@@ -263,7 +264,7 @@ export default function InvoicesSection() {
 
   const deleteDay = async (date: string, emailSendIds?: string[]) => {
     if (!emailSendIds || emailSendIds.length === 0) {
-      if (!confirm(`წაიშალოს ${formatDate(date)}-ის გაგზავნილი ინვოისები?`)) return;
+      if (!confirmDelete(`წაიშალოს ${formatDate(date)}-ის გაგზავნილი ინვოისები?`)) return;
       setBusy(true);
       setError("");
       setSuccessMessage("");
@@ -285,7 +286,7 @@ export default function InvoicesSection() {
       }
     } else {
       // Delete specific invoice by emailSendIds
-      if (!confirm(`წაიშალოს ეს ინვოისი?`)) return;
+      if (!confirmDelete(`წაიშალოს ეს ინვოისი?`)) return;
       setBusy(true);
       setError("");
       setSuccessMessage("");
@@ -330,7 +331,7 @@ export default function InvoicesSection() {
         return;
       }
       
-      if (!confirm(`წაიშალოს ეს ინვოისები (${allEmailSendIds.length})?`)) return;
+      if (!confirmDelete(`წაიშალოს ეს ინვოისები (${allEmailSendIds.length})?`)) return;
       setBusy(true);
       setError("");
       setSuccessMessage("");
@@ -358,7 +359,7 @@ export default function InvoicesSection() {
       }
     } else {
       // Legacy: delete all invoices for the hotel
-      if (!confirm(`წაიშალოს ${formatHotel(hotelName)}-ის ყველა გაგზავნილი ინვოისი?`)) return;
+      if (!confirmDelete(`წაიშალოს ${formatHotel(hotelName)}-ის ყველა გაგზავნილი ინვოისი?`)) return;
       setBusy(true);
       setError("");
       setSuccessMessage("");
@@ -380,7 +381,7 @@ export default function InvoicesSection() {
   };
 
   const deleteAll = async () => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ ყველა გაგზავნილი ინვოისის წაშლა?")) return;
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ ყველა გაგზავნილი ინვოისის წაშლა?")) return;
     setBusy(true);
     setError("");
     try {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { HOTEL_HAS_DGG_LABEL } from "@/lib/hotel-has-dgg";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 interface Hotel {
   id: string;
@@ -276,7 +277,7 @@ export default function OurHotelsSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) return;
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) return;
     setBusy(true);
     setError("");
     try {

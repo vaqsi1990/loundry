@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { confirmDelete } from "@/lib/confirm-delete";
 import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface InventoryMovement {
@@ -247,7 +248,7 @@ export default function InventorySection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
     }
 

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { getApiPath } from "@/lib/api-helper";
+import { confirmDelete } from "@/lib/confirm-delete";
 import { monthKeyFromSheetDate, dayKeyFromSheetDate } from "@/lib/daily-sheet-dates";
 import { FormattedDateInput } from "./ui/DatePickerSection";
 import {
@@ -693,7 +694,7 @@ export default function DailySheetsSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
     }
 

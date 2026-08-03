@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 interface Employee {
   id: string;
@@ -120,7 +121,7 @@ export default function EmployeesSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
     }
 

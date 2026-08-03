@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, Fragment as ReactFragment } from "react";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 interface Salary {
   id: string;
@@ -465,7 +466,7 @@ export default function SalariesSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
     }
 

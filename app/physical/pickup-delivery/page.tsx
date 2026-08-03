@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 interface PickupDeliveryRequest {
   id: string;
@@ -106,7 +107,7 @@ export default function PhysicalPickupDeliveryPage() {
   };
 
   const handleDelete = async (requestId: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ ამ მოთხოვნის წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ ამ მოთხოვნის წაშლა?")) {
       return;
     }
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getApiPath } from "@/lib/api-helper";
+import { confirmDelete } from "@/lib/confirm-delete";
 import { FormattedDateInput } from "./ui/DatePickerSection";
 
 interface Revenue {
@@ -341,7 +342,7 @@ export default function RevenuesSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
     }
 
@@ -420,7 +421,7 @@ export default function RevenuesSection() {
   };
 
   const handleDeleteInvoice = async (invoiceId: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ ინვოისის წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ ინვოისის წაშლა?")) {
       return;
     }
 
@@ -442,7 +443,7 @@ export default function RevenuesSection() {
   };
 
   const handleDeleteAllInvoices = async () => {
-    if (!confirm(`დარწმუნებული ხართ რომ გსურთ ყველა ინვოისის წაშლა? (სულ: ${sentInvoices.length})`)) {
+    if (!confirmDelete(`დარწმუნებული ხართ რომ გსურთ ყველა ინვოისის წაშლა? (სულ: ${sentInvoices.length})`)) {
       return;
     }
 
@@ -530,7 +531,7 @@ export default function RevenuesSection() {
     const ids = sentInvoices.filter((inv) => selectedInvoiceIds[inv.id]).map((inv) => inv.id);
     if (ids.length === 0) return;
 
-    if (!confirm(`დარწმუნებული ხართ რომ გსურთ მონიშნული ინვოისების წაშლა? (სულ: ${ids.length})`)) {
+    if (!confirmDelete(`დარწმუნებული ხართ რომ გსურთ მონიშნული ინვოისების წაშლა? (სულ: ${ids.length})`)) {
       return;
     }
 
@@ -667,6 +668,13 @@ export default function RevenuesSection() {
 
   const confirmDedupeDeleteFromDb = async () => {
     if (!dedupePreview || dedupePreview.totalRemoved === 0) return;
+    if (
+      !confirmDelete(
+        `წაიშალოს ${dedupePreview.totalRemoved} დუბლიკატი ჩანაწერი ბაზიდან?`
+      )
+    ) {
+      return;
+    }
     setError("");
     setDedupeDeleting(true);
     try {
@@ -691,7 +699,7 @@ export default function RevenuesSection() {
 
   const deleteSingleDuplicateFromModal = async (invoiceId: string) => {
     if (!dedupePreview) return;
-    if (!confirm("წავშალო ეს დუბლიკატი ჩანაწერი ბაზიდან?")) return;
+    if (!confirmDelete("წავშალო ეს დუბლიკატი ჩანაწერი ბაზიდან?")) return;
     setDeletingDuplicateId(invoiceId);
     setError("");
     try {

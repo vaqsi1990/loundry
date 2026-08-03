@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from "react";
 import { TableHeader } from "./ui/TableHeader";
 import { DatePickerSection, FormattedDateInput } from "./ui/DatePickerSection";
 import { EmployeeTables } from "./ui/EmployeeTables";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 interface Employee {
   id: string;
@@ -507,7 +508,7 @@ export default function TableSection() {
     const employeeName = employee?.employeeName || "თანამშრომელი";
 
     // Show confirmation dialog
-    const confirmed = window.confirm(
+    const confirmed = confirmDelete(
       `დარწმუნებული ხართ, რომ გსურთ წაშლა ${employeeName}?`
     );
 

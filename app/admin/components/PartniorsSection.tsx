@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { UploadButton } from "@/utils/uploadthing";
 import { getApiPath } from "@/lib/api-helper";
+import { confirmDelete } from "@/lib/confirm-delete";
 
 type Partnior = {
   id: string;
@@ -100,7 +101,7 @@ export default function PartniorsSection() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) return;
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) return;
     setError("");
 
     const res = await fetch(`${apiBase}?id=${encodeURIComponent(id)}`, { method: "DELETE" });

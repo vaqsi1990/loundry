@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import React from "react";
+import { confirmDelete } from "@/lib/confirm-delete";
 import {
   explicitHeavyWeightAmountGel,
   explicitHeavyWeightKg,
@@ -209,7 +210,7 @@ export default function PhysicalDailySheetsPage() {
   };
 
   const handleDelete = async (sheetId: string) => {
-    if (!confirm("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
+    if (!confirmDelete("დარწმუნებული ხართ რომ გსურთ წაშლა?")) {
       return;
     }
 
